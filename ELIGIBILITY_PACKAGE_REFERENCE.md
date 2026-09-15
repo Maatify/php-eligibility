@@ -709,7 +709,7 @@ The package MUST coordinate correctly with an existing Host transaction when the
 
 - when no transaction is active on the package persistence boundary, the package owns the transaction for this multi-step operation: it begins the transaction, commits only after the complete replacement succeeds, and rolls back only while that package-owned transaction remains active;
 - when an outer Host transaction is already active on the same persistence boundary, the package joins that transaction and MUST NOT begin, commit, or roll it back; the Host owns the outer commit/rollback;
-- a failure in either mode MUST be propagated. For a package-owned transaction, the original `Throwable` is rethrown after the rollback attempt unless an explicitly documented semantic conversion applies. A rollback failure MUST NOT be swallowed or used to report success, and the implementation MUST preserve the original failure as diagnostic context where the wrapping contract supports it;
+- a failure in either mode MUST be propagated. For a package-owned transaction, rollback is attempted only while that transaction remains active, and the original `Throwable` is rethrown unless an explicitly documented semantic conversion applies. When semantic wrapping occurs, the original throwable MUST be preserved as `previous` where supported;
 - the operation MUST NOT expose a partially applied replacement. Under an outer transaction, the replacement is atomic as part of the Host's larger transaction and becomes durable only when that outer transaction commits.
 
 This contract applies to any later Eligibility-owned multi-step mutation that opens a transaction. It does not prescribe a concrete transaction abstraction, SQL shape, isolation level, or lock syntax.
@@ -757,7 +757,7 @@ The exception ownership contract required by the adopted package standards is:
 
 - `maatify/exceptions` remains the owner of the shared exception hierarchy, including `MaatifyException` as its abstract root and `ApiAwareExceptionInterface` as its general public contract. Eligibility owns only its package marker and Eligibility-specific semantic classifications;
 - package-defined semantic exceptions MUST use the appropriate stable hierarchy from `maatify/exceptions` and MUST declare `maatify/exceptions` as a direct runtime dependency when those public types are implemented;
-- Eligibility MUST expose one package marker named `EligibilityExceptionInterface` at the canonical package exception boundary, conceptually `Maatify\Eligibility\Exception\EligibilityExceptionInterface`, and that marker MUST extend `\Throwable`;
+- Eligibility MUST expose exactly one package marker at `Maatify\Eligibility\Exception\EligibilityExceptionInterface`. The marker MUST be named `EligibilityExceptionInterface` and extend `\Throwable`;
 - every Eligibility-defined exception MUST implement the marker directly or indirectly and MUST follow the required `Exception` suffix. The marker is package-owned and is not a replacement for the shared `maatify/exceptions` hierarchy;
 - propagated `PDOException` or other external `Throwable` instances MUST NOT be forced to implement the Eligibility marker;
 - a known domain or storage condition MAY be converted to a named Eligibility exception only when the package owns that semantic classification. A duplicate-key conversion requires documented driver-specific evidence; SQLSTATE class `23` alone is insufficient, and nullable driver error metadata MUST be handled safely;
@@ -1001,11 +1001,12 @@ The final RC1 schema and adapter MUST preserve these principles:
 - canonical package-defined ordering for returned Rule and Decision collections;
 - concurrency-safe mutation behavior where uniqueness/lifecycle invariants require it;
 - typed conflict translation rather than raw driver errors;
+- direct PDO for the RC1 persistence implementation, with no ORM and no external query builder;
 - no dependency on a framework or HTTP runtime.
 
 Exact table/column names, indexes, maximum lengths, timestamp fields, optional surrogate Rule IDs, and adapter internals are implementation/schema-slice decisions, but they MUST be explicitly documented and verified before RC1 release readiness.
 
-A reference PDO adapter is appropriate for RC1; Eligibility MUST NOT require Laravel, Doctrine, Slim, or another framework runtime.
+The RC1 persistence implementation MUST use direct PDO. It MUST NOT use an ORM or an external query builder. Repository and interface substitution boundaries MAY remain part of the public architecture, but every RC1 persistence implementation MUST preserve this direct-PDO requirement; a non-PDO implementation MUST NOT be presented as an RC1 alternative. Eligibility MUST NOT require Laravel, Doctrine, Slim, or another framework runtime.
 
 The package itself owns no cache semantics. Hosts may cache derived Decisions or loaded Rules only if their invalidation strategy preserves canonical Rule mutations and Decision correctness.
 
@@ -1048,7 +1049,7 @@ This workflow is normative at the responsibility and observable-behavior level. 
 1. The Host validates the external Subject and resolves its business Context. It constructs the canonical typed Subject and immutable Context using the exact string rules and Context shape defined in this reference. Host-owned semantic normalization, such as choosing an uppercase country code, occurs before the package boundary.
 2. The Host calls the public Eligibility API for one Subject or an ordered batch of Subjects. The public operation is conceptually `decide(Subject, Context)` or `decideMany(Subjects, Context)`; these labels describe the frozen capability and do not freeze concrete PHP names.
 3. The package-owned Domain Service orchestrates evaluation. It applies the canonical rule semantics, requests active Rules through the package-owned persistence boundary, and uses bounded bulk loading for the batch path. It does not query or join Host-owned Subject, Product, Category, Payment, Shipping, Customer, or geography tables.
-4. The Integration Boundary is the package-owned Rule repository/reference PDO adapter or another approved package persistence adapter. It preserves exact validated strings, active/inactive lifecycle state, natural-identity uniqueness, canonical ordering, transaction participation, and the concurrency guarantees above. The Host supplies/wires this boundary; the package remains framework-neutral.
+4. The Integration Boundary is the package-owned Rule repository backed by the direct-PDO RC1 persistence implementation. It preserves exact validated strings, active/inactive lifecycle state, natural-identity uniqueness, canonical ordering, transaction participation, and the concurrency guarantees above. The Host supplies/wires this boundary; the package remains framework-neutral. Repository/interface substitution MUST NOT be used to introduce a non-PDO RC1 persistence implementation.
 5. The Host receives a typed immutable `EligibilityDecision` (or an ordered collection of typed Subject Decisions for batch evaluation), including its machine-readable reason and complete dimension/matched-Rule traces. The Host then combines that Decision with its own domain lifecycle and visibility rules where applicable, for example `intrinsically visible AND eligible`; `eligible=true` MUST NOT be interpreted as Product, Category, Payment Method, Shipping Method, or other Host-domain publication/availability.
 
 Rule management follows the same boundary: the Host submits typed management commands/criteria through the public package contracts, the Domain Service coordinates the mutation or read, and the package-owned persistence boundary produces the typed management result or documented typed failure. Application/domain code MUST NOT require direct SQL access.
@@ -1133,6 +1134,11 @@ Before a persistence adapter or Release Candidate can be considered correct, exe
 45. Subject cleanup for a Subject with no Rules is idempotent success;
 46. active-dimension, Rule, matched-Rule, and Decision collections obey canonical package ordering independent of database row order/collation;
 47. post-pagination `decideMany()` filtering is not treated as eligibility-correct global pagination behavior.
+48. an unknown or external `PDOException`/`Throwable` propagates unchanged, while a documented known semantic storage condition is converted to a package exception that preserves the original as `previous` where supported;
+49. `replaceDimensionRules()` called inside a Host-owned outer transaction participates without committing or rolling back that transaction, and the Host's commit or rollback determines durability;
+50. a package-owned multi-step mutation commits only a complete successful state, attempts rollback only while its transaction is active after failure, and rethrows the original `Throwable` unless an explicitly documented semantic conversion applies;
+51. concurrent creates for one natural Rule identity result in exactly one persistent Rule, with the competing operation returning the typed natural-identity or concurrency/uniqueness conflict rather than creating a duplicate;
+52. concurrent `replaceDimensionRules()` operations preserve natural-identity uniqueness and complete-dimension atomicity, while evaluation and management reads observe either a coherent committed state before or after the replacement and never a mixed intermediate state.
 
 These scenarios are the minimum golden behavioral suite, not an exhaustive test list.
 
