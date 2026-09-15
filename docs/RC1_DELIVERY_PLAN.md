@@ -95,9 +95,11 @@ The following classification is based on the actual baseline above, not on the p
 | CI and quality gates | `NOT IMPLEMENTED` | No workflow, aggregate gate, local parity command map, or CI evidence exists. |
 | Package presentation and release readiness | `PARTIAL / GAP` | A minimal README exists, but the required release-facing package files, accurate runtime claims, install documentation, quality status, and release evidence are not present. |
 | RC1 requirements that are already implemented but lack only proof | No qualifying runtime item found | The baseline contains no runtime implementation to prove. Future claims must be backed by executed checks and real boundary evidence. |
-| Unresolved decision that currently blocks the planned implementation | None identified | Exact type names, folders, schema identifiers, bounded lengths, PDO query shape, lock/isolation strategy, fixture layout, and CI filenames remain implementation choices. They become `BLOCKED BY DECISION` only if a proposed choice changes the frozen observable contract or cannot be resolved within it. |
+| Supported database engine and RC1 compatibility contract | `BLOCKED BY DECISION` | The canonical reference freezes direct PDO but does not freeze the supported DBMS or compatibility range. The adopted CI Standard requires the package/project to define that contract and verify against the actual engine. An owner/package-contract decision is required before B3 real schema/persistence work; the engine must not be inferred from examples or other Maatify projects. |
+| RC1 package license | `BLOCKED BY DECISION` | No repository `LICENSE` file exists. The adopted Composer Standard requires `composer.json` license metadata to match `LICENSE` but does not choose a license. An owner-approved license, the repository file, and matching Composer metadata are required before B1 package foundation can be complete. |
+| Unresolved decisions that currently block the planned implementation | `BLOCKED BY DECISION` | The two blocking owner/package-contract decisions are the supported database engine/compatibility contract and the package license. Exact type names, folders, schema identifiers, bounded lengths, PDO query shape, lock/isolation strategy, fixture layout, and CI filenames remain implementation choices unless they would change the frozen observable contract. |
 
-The reconciliation prevents both duplicate work and false completion. The three completed foundation rows remain closed; every remaining runtime responsibility enters the dependency graph below.
+The reconciliation prevents both duplicate work and false completion. The three completed foundation rows remain closed. The two decision gates below are explicit preconditions, not artificial execution batches or PRs; every remaining runtime responsibility enters the dependency graph only after its relevant gate is satisfied.
 
 ## 5. Frozen contract versus implementation choices
 
@@ -124,6 +126,8 @@ These are contract constraints, not suggestions for implementation.
 
 The implementation may choose exact class names, method names where the public capability is not frozen, internal directories, table/column/index names, exact bounded lengths, timestamp fields, PDO repository decomposition, transaction/locking/isolation/retry mechanics, fixture organization, workflow filenames, and the concrete test-runner configuration. The schema slice must document and enforce any chosen bounds, and the package must use stable Maatify APIs rather than local duplicates where those APIs are part of the contract.
 
+The supported database engine/compatibility contract and the package license are not implementation choices. They require the relevant owner/package-contract decision before the dependent completion gate can pass. The exact CI service image/version used for reproducibility may be selected only after the supported database contract is frozen; it must represent that contract and must not silently define or broaden it.
+
 If an implementation choice changes observable behavior, public API, package ownership, or a frozen invariant, work stops and the change is recorded as a separate explicit decision/documentation change before implementation continues.
 
 ## 6. Dependency graph
@@ -133,32 +137,37 @@ The dependency-aware execution sequence is:
 ```text
 B0 Completed foundation
   |
-  v
-B1 Package foundation + typed core model
-  |
-  v
-B2 Public application contracts + service seams
-  |
-  v
-B3 Eligibility schema + direct-PDO persistence foundation
-  |
-  v
-B4 Complete runtime behavior: evaluation, management, batch, lifecycle, concurrency
-  |
-  v
-B5 Golden conformance + real integration evidence + Consumer Verification Harness
-  |
-  v
-B6 CI/quality gates + package presentation + final RC1 readiness audit
-  |
-  v
-Umbrella integration gate
-  |
-  v
-Owner-only eligibility review of phase/v1.0.0-rc.1 -> main
+  +--> D1 Owner package-license decision + LICENSE gate
+  |       |
+  |       v
+  |     B1 Package foundation + typed core model
+  |       |
+  |       v
+  |     B2 Public application contracts + service seams
+  |       |
+  |       v
+  |     D2 Owner supported-DB engine/compatibility decision
+  |       |
+  |       v
+  |     B3 Eligibility schema + direct-PDO persistence foundation
+  |       |
+  |       v
+  |     B4 Complete runtime behavior: evaluation, management, batch, lifecycle, concurrency
+  |       |
+  |       v
+  |     B5 Golden conformance + real integration evidence + Consumer Verification Harness
+  |       |
+  |       v
+  |     B6 CI/quality gates + package presentation + final RC1 readiness audit
+  |       |
+  |       v
+  |     Umbrella integration gate
+  |       |
+  |       v
+  |     Owner-only eligibility review of phase/v1.0.0-rc.1 -> main
 ```
 
-The first four batches are intentionally ordered because the later boundary must hydrate, mutate, and return the stable types from the earlier boundaries. B4 is one coherent runtime batch even though its Work Units are internally ordered; evaluation and management share the same rule model, persistence boundary, ordering, and error semantics. B5 and B6 are later because a final external-consumer proof cannot be meaningful before a usable Composer package, public API, and real persistence workflow exist.
+D1 and D2 are decision gates, not execution batches and not reasons to create artificial PRs. D1 must be satisfied before B1 can be complete. D2 must be satisfied before B3 may begin real schema/persistence implementation. The first four batches are otherwise intentionally ordered because the later boundary must hydrate, mutate, and return the stable types from the earlier boundaries. B4 is one coherent runtime batch even though its Work Units are internally ordered; evaluation and management share the same rule model, persistence boundary, ordering, and error semantics. B5 and B6 are later because a final external-consumer proof cannot be meaningful before a usable Composer package, public API, and real persistence workflow exist.
 
 ## 7. RC1 implementation stack
 
@@ -168,7 +177,7 @@ The first four batches are intentionally ordered because the later boundary must
 
 **Objective:** Establish an installable PHP 8.4 library boundary and implement the immutable, validated domain types on which every later slice depends.
 
-**Dependencies:** Completed foundation B0 only.
+**Dependencies:** Completed foundation B0 plus D1, the owner-approved package-license decision and repository `LICENSE` gate. B1 may not be considered complete until the license decision, file, and Composer metadata match are all present and verified.
 
 **Owned Work Units:**
 
@@ -177,13 +186,14 @@ The first four batches are intentionally ordered because the later boundary must
 3. Decision representations: Decision, DimensionOutcome, RuleReference, machine reason values, immutable invariants, and serialization/iteration contracts where exposed publicly.
 4. Unit proof for all validation, immutability, Context-shape, ordering, and Decision-construction invariants owned by this batch.
 
-**Expected repository areas/files:** `composer.json`, `phpstan.neon`, package-root required files where created in this slice, `src/`, and focused `tests/` unit/configuration paths. Exact class and directory names remain implementation choices.
+**Expected repository areas/files:** `composer.json`, `LICENSE`, `phpstan.neon`, package-root required files where created in this slice, `src/`, and focused `tests/` unit/configuration paths. Exact class and directory names remain implementation choices.
 
 **Explicitly out of scope:** Eligibility schema, SQL, PDO repositories, management orchestration, real database tests, Consumer Verification Harness, final CI matrix, Host integrations, and release publication.
 
 **Acceptance criteria:**
 
-- Composer metadata, PHP 8.4 compatibility, namespace/autoload mapping, direct dependency declarations, and development tooling follow the adopted Composer and Package Building standards; no committed `version` field or `composer.lock` is introduced.
+- Composer metadata, PHP 8.4 compatibility, namespace/autoload mapping, direct dependency declarations, and development tooling follow the adopted Composer and Package Building standards; no committed `version` field or `composer.lock` is introduced. The Composer/package foundation cannot be complete while D1 is unresolved.
+- The owner-approved license is known, `LICENSE` exists at the repository root, and the `composer.json` license metadata matches it exactly. The implementation agent must not choose MIT or any other license to close this gate.
 - Public and internal type suffix rules, `final readonly` DTO/command rules, collection contracts, and PHPStan max configuration are applied where the selected design uses those artifact types.
 - Canonical strings reject null/non-string/scalar-coerced input, malformed UTF-8, empty or whitespace-only values, and leading/trailing whitespace without trimming, case conversion, transliteration, or Unicode normalization.
 - Context duplicate dimensions, empty present dimensions, duplicate values, and absent dimensions obey the frozen contract; an entirely empty Context remains valid.
@@ -237,14 +247,14 @@ The first four batches are intentionally ordered because the later boundary must
 
 **Objective:** Build the real package-owned storage boundary that preserves exact identity, lifecycle, ordering, bounded reads, and natural-identity uniqueness without Host coupling.
 
-**Dependencies:** B1 typed model plus B2 repository/management seams.
+**Dependencies:** B1 typed model plus B2 repository/management seams, and D2, the resolved owner-approved supported database engine/compatibility contract. B3 may not begin real schema/persistence implementation while D2 remains unresolved.
 
 **Owned Work Units:**
 
-1. Schema contract: select and document exact table/column/index names, required `maa_{package_short_name}_` table prefix, explicit bounded lengths, exact-string-safe storage/collation strategy, lifecycle fields, and package-owned comments/policies.
+1. Schema contract after D2 is resolved: apply and document the owner-approved supported database engine/compatibility contract; then select exact table/column/index names, required `maa_{package_short_name}_` table prefix, explicit bounded lengths, exact-string-safe storage/collation strategy, lifecycle fields, and package-owned comments/policies.
 2. Direct-PDO repositories/adapters for typed hydration, create/read/update primitives, management reads, active/inactive filtering, active-dimension reads, canonical ordering, and bounded/bulk Rule loading.
 3. Semantic storage error boundary: driver-specific duplicate evidence, typed natural-identity conflict, typed not-found mapping at the service boundary, and unchanged propagation of unknown external failures.
-4. Real persistence integration fixtures and cleanup/repeatability checks against the actual supported database contract selected by this slice.
+4. Real persistence integration fixtures and cleanup/repeatability checks against the owner-approved supported database contract. The reproducibility image/version is selected as an implementation/CI detail only after D2 is frozen.
 
 **Expected repository areas/files:** `schema/`, `src/` persistence/repository areas, `tests/` real Integration fixtures and repository tests, Composer dependencies for stable shared persistence APIs actually used, and local setup documentation for the real service. Exact schema filenames and SQL identifiers remain open until this slice.
 
@@ -252,6 +262,8 @@ The first four batches are intentionally ordered because the later boundary must
 
 **Acceptance criteria:**
 
+- B3 MUST NOT begin real schema or persistence implementation until the owner-approved supported database engine/compatibility contract is resolved and recorded. Direct PDO is necessary but does not choose the DBMS; the engine must not be inferred from examples or other Maatify projects.
+- After D2 is frozen, the exact CI service image/version used for reproducibility may be selected as an implementation/CI choice. It must exercise the frozen compatibility contract and must not silently establish a different or broader supported-engine promise.
 - The schema contains only Eligibility-owned objects, uses the required package table-prefix policy, preserves validated UTF-8 sequences exactly, and cannot collapse distinct canonical strings through an unsuitable collation or silent truncation.
 - Natural identity is unique independent of effect and active/inactive state; new individual Rules are active; inactive Rules remain readable to management and invisible to evaluation reads.
 - Direct PDO is used for the RC1 persistence implementation. SQL is in repositories or package-local SQL support, not services; the same named PDO placeholder is not reused in one statement.
@@ -262,7 +274,7 @@ The first four batches are intentionally ordered because the later boundary must
 
 **Required verification/evidence:** Schema application and reapplication; real create/read/list/lifecycle-filter tests; exact-string and collation tests; duplicate classification tests; canonical ordering tests; bounded/bulk-read evidence; cleanup and repeated Integration execution; PHP syntax, PHPStan max, Composer/platform checks, and `git diff --check`.
 
-**Child PR and umbrella integration condition:** This is a high-risk integration boundary and should normally be its own coherent Draft child PR targeting `phase/v1.0.0-rc.1`. It may contain schema, runtime adapter, fixtures, and their tests together. It must not enter the umbrella until the real-service Integration Gate, direct review, and independent Jules persistence/architecture verification pass against the current umbrella HEAD.
+**Child PR and umbrella integration condition:** This is a high-risk integration boundary and should normally be its own coherent Draft child PR targeting `phase/v1.0.0-rc.1`. It may contain schema, runtime adapter, fixtures, and their tests together. It must not begin real schema/persistence implementation or enter the umbrella until D2, the real-service Integration Gate, direct review, and independent Jules persistence/architecture verification pass against the current umbrella HEAD.
 
 **Unlocks:** B4 complete evaluator and management mutation behavior.
 
@@ -344,7 +356,7 @@ The first four batches are intentionally ordered because the later boundary must
 
 **Objective:** Make all required verification reproducible locally and in fail-closed CI, synchronize release-facing claims with proven behavior, and produce the evidence package for owner review of the umbrella.
 
-**Dependencies:** B1–B5, including a passing Harness and complete real-boundary evidence.
+**Dependencies:** B1–B5, including a passing Harness and complete real-boundary evidence, with D1 and D2 resolved and their dependent gates proven.
 
 **Owned Work Units:**
 
@@ -421,14 +433,14 @@ At the B5/B6 integration boundary, the complete maintained test suite, real pers
 1. The umbrella contains every required B1–B6 child slice, or has explicit evidence that a scoped item is a valid no-op; no required capability is omitted because it was documented earlier.
 2. Every Work Unit is complete, directly reviewed, independently verified where required, and traceable to its acceptance evidence; no partial Work Unit or unreviewed required fix is integrated.
 3. The public package contract and runtime behavior conform to the canonical Package Reference, including all frozen identity, Context, Rule, Decision, lifecycle, ordering, batch, management, replacement, cleanup, typed-error, transaction, concurrency, direct-PDO, and Host-boundary rules.
-4. Composer metadata, production autoload, PHP 8.4 compatibility, direct runtime dependencies, PHPStan max, test tooling, required root files, and package installability are proven.
-5. The real Eligibility-owned schema and direct-PDO adapter are proven against the supported persistence service, with exact-string preservation, natural-identity uniqueness, canonical ordering, bounded/bulk reads, cleanup, transaction, concurrency, and no Host FK/JOIN behavior.
+4. D1 is closed: the owner-approved package license is known, the repository `LICENSE` exists, and Composer license metadata matches it. Composer metadata, production autoload, PHP 8.4 compatibility, direct runtime dependencies, PHPStan max, test tooling, required root files, and package installability are proven.
+5. D2 is closed: the owner-approved supported database engine/compatibility contract is recorded and the real Eligibility-owned schema and direct-PDO adapter are proven against that actual engine, with exact-string preservation, natural-identity uniqueness, canonical ordering, bounded/bulk reads, cleanup, transaction, concurrency, and no Host FK/JOIN behavior. Any exact CI service image/version is reproducibility evidence after D2, not the source of the compatibility decision.
 6. The complete executable 52-scenario suite passes; unit, regression, real Integration, concurrency/invariant, and applicable system-level evidence pass at their required boundaries.
 7. The Consumer Verification Harness completes two clean repeatable runs as an external Composer consumer using production autoload, public contracts, the real persistence boundary where applicable, and no hidden Host dependencies.
 8. The full applicable CI integration gate is green and fail-closed: Composer validation/resolution/platform checks, PHP syntax, PHPStan max, style/whitespace, complete tests, real service, Harness, audit, workflow lint, supported PHP versions, dependency ends, stable aggregate gate, security, and reliability requirements are all satisfied.
 9. README, CHANGELOG, usage/install documentation, Composer metadata, schema documentation, and package-reference claims are synchronized with proven behavior and accurately distinguish development, unpublished RC preparation, published RC, and Stable states.
 10. The current umbrella base/head, merge-base, child PR states, changed files, checks, review threads, and final accumulated diff have been directly reviewed. `git diff --check` is clean, and no out-of-scope runtime or local artifact is included.
-11. No `BLOCKED BY DECISION` item, unresolved contract conflict, unsupported dependency, hidden failure, or unrun required check remains.
+11. No `BLOCKED BY DECISION` item remains: specifically, D1 package license and D2 supported database engine/compatibility contract are resolved. No unresolved contract conflict, unsupported dependency, hidden failure, or unrun required check remains.
 
 This gate makes the umbrella eligible for the owner's final review only. It does not authorize the assistant, an implementation agent, or Jules to merge `phase/v1.0.0-rc.1` into `main`, tag `v1.0.0-rc.1`, publish a release, or publish a Composer artifact.
 
