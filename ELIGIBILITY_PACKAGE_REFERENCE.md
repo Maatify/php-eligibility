@@ -6,13 +6,13 @@ This document is the canonical RC1 design and behavioral contract for `maatify/p
 
 The RC1 implementation MUST conform to the boundaries, invariants, decision semantics, lifecycle rules, ordering rules, and operational contracts defined here. Changes to these semantics require an explicit documentation decision before implementation changes are accepted.
 
-This document intentionally freezes externally observable behavior without prematurely freezing internal class names, table names, column names, or framework-specific wiring.
+This document freezes externally observable behavior without prematurely freezing internal class names, table names, column names, indexes, or framework-specific wiring.
 
 ## Purpose
 
 `maatify/php-eligibility` is a framework-neutral package for answering one reusable business question:
 
-> Is a given external subject eligible in the supplied business context?
+> Is a given external Subject eligible in the supplied business Context?
 
 The package exists to prevent Product, Category, Payment Method, Shipping, Promotion, and other domains from each inventing their own customer/country restriction subsystem.
 
@@ -23,7 +23,7 @@ Typical examples include:
 - whether a Payment Method is available to a customer type or country;
 - whether a Shipping Method or Shipping Provider is available in a country;
 - whether a Promotion is available to a customer segment;
-- equivalent future eligibility decisions that fit the same Subject/Context rule model.
+- equivalent future eligibility decisions that fit the same Subject/Context Rule model.
 
 Eligibility is a reusable business-policy domain. It is not owned by Category, Product, Shipping, Payment, Customer, Geo, HTTP, Admin, or any presentation layer.
 
@@ -39,7 +39,7 @@ The package knows external identities only. It does not need to know the databas
 
 ## Canonical scalar representation
 
-All externally supplied identities, keys, and values that participate in Eligibility matching are represented canonically as non-empty strings at the package boundary.
+All externally supplied identities, keys, and values that participate in Eligibility matching are represented canonically as strings at the package boundary.
 
 This applies to:
 
@@ -48,29 +48,31 @@ This applies to:
 - `dimension_key`;
 - `dimension_value`.
 
-The package MUST NOT expose equality semantics where PHP scalar type coercion changes identity.
+For RC1, every canonical string MUST:
 
-Therefore:
+- be valid UTF-8;
+- be non-empty;
+- contain at least one non-whitespace character;
+- contain no leading or trailing whitespace;
+- be accepted without silent trimming;
+- be accepted without silent case conversion;
+- be accepted without transliteration;
+- be accepted without Unicode normalization;
+- be accepted without scalar type coercion.
 
-```text
-150 as an integer
-```
+Internal whitespace is not inherently invalid. Semantic validation beyond the package's structural contract remains the Host's responsibility.
 
-is not a separate Eligibility identity form from:
+The package MUST NOT expose equality semantics where PHP scalar coercion changes identity.
 
-```text
-"150" as the canonical string subject_id
-```
-
-A Host using numeric database identifiers MUST convert them to their canonical string representation before constructing Eligibility value objects/DTOs.
+A Host using numeric database identifiers MUST convert them to a canonical string before constructing Eligibility value objects/DTOs. For example, integer `150` from a Host database becomes canonical Subject ID string `"150"` before entering Eligibility.
 
 The same rule applies to numeric-looking Context values.
 
-Package contracts MUST reject null, empty strings, and whitespace-only structural identities/keys/values.
+Malformed UTF-8, null values, non-string values at typed package boundaries, empty strings, whitespace-only strings, and strings with leading/trailing whitespace MUST be rejected through typed validation errors rather than silently transformed.
 
-Inputs MUST be valid strings accepted by the package's documented validation contract. RC1 does not restrict business values to ASCII, but persistence MUST preserve the exact string bytes/characters supplied after validation and MUST NOT silently normalize or truncate them.
+RC1 does not restrict business values to ASCII. Persistence MUST preserve the exact validated UTF-8 sequence and MUST NOT silently normalize or truncate it.
 
-Exact maximum lengths remain a schema/contracts-slice decision, but bounded limits MUST be explicitly documented and enforced consistently before RC1 release readiness.
+Exact maximum lengths remain a contracts/schema-slice decision, but bounded limits MUST be explicitly documented and enforced consistently before RC1 release readiness.
 
 ## Subject
 
@@ -95,13 +97,15 @@ promotion + "summer-2026"
 
 `subject_type` is a stable Host-defined domain key.
 
-`subject_id` is an opaque external string identity. Its semantic source may be a database ID, UUID, stable code, or another Host-owned identifier, but Eligibility does not interpret it.
+`subject_id` is an opaque external canonical string identity. Its semantic source may be a database ID, UUID, stable code, or another Host-owned identifier, but Eligibility does not interpret it.
 
 The package MUST NOT create foreign keys from Eligibility storage to Product, Category, Payment, Shipping, Customer, Geo, or other Host-owned tables.
 
 The Host owns validation that the referenced external Subject actually exists and remains meaningful.
 
-## Context dimension
+## Context
+
+A Context is an immutable collection of zero or more Context Dimensions.
 
 A Context Dimension describes one business dimension against which a Subject may be restricted.
 
@@ -116,8 +120,7 @@ Examples:
 ```text
 country = EG
 customer_type = retail
-customer_type = wholesale
-customer_segment = vip
+customer_segment = vip, loyalty_gold
 sales_channel = mobile_app
 ```
 
@@ -127,19 +130,46 @@ The package MUST NOT contain a hardcoded enum of every possible business dimensi
 
 This allows future projects to introduce a dimension without changing Product, Category, Shipping, Payment, or Eligibility core behavior.
 
+### Canonical Context shape
+
+For RC1, Context shape is strict:
+
+- a `dimension_key` may appear at most once in one Context;
+- duplicate dimension entries for the same `dimension_key` are invalid input;
+- a present dimension MUST contain one or more values;
+- an empty value collection for a present dimension is invalid input;
+- a missing dimension is represented only by the complete absence of that `dimension_key` from the Context;
+- an entirely empty Context is valid;
+- values within one dimension form a semantic set;
+- duplicate values within one dimension are invalid input rather than silently deduplicated;
+- the order of values within one dimension has no effect on eligibility;
+- public contracts MUST use typed DTOs/value objects/collections rather than associative arrays as their API model.
+
+This distinction is canonical:
+
+```text
+country absent
+```
+
+means the Context does not supply a country dimension.
+
+There is no separate RC1 representation for:
+
+```text
+country = []
+```
+
+because an explicitly present empty dimension is invalid.
+
 ### Multi-value Context semantics
 
-A Context may contain multiple values for the same dimension when the Host domain requires it. For example, a customer may belong to multiple segments.
+A Context may contain multiple values for one dimension when the Host domain requires it. For example, a customer may belong to multiple segments.
 
-For RC1:
+For evaluation:
 
-- Context values for one dimension form a semantic set;
-- duplicate values for the same dimension are invalid input rather than silently deduplicated;
-- order of Context values has no effect on eligibility;
-- public contracts MUST use typed DTOs/value objects/collections rather than associative arrays as their API model;
 - extra Context dimensions for which the Subject has no active Rules are ignored;
 - a matching DENY for any supplied value denies that dimension;
-- when ALLOW Rules exist, at least one supplied value matching an ALLOW is sufficient unless a DENY also matches.
+- when ALLOW Rules exist, at least one supplied value matching an ALLOW is sufficient unless any DENY also matches.
 
 Example:
 
@@ -150,7 +180,7 @@ country:EG allow
 Context values:
 EG, SA
 
-Decision for country: passes because at least one Context value satisfies the allow-list.
+Decision for country: passes because at least one supplied value satisfies the allow-list and no DENY matches.
 ```
 
 ## Rule
@@ -177,9 +207,7 @@ shipping_provider:aramex  country:EG                deny
 
 Rules are exact. RC1 has no implicit wildcard, fuzzy match, range expression, script, callback, priority, score, or executable expression language.
 
-## Canonical identity, matching, and normalization
-
-### Rule natural identity
+## Canonical Rule identity
 
 The canonical natural identity of one Rule is:
 
@@ -201,65 +229,88 @@ product:150 country:EG deny
 
 Changing `allow` to `deny`, or `deny` to `allow`, is a mutation of the same Rule identity.
 
-Persistence and management contracts MUST enforce this invariant and MUST surface conflicts through typed package/domain errors rather than leaking raw PDO/database uniqueness errors.
+The active/inactive state is also not part of natural identity.
 
-### Exact matching
+Persistence and management contracts MUST enforce one persistent Rule per natural identity and MUST surface conflicts through typed package/domain errors rather than leaking raw PDO/database uniqueness errors.
 
-Eligibility performs exact matching on canonical strings supplied to it.
+## Exact matching
 
-The package MUST NOT silently trim, lowercase, uppercase, transliterate, Unicode-normalize, coerce numeric types, or otherwise semantically normalize Subject or Context values.
+Eligibility performs exact matching on validated canonical strings.
+
+The package MUST NOT silently trim, lowercase, uppercase, transliterate, Unicode-normalize, coerce numeric values, or otherwise semantically normalize Subject or Context data.
 
 Consequently:
 
 ```text
 EG != eg
-" EG " != EG
 ```
 
-The padded form is expected to be rejected where package structural validation disallows leading/trailing whitespace; it MUST NOT be silently converted to `EG`.
+and a padded value such as:
 
-The Host owns semantic normalization such as deciding that country codes are uppercase ISO codes.
+```text
+" EG "
+```
 
-Database collation MUST NOT change package matching semantics. Persistence MUST preserve the same exact comparison semantics defined by the package regardless of database defaults.
+is invalid package input; it MUST be rejected rather than treated as `EG`.
+
+The Host owns semantic normalization, such as deciding that country codes are uppercase ISO codes before constructing Eligibility inputs.
+
+Database collation MUST NOT change package matching semantics. Persistence MUST preserve exact equality according to the validated UTF-8 sequence defined by the package, regardless of database defaults.
 
 ## Canonical ordering
 
 Deterministic ordering is part of the RC1 observable contract and MUST NOT depend on database default collation or row-return order.
 
-Unless a more specific rule is stated, canonical string ordering is ascending binary/bytewise ordering of the validated canonical string representation.
+Canonical string ordering is ascending binary/bytewise ordering over the validated UTF-8 byte sequence.
 
 Canonical tuple ordering compares each component in sequence and moves to the next component only when the previous component compares equal.
 
 The following orderings are fixed for RC1:
 
-- `DimensionOutcome` collections: `dimension_key` ascending by canonical binary ordering;
+- active-dimension key collections: `dimension_key` ascending;
+- `DimensionOutcome` collections: `dimension_key` ascending;
 - Rule collections spanning multiple Subjects: `subject_type`, then `subject_id`, then `dimension_key`, then `dimension_value`;
 - Rule collections already scoped to one Subject: `dimension_key`, then `dimension_value`;
 - Rule collections already scoped to one Subject + dimension: `dimension_value`;
 - matched Rule references within one `DimensionOutcome`: `dimension_value` ascending;
-- batch Decisions: same order as the accepted input Subject collection.
+- batch Decisions: the same order as the accepted input Subject collection.
 
-Adapters MAY use internal ordering that is more efficient, but public/domain results MUST be normalized to this canonical ordering before return.
+Adapters MAY use a different internal ordering when useful, but public/domain results MUST be normalized to canonical ordering before return.
 
 ## Canonical Rule lifecycle
 
 RC1 uses an explicit active/inactive Rule lifecycle.
 
-A Rule's natural identity remains unique regardless of active state. Deactivation does not create a second identity and reactivation does not create a new conflicting Rule.
+A Rule's natural identity remains unique regardless of active state. Deactivation does not create a second identity and reactivation does not create a new Rule.
 
 Canonical lifecycle behavior:
 
 - active Rules participate in evaluation;
 - inactive Rules are ignored completely by evaluation;
 - a Rule may be deactivated;
-- an inactive Rule may be reactivated if its identity remains valid;
+- an inactive Rule may be reactivated;
 - the effect of an existing Rule may be changed as a mutation of that Rule;
-- creating a second Rule with the same natural identity is a typed conflict;
-- lifecycle operations MUST remain concurrency-safe around this uniqueness invariant.
+- creating another Rule with the same natural identity is a typed conflict regardless of whether the existing Rule is active or inactive;
+- lifecycle operations MUST remain concurrency-safe around the uniqueness invariant.
 
-RC1 MUST NOT rely on duplicate active rows, effect-specific duplicates, or ambiguous restore behavior.
+### Lifecycle command idempotency
 
-Physical cleanup of all Eligibility data for a deleted external Subject is a separate management operation and does not change the evaluation semantics above.
+RC1 state-setting commands are idempotent when the target Rule exists:
+
+- deactivating an already inactive Rule succeeds with no state change;
+- reactivating an already active Rule succeeds with no state change;
+- updating a Rule to its current effect succeeds with no state change.
+
+The distinction between idempotency and absence is canonical:
+
+- deactivate/reactivate/update-effect against a natural identity that does not exist MUST produce a typed Rule-not-found outcome;
+- create against a natural identity that already exists MUST produce a typed natural-identity conflict and MUST NOT silently reactivate or update the existing Rule.
+
+`replaceDimensionRules()` has its own set-replacement semantics defined below and may reuse/reactivate existing persistent Rule identities.
+
+RC1 MUST NOT rely on duplicate active rows, effect-specific duplicates, ambiguous restore behavior, or create-as-update behavior.
+
+Physical cleanup of all Eligibility data for a deleted external Subject is a separate management operation.
 
 ## Canonical evaluation semantics
 
@@ -279,19 +330,19 @@ A Product may still be inactive, a Category may still be hidden, a Payment Metho
 
 Eligibility MUST NOT be used as the owning domain's master enable/disable switch.
 
-Removing or deactivating the last Rule changes Eligibility state to unrestricted; Hosts and Admin integrations MUST account for this explicitly.
+Removing or deactivating the last active Rule changes Eligibility state to unrestricted; Hosts and Admin integrations MUST account for this explicitly.
 
 ### 2. Rules are evaluated per dimension
 
 Active Rules for the same Subject are grouped by `dimension_key`.
 
-Each dimension is evaluated independently against the values supplied for that dimension in the Context.
+Each ruled dimension is evaluated independently against the Context values supplied for that dimension.
 
 Inactive Rules do not participate.
 
 ### 3. DENY always wins within a dimension
 
-If any active `deny` Rule for a dimension matches any supplied Context value for that dimension, the dimension fails.
+If any active DENY Rule for a dimension matches any supplied Context value for that dimension, the dimension fails.
 
 A matching DENY overrides every matching ALLOW in that dimension.
 
@@ -308,13 +359,13 @@ vip, blocked
 Decision for this dimension: denied
 ```
 
-The evaluator MAY short-circuit further matching work inside that already-denied dimension only if doing so does not lose matched-Rule trace information required by the canonical Decision contract.
+The evaluator MAY short-circuit internal work only if doing so does not lose matched-Rule trace information required by the canonical Decision contract.
 
-Overall RC1 Decision construction MUST still evaluate the remaining ruled dimensions so the final Decision contains a complete deterministic trace.
+Overall RC1 Decision construction MUST still evaluate all ruled dimensions so the final Decision contains a complete deterministic trace.
 
 ### 4. ALLOW Rules create an allow-list for that dimension
 
-If at least one active `allow` Rule exists for a dimension, and no matching DENY exists, at least one supplied Context value for that dimension MUST match an ALLOW Rule.
+If at least one active ALLOW Rule exists for a dimension, and no matching DENY exists, at least one supplied Context value for that dimension MUST match an ALLOW Rule.
 
 Otherwise that dimension fails.
 
@@ -333,7 +384,7 @@ Decision: denied because the Subject has a country allow-list and SA is not in i
 
 ### 5. DENY-only Rules behave as a deny-list
 
-If a dimension has active DENY Rules but no ALLOW Rules, the dimension passes unless a DENY value matches.
+If a dimension has active DENY Rules but no active ALLOW Rules, the dimension passes unless a DENY value matches.
 
 Example:
 
@@ -349,11 +400,13 @@ Decision: passes the country dimension.
 
 ### 6. Missing Context values are explicit
 
-If the Subject has ALLOW Rules for a dimension but the supplied Context contains no value for that dimension, the dimension fails because the allow-list cannot be satisfied.
+Because present Context dimensions cannot be empty in RC1, a missing Context value means the dimension key is absent from the Context entirely.
 
-If the Subject has DENY-only Rules for a dimension and the supplied Context contains no value for that dimension, no DENY Rule matches and the dimension passes.
+If the Subject has ALLOW Rules for a dimension but the Context omits that dimension, the dimension fails because the allow-list cannot be satisfied.
 
-This second case is intentionally fail-open from Eligibility's perspective and MUST NOT be silently changed by an implementation.
+If the Subject has DENY-only Rules for a dimension and the Context omits that dimension, no DENY Rule matches and the dimension passes.
+
+This DENY-only missing-context case is intentionally fail-open from Eligibility's perspective and MUST NOT be silently changed by an implementation.
 
 The Decision trace MUST distinguish this case from a DENY-only dimension that received Context values and passed because none matched.
 
@@ -403,7 +456,7 @@ OR
 
 The RC1 model intentionally stays bounded:
 
-- OR across allowed Context values within one dimension;
+- OR across supplied/matched values within one dimension;
 - AND across dimensions;
 - DENY precedence within a dimension.
 
@@ -432,9 +485,7 @@ DimensionOutcome
 - matchedRules: ordered collection<RuleReference>
 ```
 
-`matchedRules` replaces any ambiguous single `matchedRuleId` concept.
-
-A `RuleReference` represents the canonical natural identity and effect of the matched Rule sufficiently for machine diagnostics without requiring a persistence-specific surrogate primary key:
+A `RuleReference` represents the canonical natural identity and effect of a matched Rule sufficiently for machine diagnostics without requiring a persistence-specific surrogate primary key:
 
 ```text
 RuleReference
@@ -445,11 +496,47 @@ RuleReference
 - effect
 ```
 
-An implementation MAY additionally expose a stable package-owned Rule identifier if the schema/contracts slice chooses one, but RC1 Decision correctness MUST NOT depend on a database-specific surrogate ID.
+An implementation MAY additionally expose a stable package-owned Rule identifier if the contracts/schema slice chooses one, but RC1 Decision correctness MUST NOT depend on a database-specific surrogate ID.
 
-The Decision MUST represent all ruled dimensions rather than stopping after the first failed dimension.
+### Decision invariants
 
-Dimension outcomes and matched Rule collections MUST follow the canonical ordering defined above.
+The three overall Decision states are mutually exclusive and MUST obey these invariants:
+
+#### `UNRESTRICTED`
+
+```text
+eligible = true
+reasonCode = UNRESTRICTED
+dimensionOutcomes = []
+```
+
+`UNRESTRICTED` is valid only when the Subject has no active Rules.
+
+#### `ELIGIBLE`
+
+```text
+eligible = true
+reasonCode = ELIGIBLE
+dimensionOutcomes = non-empty
+```
+
+`ELIGIBLE` is valid only when the Subject has at least one active ruled dimension and every `DimensionOutcome.passed` is `true`.
+
+#### `DENIED`
+
+```text
+eligible = false
+reasonCode = DENIED
+dimensionOutcomes = non-empty
+```
+
+`DENIED` is valid only when at least one `DimensionOutcome.passed` is `false`.
+
+A Decision representation that violates these combinations is invalid package state.
+
+The Decision MUST represent every ruled dimension rather than stopping after the first failed dimension.
+
+Dimension outcomes and matched Rule collections MUST follow canonical ordering.
 
 ### Stable machine reason semantics
 
@@ -476,21 +563,24 @@ ALLOW_LIST_CONTEXT_MISSING
 
 Meaning:
 
-- `UNRESTRICTED`: the Subject has no active Rules;
-- `ELIGIBLE`: the Subject has active Rules and all ruled dimensions passed;
-- `DENIED`: one or more ruled dimensions failed;
 - `PASSED_ALLOW_LIST`: one or more ALLOW Rules matched and no DENY matched;
 - `PASSED_DENY_LIST`: the dimension has DENY-only Rules, Context values were supplied, and none matched;
-- `PASSED_DENY_LIST_CONTEXT_MISSING`: the dimension has DENY-only Rules and the Context supplied no value for that dimension, so it intentionally passed fail-open;
+- `PASSED_DENY_LIST_CONTEXT_MISSING`: the dimension has DENY-only Rules and the Context omitted that dimension, so it intentionally passed fail-open;
 - `DENIED_BY_RULE`: one or more matching DENY Rules caused failure;
-- `ALLOW_LIST_UNSATISFIED`: Context values were supplied but none matched an existing ALLOW requirement;
-- `ALLOW_LIST_CONTEXT_MISSING`: ALLOW Rules exist but the Context supplied no value for that dimension.
+- `ALLOW_LIST_UNSATISFIED`: Context values were supplied but none matched an existing ALLOW requirement and no DENY matched;
+- `ALLOW_LIST_CONTEXT_MISSING`: ALLOW Rules exist but the Context omitted that dimension.
 
-For `DENIED_BY_RULE`, `matchedRules` MUST contain every matching active DENY Rule in canonical order.
+### Complete matched-Rule trace
 
-For `PASSED_ALLOW_LIST`, `matchedRules` MUST contain every matching active ALLOW Rule in canonical order.
+`matchedRules` MUST represent every active Rule in that dimension whose `dimension_value` exactly matches any supplied Context value, regardless of Rule effect.
 
-For reasons where no Rule matched, `matchedRules` is empty.
+Therefore:
+
+- for `PASSED_ALLOW_LIST`, `matchedRules` contains all matching active ALLOW Rules; no DENY may be present because any matching DENY would change the reason to `DENIED_BY_RULE`;
+- for `DENIED_BY_RULE`, `matchedRules` contains all matching active Rules, including matching DENY Rules and any simultaneously matching ALLOW Rules;
+- for `PASSED_DENY_LIST`, `PASSED_DENY_LIST_CONTEXT_MISSING`, `ALLOW_LIST_UNSATISFIED`, and `ALLOW_LIST_CONTEXT_MISSING`, `matchedRules` is empty because no active Rule matched supplied Context values.
+
+The presence of matching ALLOW Rules inside a `DENIED_BY_RULE` trace does not weaken DENY precedence; it exists only for complete machine diagnostics.
 
 Exact PHP enum/class names are implementation-stage naming decisions, but these semantics are canonical and MUST remain machine-stable for RC1.
 
@@ -561,6 +651,8 @@ The management surface MUST support the capability to:
 - evaluate one Subject through the canonical policy service;
 - evaluate many supplied Subjects against one Context.
 
+Active-dimension queries and Rule collections MUST follow canonical ordering.
+
 ### Atomic dimension replacement
 
 Administrative use cases commonly express a desired final active set rather than a sequence of individual adds/removes, for example:
@@ -576,7 +668,7 @@ RC1 therefore MUST support a typed operation conceptually equivalent to:
 replaceDimensionRules(Subject, dimensionKey, desiredRules)
 ```
 
-`desiredRules` defines the complete desired **active** Rule set for that Subject + dimension after the operation commits.
+`desiredRules` defines the complete desired active Rule set for that Subject + dimension after the operation commits.
 
 Canonical replacement semantics are:
 
@@ -587,11 +679,12 @@ Canonical replacement semantics are:
 - an existing active Rule for the same Subject + dimension that is absent from `desiredRules` is deactivated, not hard-deleted;
 - an existing inactive Rule absent from `desiredRules` remains inactive;
 - an empty `desiredRules` collection deactivates every currently active Rule for that Subject + dimension;
-- Rules belonging to other dimensions or Subjects are untouched.
+- Rules belonging to other dimensions or Subjects are untouched;
+- repeating the same replacement request against the same resulting state succeeds without creating duplicate Rules or changing semantics.
 
 The operation MUST be atomic from the caller's perspective and preserve Rule natural-identity uniqueness throughout the mutation.
 
-This prevents every Host from implementing its own unsafe "delete all then insert" synchronization routine while preserving the canonical reversible lifecycle.
+This prevents every Host from implementing its own unsafe `delete all then insert` synchronization routine while preserving the canonical reversible lifecycle.
 
 The package MUST coordinate correctly with an existing Host transaction when the Host composes Eligibility mutation with a larger domain operation. Concrete transaction abstractions are implementation-stage decisions.
 
@@ -603,6 +696,11 @@ RC1 MUST therefore expose a typed operation conceptually equivalent to physicall
 
 Subject cleanup is the canonical hard-delete boundary for orphan removal. It is distinct from ordinary Rule deactivation and dimension replacement.
 
+Subject cleanup is idempotent:
+
+- if Rules exist for the Subject, all of them are physically removed;
+- if no Rules exist for the Subject, the operation still succeeds with no state change.
+
 This cleanup capability MUST NOT require the Eligibility package to query or understand the Host-owned Subject table.
 
 ### Typed errors
@@ -612,8 +710,8 @@ Management conflicts and invalid input MUST surface through typed package/domain
 RC1 error semantics MUST distinguish at least:
 
 - invalid structural input;
-- natural-identity conflict;
-- requested Rule not found;
+- natural-identity conflict on create;
+- requested Rule not found for commands that require an existing Rule;
 - concurrency/uniqueness conflict that could not be resolved safely.
 
 Exact exception class names are implementation-stage decisions.
@@ -628,7 +726,8 @@ Eligibility owns:
 
 - generic Subject identity representation;
 - generic Context dimension/value representation;
-- canonical string identity/matching semantics;
+- canonical UTF-8 string validation and exact matching semantics;
+- canonical Context shape invariants;
 - ALLOW/DENY Rule representation;
 - Rule natural-identity and lifecycle invariants;
 - Rule persistence and management behavior;
@@ -839,12 +938,12 @@ The final RC1 schema and adapter MUST preserve these principles:
 
 - Eligibility-owned tables only;
 - no foreign keys to Host-owned Subject or Context domains;
-- all canonical identity/matching components persist as exact strings consistent with package semantics;
+- all canonical identity/matching components persist as exact validated UTF-8 strings consistent with package semantics;
+- no storage collation or transformation may collapse distinct canonical strings;
 - one persistent natural Rule identity for `subject_type + subject_id + dimension_key + dimension_value`;
 - `effect` is mutable state, not part of uniqueness;
 - explicit active/inactive lifecycle;
 - explicit typed ALLOW/DENY storage;
-- exact matching independent of database default collation;
 - bounded management reads;
 - bulk Rule loading for supplied Subject sets;
 - canonical package-defined ordering for returned Rule and Decision collections;
@@ -911,34 +1010,47 @@ These exclusions keep RC1 a focused Eligibility engine rather than an unbounded 
 
 Before a persistence adapter or Release Candidate can be considered correct, executable tests MUST cover at least the following behavioral classes using the canonical semantics above:
 
-1. no active Rules -> `UNRESTRICTED`;
-2. one matching ALLOW -> eligible;
-3. ALLOW exists but supplied value does not match -> denied;
-4. ALLOW exists but Context dimension is missing -> `ALLOW_LIST_CONTEXT_MISSING`;
-5. DENY-only with non-matching Context -> `PASSED_DENY_LIST`;
-6. DENY-only with matching Context -> `DENIED_BY_RULE`;
-7. DENY-only with missing Context -> `PASSED_DENY_LIST_CONTEXT_MISSING`;
-8. multiple Context values where one ALLOW matches -> passes;
-9. multiple Context values where multiple ALLOW Rules match -> every matching ALLOW is present in `matchedRules` in canonical order;
-10. multiple Context values where ALLOW and DENY values both match -> denied and every matching DENY is present in `matchedRules`;
-11. multiple dimensions where all pass -> eligible;
-12. multiple dimensions where more than one fails -> Decision contains every failed dimension in canonical order;
-13. inactive Rules do not participate;
-14. changing Rule effect changes the same natural Rule identity rather than creating a duplicate;
-15. duplicate natural identity is rejected through a typed conflict;
-16. canonical string identity prevents scalar-type coercion from creating alternate equality semantics;
-17. extra Context dimensions with no active Rules are ignored;
-18. exact matching does not collapse differently cased values or silently trim padded values;
-19. single and batch evaluation return equivalent Decisions for the same Subject/Context pair;
-20. duplicate Subjects in a batch are rejected;
-21. batch result order matches accepted input Subject order;
-22. empty batch returns an empty result;
-23. batch evaluation does not require a persistence query per Subject as its canonical path;
-24. `replaceDimensionRules()` reactivates/reuses existing identities, updates effects, creates missing Rules, and deactivates omitted active Rules atomically;
-25. empty dimension replacement deactivates all active Rules in that dimension without hard-deleting them;
-26. Subject cleanup physically removes all Rules for the supplied Subject without touching other Subjects;
-27. public Rule/Decision collections obey canonical package ordering independent of database row order/collation;
-28. post-pagination `decideMany()` filtering is not treated as eligibility-correct global pagination behavior.
+1. no active Rules -> `UNRESTRICTED`, `eligible=true`, empty `dimensionOutcomes`;
+2. a Decision cannot represent `UNRESTRICTED` with outcomes, `ELIGIBLE` with a failed outcome, or `DENIED` with all outcomes passing;
+3. one matching ALLOW -> eligible;
+4. ALLOW exists but supplied value does not match -> denied;
+5. ALLOW exists but Context dimension is absent -> `ALLOW_LIST_CONTEXT_MISSING`;
+6. DENY-only with non-matching Context -> `PASSED_DENY_LIST`;
+7. DENY-only with matching Context -> `DENIED_BY_RULE`;
+8. DENY-only with missing Context -> `PASSED_DENY_LIST_CONTEXT_MISSING`;
+9. a duplicate `dimension_key` in one Context is rejected;
+10. a present Context dimension with zero values is rejected;
+11. duplicate values inside one Context dimension are rejected;
+12. an entirely empty Context is valid;
+13. multiple Context values where one ALLOW matches -> passes;
+14. multiple Context values where multiple ALLOW Rules match -> every matching ALLOW appears in `matchedRules` in canonical order;
+15. ALLOW and DENY values both match in one dimension -> denied and `matchedRules` contains every matching active Rule of both effects;
+16. multiple dimensions where all pass -> eligible;
+17. multiple dimensions where more than one fails -> Decision contains every ruled dimension in canonical order and every failed dimension is visible;
+18. inactive Rules do not participate;
+19. changing Rule effect changes the same natural Rule identity rather than creating a duplicate;
+20. create against any existing natural identity, active or inactive, is rejected through a typed conflict;
+21. deactivate of an existing inactive Rule is idempotent success;
+22. reactivate of an existing active Rule is idempotent success;
+23. update-effect to the current effect is idempotent success;
+24. deactivate/reactivate/update-effect of a missing Rule returns typed not-found;
+25. canonical string identity prevents scalar-type coercion from creating alternate equality semantics;
+26. malformed UTF-8 is rejected;
+27. leading/trailing whitespace is rejected rather than trimmed;
+28. exact matching does not collapse differently cased or differently Unicode-encoded strings;
+29. extra Context dimensions with no active Rules are ignored;
+30. single and batch evaluation return equivalent Decisions for the same Subject/Context pair;
+31. duplicate Subjects in a batch are rejected;
+32. batch result order matches accepted input Subject order;
+33. empty batch returns an empty result;
+34. batch evaluation does not require a persistence query per Subject as its canonical path;
+35. `replaceDimensionRules()` reactivates/reuses existing identities, updates effects, creates missing Rules, and deactivates omitted active Rules atomically;
+36. repeating the same `replaceDimensionRules()` desired set is idempotent;
+37. empty dimension replacement deactivates all active Rules in that dimension without hard-deleting them;
+38. Subject cleanup physically removes all Rules for the supplied Subject without touching other Subjects;
+39. Subject cleanup for a Subject with no Rules is idempotent success;
+40. active-dimension, Rule, matched-Rule, and Decision collections obey canonical package ordering independent of database row order/collation;
+41. post-pagination `decideMany()` filtering is not treated as eligibility-correct global pagination behavior.
 
 These scenarios are the minimum golden behavioral suite, not an exhaustive test list.
 
@@ -967,15 +1079,18 @@ The first Release Candidate is successful only when a Host can install one frame
 
 RC1 success additionally requires:
 
-- canonical string identity and exact matching semantics implemented consistently;
+- canonical valid-UTF-8 string identity and exact matching semantics implemented consistently;
+- canonical Context shape invariants enforced;
 - canonical Rule identity and lifecycle invariants implemented and enforced;
-- typed immutable Decisions with stable machine-readable reasons;
+- idempotent state-setting lifecycle behavior implemented as frozen above;
+- typed immutable Decisions with mutually consistent state invariants;
+- stable machine-readable reasons;
 - complete deterministic dimension and matched-Rule traces;
 - canonical public ordering independent of database ordering/collation;
 - single and batch evaluation with equivalent semantics;
 - duplicate-safe deterministic batch contracts;
-- an atomic dimension-replacement management operation with the frozen active-set semantics;
-- official Subject hard-cleanup capability;
+- an atomic, idempotent dimension-replacement management operation with the frozen active-set semantics;
+- official idempotent Subject hard-cleanup capability;
 - no required direct SQL from consuming application/domain code;
 - executable golden tests covering the canonical edge cases;
 - a persistence adapter that preserves package semantics without N+1 as the canonical batch path;
