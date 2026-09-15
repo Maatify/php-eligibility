@@ -285,6 +285,8 @@ A Rule's natural identity remains unique regardless of active state. Deactivatio
 
 Canonical lifecycle behavior:
 
+- `create` always creates the new Rule in the active state;
+- individual RC1 `create` does not accept an initial inactive state;
 - active Rules participate in evaluation;
 - inactive Rules are ignored completely by evaluation;
 - a Rule may be deactivated;
@@ -292,6 +294,16 @@ Canonical lifecycle behavior:
 - the effect of an existing Rule may be changed as a mutation of that Rule;
 - creating another Rule with the same natural identity is a typed conflict regardless of whether the existing Rule is active or inactive;
 - lifecycle operations MUST remain concurrency-safe around the uniqueness invariant.
+
+### Lifecycle operation orthogonality
+
+Lifecycle and effect mutations are separate state transitions in RC1:
+
+- `updateEffect` changes only the Rule effect and MUST preserve the current active/inactive state;
+- `deactivate` changes only lifecycle state to inactive and MUST preserve the current effect;
+- `reactivate` changes only lifecycle state to active and MUST preserve the current effect.
+
+Therefore updating the effect of an inactive Rule leaves that Rule inactive until an explicit reactivate operation or a `replaceDimensionRules()` operation reactivates it under the replacement semantics defined below.
 
 ### Lifecycle command idempotency
 
@@ -640,8 +652,9 @@ RC1 MUST provide typed application contracts sufficient for a Host to manage Eli
 The management surface MUST support the capability to:
 
 - create a Rule for an external Subject and exact dimension value;
-- inspect Rules for a Subject;
+- inspect Rules for a Subject across both active and inactive lifecycle states;
 - inspect/filter Rules by dimension using bounded reads;
+- filter management Rule reads by lifecycle state when required;
 - inspect the active dimension keys governing a Subject;
 - update an existing Rule's effect;
 - deactivate a Rule;
@@ -651,7 +664,13 @@ The management surface MUST support the capability to:
 - evaluate one Subject through the canonical policy service;
 - evaluate many supplied Subjects against one Context.
 
-Active-dimension queries and Rule collections MUST follow canonical ordering.
+Management Rule representations MUST expose lifecycle state explicitly so callers can distinguish active from inactive Rules.
+
+Management reads MUST be capable of returning inactive Rules. An adapter or service MUST NOT silently hide inactive Rules from the management surface merely because the evaluator ignores them.
+
+Lifecycle filtering MAY be represented through typed criteria/query contracts; exact class names are an implementation-stage decision.
+
+Active-dimension queries describe evaluation state and therefore consider active Rules only. Management Rule collections may include active and inactive Rules according to the requested criteria. All returned collections MUST follow canonical ordering.
 
 ### Atomic dimension replacement
 
@@ -943,7 +962,9 @@ The final RC1 schema and adapter MUST preserve these principles:
 - one persistent natural Rule identity for `subject_type + subject_id + dimension_key + dimension_value`;
 - `effect` is mutable state, not part of uniqueness;
 - explicit active/inactive lifecycle;
+- individual create persists new Rules active;
 - explicit typed ALLOW/DENY storage;
+- management storage reads preserve and expose lifecycle state;
 - bounded management reads;
 - bulk Rule loading for supplied Subject sets;
 - canonical package-defined ordering for returned Rule and Decision collections;
@@ -1029,28 +1050,34 @@ Before a persistence adapter or Release Candidate can be considered correct, exe
 17. multiple dimensions where more than one fails -> Decision contains every ruled dimension in canonical order and every failed dimension is visible;
 18. inactive Rules do not participate;
 19. changing Rule effect changes the same natural Rule identity rather than creating a duplicate;
-20. create against any existing natural identity, active or inactive, is rejected through a typed conflict;
-21. deactivate of an existing inactive Rule is idempotent success;
-22. reactivate of an existing active Rule is idempotent success;
-23. update-effect to the current effect is idempotent success;
-24. deactivate/reactivate/update-effect of a missing Rule returns typed not-found;
-25. canonical string identity prevents scalar-type coercion from creating alternate equality semantics;
-26. malformed UTF-8 is rejected;
-27. leading/trailing whitespace is rejected rather than trimmed;
-28. exact matching does not collapse differently cased or differently Unicode-encoded strings;
-29. extra Context dimensions with no active Rules are ignored;
-30. single and batch evaluation return equivalent Decisions for the same Subject/Context pair;
-31. duplicate Subjects in a batch are rejected;
-32. batch result order matches accepted input Subject order;
-33. empty batch returns an empty result;
-34. batch evaluation does not require a persistence query per Subject as its canonical path;
-35. `replaceDimensionRules()` reactivates/reuses existing identities, updates effects, creates missing Rules, and deactivates omitted active Rules atomically;
-36. repeating the same `replaceDimensionRules()` desired set is idempotent;
-37. empty dimension replacement deactivates all active Rules in that dimension without hard-deleting them;
-38. Subject cleanup physically removes all Rules for the supplied Subject without touching other Subjects;
-39. Subject cleanup for a Subject with no Rules is idempotent success;
-40. active-dimension, Rule, matched-Rule, and Decision collections obey canonical package ordering independent of database row order/collation;
-41. post-pagination `decideMany()` filtering is not treated as eligibility-correct global pagination behavior.
+20. individual create creates a new Rule active;
+21. individual create does not accept an initial inactive state;
+22. create against any existing natural identity, active or inactive, is rejected through a typed conflict;
+23. updating effect on an inactive Rule preserves its inactive state;
+24. deactivate/reactivate preserve the current Rule effect;
+25. deactivate of an existing inactive Rule is idempotent success;
+26. reactivate of an existing active Rule is idempotent success;
+27. update-effect to the current effect is idempotent success;
+28. deactivate/reactivate/update-effect of a missing Rule returns typed not-found;
+29. management reads can return inactive Rules and expose lifecycle state explicitly;
+30. lifecycle-filtered management reads distinguish active and inactive Rules without changing evaluator behavior;
+31. canonical string identity prevents scalar-type coercion from creating alternate equality semantics;
+32. malformed UTF-8 is rejected;
+33. leading/trailing whitespace is rejected rather than trimmed;
+34. exact matching does not collapse differently cased or differently Unicode-encoded strings;
+35. extra Context dimensions with no active Rules are ignored;
+36. single and batch evaluation return equivalent Decisions for the same Subject/Context pair;
+37. duplicate Subjects in a batch are rejected;
+38. batch result order matches accepted input Subject order;
+39. empty batch returns an empty result;
+40. batch evaluation does not require a persistence query per Subject as its canonical path;
+41. `replaceDimensionRules()` reactivates/reuses existing identities, updates effects, creates missing Rules, and deactivates omitted active Rules atomically;
+42. repeating the same `replaceDimensionRules()` desired set is idempotent;
+43. empty dimension replacement deactivates all active Rules in that dimension without hard-deleting them;
+44. Subject cleanup physically removes all Rules for the supplied Subject without touching other Subjects;
+45. Subject cleanup for a Subject with no Rules is idempotent success;
+46. active-dimension, Rule, matched-Rule, and Decision collections obey canonical package ordering independent of database row order/collation;
+47. post-pagination `decideMany()` filtering is not treated as eligibility-correct global pagination behavior.
 
 These scenarios are the minimum golden behavioral suite, not an exhaustive test list.
 
@@ -1082,7 +1109,10 @@ RC1 success additionally requires:
 - canonical valid-UTF-8 string identity and exact matching semantics implemented consistently;
 - canonical Context shape invariants enforced;
 - canonical Rule identity and lifecycle invariants implemented and enforced;
+- individual Rule creation starts active and remains distinct from reactivation;
+- lifecycle/effect mutations preserve orthogonal state as frozen above;
 - idempotent state-setting lifecycle behavior implemented as frozen above;
+- management reads expose lifecycle state and can retrieve inactive Rules;
 - typed immutable Decisions with mutually consistent state invariants;
 - stable machine-readable reasons;
 - complete deterministic dimension and matched-Rule traces;
