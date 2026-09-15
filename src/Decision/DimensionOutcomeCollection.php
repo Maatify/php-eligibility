@@ -6,9 +6,9 @@ namespace Maatify\Eligibility\Decision;
 
 use ArrayIterator;
 use Countable;
-use InvalidArgumentException;
 use IteratorAggregate;
 use JsonSerializable;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Ordering\CanonicalOrdering;
 
 /** @implements IteratorAggregate<int, DimensionOutcome> */
@@ -23,7 +23,7 @@ final readonly class DimensionOutcomeCollection implements Countable, IteratorAg
         foreach ($items as $index => $outcome) {
             for ($previousIndex = 0; $previousIndex < $index; $previousIndex++) {
                 if ($items[$previousIndex]->dimensionKey === $outcome->dimensionKey) {
-                    throw new InvalidArgumentException('Duplicate dimension outcomes are invalid.');
+                    throw new InvalidEligibilityInputException('Duplicate dimension outcomes are invalid.');
                 }
             }
         }

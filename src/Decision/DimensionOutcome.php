@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Decision;
 
-use InvalidArgumentException;
 use JsonSerializable;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Validation\CanonicalString;
 
@@ -21,7 +21,7 @@ final readonly class DimensionOutcome implements JsonSerializable
     ) {
         $this->dimensionKey = CanonicalString::validate($dimensionKey, 'dimensionKey');
         if (!is_bool($passed)) {
-            throw new InvalidArgumentException('Dimension outcome passed state must be a boolean.');
+            throw new InvalidEligibilityInputException('Dimension outcome passed state must be a boolean.');
         }
 
         if (
@@ -31,7 +31,7 @@ final readonly class DimensionOutcome implements JsonSerializable
                 DimensionReasonEnum::PASSED_DENY_LIST_CONTEXT_MISSING,
             ], true) && !$passed
         ) {
-            throw new InvalidArgumentException('A passed dimension reason requires passed=true.');
+            throw new InvalidEligibilityInputException('A passed dimension reason requires passed=true.');
         }
 
         if (
@@ -41,18 +41,18 @@ final readonly class DimensionOutcome implements JsonSerializable
                 DimensionReasonEnum::ALLOW_LIST_CONTEXT_MISSING,
             ], true) && $passed
         ) {
-            throw new InvalidArgumentException('A denied dimension reason requires passed=false.');
+            throw new InvalidEligibilityInputException('A denied dimension reason requires passed=false.');
         }
 
         if ($reasonCode === DimensionReasonEnum::PASSED_ALLOW_LIST) {
             if ($matchedRules->count() === 0 || $matchedRules->hasEffect(RuleEffectEnum::DENY)) {
-                throw new InvalidArgumentException('PASSED_ALLOW_LIST requires matching ALLOW Rules only.');
+                throw new InvalidEligibilityInputException('PASSED_ALLOW_LIST requires matching ALLOW Rules only.');
             }
         }
 
         if ($reasonCode === DimensionReasonEnum::DENIED_BY_RULE) {
             if ($matchedRules->count() === 0 || !$matchedRules->hasEffect(RuleEffectEnum::DENY)) {
-                throw new InvalidArgumentException('DENIED_BY_RULE requires at least one matching DENY Rule.');
+                throw new InvalidEligibilityInputException('DENIED_BY_RULE requires at least one matching DENY Rule.');
             }
         }
 
@@ -64,12 +64,29 @@ final readonly class DimensionOutcome implements JsonSerializable
                 DimensionReasonEnum::ALLOW_LIST_CONTEXT_MISSING,
             ], true) && $matchedRules->count() !== 0
         ) {
-            throw new InvalidArgumentException('This dimension reason requires an empty matched Rule trace.');
+            throw new InvalidEligibilityInputException('This dimension reason requires an empty matched Rule trace.');
         }
 
+        $traceSubjectType = null;
+        $traceSubjectId = null;
         foreach ($matchedRules as $matchedRule) {
             if ($matchedRule->dimensionKey !== $this->dimensionKey) {
-                throw new InvalidArgumentException('Matched Rule references must belong to the outcome dimension.');
+                throw new InvalidEligibilityInputException('Matched Rule references must belong to the outcome dimension.');
+            }
+
+            if ($traceSubjectType === null) {
+                $traceSubjectType = $matchedRule->subjectType;
+                $traceSubjectId = $matchedRule->subjectId;
+                continue;
+            }
+
+            if (
+                $matchedRule->subjectType !== $traceSubjectType
+                || $matchedRule->subjectId !== $traceSubjectId
+            ) {
+                throw new InvalidEligibilityInputException(
+                    'Matched Rule references must belong to the same subject.',
+                );
             }
         }
 

@@ -6,9 +6,9 @@ namespace Maatify\Eligibility\Value;
 
 use ArrayIterator;
 use Countable;
-use InvalidArgumentException;
 use IteratorAggregate;
 use JsonSerializable;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Ordering\CanonicalOrdering;
 
 /** @implements IteratorAggregate<int, ContextDimension> */
@@ -23,7 +23,7 @@ final readonly class Context implements Countable, IteratorAggregate, JsonSerial
         foreach ($items as $index => $dimension) {
             for ($previousIndex = 0; $previousIndex < $index; $previousIndex++) {
                 if ($items[$previousIndex]->dimensionKey === $dimension->dimensionKey) {
-                    throw new InvalidArgumentException('Duplicate context dimensions are invalid.');
+                    throw new InvalidEligibilityInputException('Duplicate context dimensions are invalid.');
                 }
             }
         }

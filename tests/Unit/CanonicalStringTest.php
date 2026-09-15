@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Unit;
 
-use InvalidArgumentException;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Value\Subject;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -22,7 +22,7 @@ final class CanonicalStringTest extends TestCase
     #[Test]
     public function itRejectsNonStringValuesInsteadOfCoercingThem(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidEligibilityInputException::class);
 
         new Subject('product', 150);
     }
@@ -30,7 +30,7 @@ final class CanonicalStringTest extends TestCase
     #[Test]
     public function itRejectsMalformedUtf8(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidEligibilityInputException::class);
 
         new Subject('product', "\xC3\x28");
     }
@@ -42,7 +42,7 @@ final class CanonicalStringTest extends TestCase
             try {
                 new Subject('product', $value);
                 self::fail('Expected invalid canonical string: ' . bin2hex($value));
-            } catch (InvalidArgumentException) {
+            } catch (InvalidEligibilityInputException) {
                 self::addToAssertionCount(1);
             }
         }

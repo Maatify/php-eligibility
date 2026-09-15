@@ -6,9 +6,9 @@ namespace Maatify\Eligibility\Decision;
 
 use ArrayIterator;
 use Countable;
-use InvalidArgumentException;
 use IteratorAggregate;
 use JsonSerializable;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Ordering\CanonicalOrdering;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 
@@ -24,7 +24,22 @@ final readonly class RuleReferenceCollection implements Countable, IteratorAggre
         foreach ($items as $index => $reference) {
             for ($previousIndex = 0; $previousIndex < $index; $previousIndex++) {
                 if ($items[$previousIndex]->naturalIdentity()->equals($reference->naturalIdentity())) {
-                    throw new InvalidArgumentException('Duplicate matched Rule references are invalid.');
+                    throw new InvalidEligibilityInputException('Duplicate matched Rule references are invalid.');
+                }
+            }
+        }
+
+        $firstReference = $items[0] ?? null;
+        if ($firstReference !== null) {
+            foreach ($items as $reference) {
+                if (
+                    $reference->subjectType !== $firstReference->subjectType
+                    || $reference->subjectId !== $firstReference->subjectId
+                    || $reference->dimensionKey !== $firstReference->dimensionKey
+                ) {
+                    throw new InvalidEligibilityInputException(
+                        'Matched Rule references must belong to the same subject and dimension.',
+                    );
                 }
             }
         }
@@ -36,14 +51,14 @@ final readonly class RuleReferenceCollection implements Countable, IteratorAggre
             }
 
             $comparison = CanonicalOrdering::compareStrings(
-                $left->subject->subjectType,
-                $right->subject->subjectType,
+                $left->subjectType,
+                $right->subjectType,
             );
             if ($comparison !== 0) {
                 return $comparison;
             }
 
-            $comparison = CanonicalOrdering::compareStrings($left->subject->subjectId, $right->subject->subjectId);
+            $comparison = CanonicalOrdering::compareStrings($left->subjectId, $right->subjectId);
             if ($comparison !== 0) {
                 return $comparison;
             }

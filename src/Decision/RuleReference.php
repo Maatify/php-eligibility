@@ -9,20 +9,26 @@ use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Validation\CanonicalString;
-use Maatify\Eligibility\Value\Subject;
 
 final readonly class RuleReference implements JsonSerializable
 {
+    public string $subjectType;
+
+    public string $subjectId;
+
     public string $dimensionKey;
 
     public string $dimensionValue;
 
     public function __construct(
-        public Subject $subject,
+        mixed $subjectType,
+        mixed $subjectId,
         mixed $dimensionKey,
         mixed $dimensionValue,
         public RuleEffectEnum $effect,
     ) {
+        $this->subjectType = CanonicalString::validate($subjectType, 'subjectType');
+        $this->subjectId = CanonicalString::validate($subjectId, 'subjectId');
         $this->dimensionKey = CanonicalString::validate($dimensionKey, 'dimensionKey');
         $this->dimensionValue = CanonicalString::validate($dimensionValue, 'dimensionValue');
     }
@@ -30,7 +36,8 @@ final readonly class RuleReference implements JsonSerializable
     public static function fromRule(Rule $rule): self
     {
         return new self(
-            $rule->subject,
+            $rule->subject->subjectType,
+            $rule->subject->subjectId,
             $rule->dimensionKey,
             $rule->dimensionValue,
             $rule->effect,
@@ -40,8 +47,8 @@ final readonly class RuleReference implements JsonSerializable
     public function naturalIdentity(): RuleIdentity
     {
         return new RuleIdentity(
-            $this->subject->subjectType,
-            $this->subject->subjectId,
+            $this->subjectType,
+            $this->subjectId,
             $this->dimensionKey,
             $this->dimensionValue,
         );
@@ -51,7 +58,8 @@ final readonly class RuleReference implements JsonSerializable
     public function jsonSerialize(): array
     {
         return [
-            'subject' => $this->subject,
+            'subjectType' => $this->subjectType,
+            'subjectId' => $this->subjectId,
             'dimensionKey' => $this->dimensionKey,
             'dimensionValue' => $this->dimensionValue,
             'effect' => $this->effect->value,

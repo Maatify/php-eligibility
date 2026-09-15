@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Decision;
 
-use InvalidArgumentException;
 use JsonSerializable;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 
 final readonly class EligibilityDecision implements JsonSerializable
 {
@@ -15,24 +15,24 @@ final readonly class EligibilityDecision implements JsonSerializable
         public DimensionOutcomeCollection $dimensionOutcomes,
     ) {
         if (!is_bool($eligible)) {
-            throw new InvalidArgumentException('Decision eligible state must be a boolean.');
+            throw new InvalidEligibilityInputException('Decision eligible state must be a boolean.');
         }
 
         if ($reasonCode === DecisionReasonEnum::UNRESTRICTED) {
             if (!$eligible || $dimensionOutcomes->count() !== 0) {
-                throw new InvalidArgumentException('UNRESTRICTED requires eligible=true and no dimension outcomes.');
+                throw new InvalidEligibilityInputException('UNRESTRICTED requires eligible=true and no dimension outcomes.');
             }
         }
 
         if ($reasonCode === DecisionReasonEnum::ELIGIBLE) {
             if (!$eligible || $dimensionOutcomes->count() === 0 || !$dimensionOutcomes->allPassed()) {
-                throw new InvalidArgumentException('ELIGIBLE requires non-empty all-passing dimension outcomes.');
+                throw new InvalidEligibilityInputException('ELIGIBLE requires non-empty all-passing dimension outcomes.');
             }
         }
 
         if ($reasonCode === DecisionReasonEnum::DENIED) {
             if ($eligible || $dimensionOutcomes->count() === 0 || !$dimensionOutcomes->hasFailed()) {
-                throw new InvalidArgumentException('DENIED requires non-empty outcomes with at least one failure.');
+                throw new InvalidEligibilityInputException('DENIED requires non-empty outcomes with at least one failure.');
             }
         }
 

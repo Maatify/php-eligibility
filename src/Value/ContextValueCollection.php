@@ -6,9 +6,9 @@ namespace Maatify\Eligibility\Value;
 
 use ArrayIterator;
 use Countable;
-use InvalidArgumentException;
 use IteratorAggregate;
 use JsonSerializable;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Ordering\CanonicalOrdering;
 
 /** @implements IteratorAggregate<int, ContextValue> */
@@ -20,14 +20,14 @@ final readonly class ContextValueCollection implements Countable, IteratorAggreg
     public function __construct(ContextValue ...$values)
     {
         if ($values === []) {
-            throw new InvalidArgumentException('A present context dimension must contain at least one value.');
+            throw new InvalidEligibilityInputException('A present context dimension must contain at least one value.');
         }
 
         $items = array_values($values);
         foreach ($items as $index => $value) {
             for ($previousIndex = 0; $previousIndex < $index; $previousIndex++) {
                 if ($items[$previousIndex]->value === $value->value) {
-                    throw new InvalidArgumentException('Duplicate context dimension values are invalid.');
+                    throw new InvalidEligibilityInputException('Duplicate context dimension values are invalid.');
                 }
             }
         }

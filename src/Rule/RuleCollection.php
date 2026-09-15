@@ -6,9 +6,9 @@ namespace Maatify\Eligibility\Rule;
 
 use ArrayIterator;
 use Countable;
-use InvalidArgumentException;
 use IteratorAggregate;
 use JsonSerializable;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Ordering\CanonicalOrdering;
 
 /** @implements IteratorAggregate<int, Rule> */
@@ -23,7 +23,7 @@ final readonly class RuleCollection implements Countable, IteratorAggregate, Jso
         foreach ($items as $index => $rule) {
             for ($previousIndex = 0; $previousIndex < $index; $previousIndex++) {
                 if ($items[$previousIndex]->naturalIdentity()->equals($rule->naturalIdentity())) {
-                    throw new InvalidArgumentException('Duplicate Rule natural identities are invalid.');
+                    throw new InvalidEligibilityInputException('Duplicate Rule natural identities are invalid.');
                 }
             }
         }

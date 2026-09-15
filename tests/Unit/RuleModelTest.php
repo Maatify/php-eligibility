@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Unit;
 
-use InvalidArgumentException;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleCollection;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
@@ -45,7 +45,7 @@ final class RuleModelTest extends TestCase
     {
         $subject = new Subject('product', '150');
 
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidEligibilityInputException::class);
 
         new RuleCollection(
             Rule::active($subject, 'country', 'EG', RuleEffectEnum::ALLOW),

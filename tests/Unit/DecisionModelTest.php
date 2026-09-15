@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Unit;
 
-use InvalidArgumentException;
 use Maatify\Eligibility\Decision\DecisionReasonEnum;
 use Maatify\Eligibility\Decision\DimensionOutcome;
 use Maatify\Eligibility\Decision\DimensionOutcomeCollection;
@@ -13,6 +12,7 @@ use Maatify\Eligibility\Decision\EligibilityDecision;
 use Maatify\Eligibility\Decision\RuleReference;
 use Maatify\Eligibility\Decision\RuleReferenceCollection;
 use Maatify\Eligibility\Exception\EligibilityExceptionInterface;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Value\Subject;
@@ -86,7 +86,7 @@ final class DecisionModelTest extends TestCase
             new RuleReferenceCollection(),
         );
 
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidEligibilityInputException::class);
 
         new EligibilityDecision(
             true,
@@ -98,7 +98,7 @@ final class DecisionModelTest extends TestCase
     #[Test]
     public function invalidDimensionReasonCombinationsAreRejected(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidEligibilityInputException::class);
 
         new DimensionOutcome(
             'country',
@@ -109,9 +109,72 @@ final class DecisionModelTest extends TestCase
     }
 
     #[Test]
+    public function ruleReferencesExposeCanonicalFieldsDirectly(): void
+    {
+        $reference = new RuleReference(
+            'product',
+            '150',
+            'country',
+            'EG',
+            RuleEffectEnum::ALLOW,
+        );
+
+        self::assertSame('product', $reference->subjectType);
+        self::assertSame('150', $reference->subjectId);
+        self::assertSame('country', $reference->dimensionKey);
+        self::assertSame('EG', $reference->dimensionValue);
+        self::assertSame(RuleEffectEnum::ALLOW, $reference->effect);
+        self::assertSame([
+            'subjectType' => 'product',
+            'subjectId' => '150',
+            'dimensionKey' => 'country',
+            'dimensionValue' => 'EG',
+            'effect' => 'allow',
+        ], $reference->jsonSerialize());
+    }
+
+    #[Test]
+    public function matchedRuleReferencesMustUseOneSubjectAndDimension(): void
+    {
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        new RuleReferenceCollection(
+            $this->reference('EG', RuleEffectEnum::ALLOW),
+            RuleReference::fromRule(
+                Rule::active(new Subject('customer', '150'), 'country', 'SA', RuleEffectEnum::ALLOW),
+            ),
+        );
+    }
+
+    #[Test]
+    public function duplicateDimensionOutcomesAreRejectedAsTypedInputErrors(): void
+    {
+        $outcome = new DimensionOutcome(
+            'country',
+            true,
+            DimensionReasonEnum::PASSED_DENY_LIST,
+            new RuleReferenceCollection(),
+        );
+
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        new DimensionOutcomeCollection($outcome, $outcome);
+    }
+
+    #[Test]
+    public function duplicateMatchedRuleReferencesAreRejectedAsTypedInputErrors(): void
+    {
+        $reference = $this->reference('EG', RuleEffectEnum::ALLOW);
+
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        new RuleReferenceCollection($reference, $reference);
+    }
+
+    #[Test]
     public function matchedRuleReferencesMustBelongToTheOutcomeDimension(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidEligibilityInputException::class);
 
         new DimensionOutcome(
             'country',
@@ -127,6 +190,19 @@ final class DecisionModelTest extends TestCase
         $marker = new \ReflectionClass(EligibilityExceptionInterface::class);
 
         self::assertTrue($marker->implementsInterface(\Throwable::class));
+    }
+
+    #[Test]
+    public function typedInputErrorsUseThePackageMarkerAndSharedValidationHierarchy(): void
+    {
+        $exception = new InvalidEligibilityInputException('invalid input');
+
+        self::assertInstanceOf(EligibilityExceptionInterface::class, $exception);
+        self::assertInstanceOf(
+            \Maatify\Exceptions\Exception\Validation\InvalidArgumentMaatifyException::class,
+            $exception,
+        );
+        self::assertInstanceOf(\Throwable::class, $exception);
     }
 
     private function reference(

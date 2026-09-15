@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Unit;
 
-use InvalidArgumentException;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Value\Context;
 use Maatify\Eligibility\Value\ContextDimension;
 use Maatify\Eligibility\Value\ContextValue;
@@ -33,7 +33,7 @@ final class ContextTest extends TestCase
     #[Test]
     public function duplicateDimensionsAreRejected(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidEligibilityInputException::class);
 
         new Context(
             ContextDimension::fromStrings('country', 'EG'),
@@ -44,7 +44,7 @@ final class ContextTest extends TestCase
     #[Test]
     public function presentEmptyDimensionsAreRejected(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidEligibilityInputException::class);
 
         new ContextDimension('country', new ContextValueCollection());
     }
@@ -52,7 +52,7 @@ final class ContextTest extends TestCase
     #[Test]
     public function duplicateValuesAreRejected(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidEligibilityInputException::class);
 
         new ContextValueCollection(new ContextValue('EG'), new ContextValue('EG'));
     }
