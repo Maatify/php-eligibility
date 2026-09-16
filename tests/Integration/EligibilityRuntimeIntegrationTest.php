@@ -389,15 +389,22 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
     public function managementCleanupPhysicallyRemovesRulesAndCoordinationRows(): void
     {
         $subject = new Subject('product', '150');
+        $otherSubject = new Subject('product', '151');
         $this->management->replaceDimensionRules($this->replacement(
             $subject,
             new DesiredRule('EG', RuleEffectEnum::ALLOW),
+        ));
+        $this->management->replaceDimensionRules($this->replacement(
+            $otherSubject,
+            new DesiredRule('EG', RuleEffectEnum::DENY),
         ));
         $this->management->cleanupSubject(new CleanupSubjectCommand($subject));
         $this->management->cleanupSubject(new CleanupSubjectCommand($subject));
 
         self::assertCount(0, $this->management->inspectRules(new RuleCriteria($subject)));
         self::assertSame(0, $this->countCoordinationRows($subject));
+        self::assertCount(1, $this->management->inspectRules(new RuleCriteria($otherSubject)));
+        self::assertSame(1, $this->countCoordinationRows($otherSubject));
     }
 
     private function replacement(Subject $subject, DesiredRule ...$desiredRules): ReplaceDimensionRulesCommand

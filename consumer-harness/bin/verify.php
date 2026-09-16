@@ -14,6 +14,7 @@ use Maatify\Eligibility\Application\Service\EligibilityManagementService;
 use Maatify\Eligibility\Decision\DecisionReasonEnum;
 use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
+use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
 use Maatify\Eligibility\Value\Context;
 use Maatify\Eligibility\Value\ContextDimension;
@@ -67,9 +68,16 @@ $repository = new PdoRuleRepository($pdo);
 $management = new EligibilityManagementService($repository);
 $evaluation = new EligibilityEvaluationService($repository);
 
+if (countRowsForSubject($pdo, 'maa_eligibility_rules', $subject) !== 0) {
+    fail('Rule residue was present before the public workflow started.');
+}
+if (countRowsForSubject($pdo, 'maa_eligibility_subject_locks', $subject) !== 0) {
+    fail('Coordination residue was present before the public workflow started.');
+}
 if ($management->inspectRules(new RuleCriteria($subject))->count() !== 0) {
     fail('Consumer state was not clean before the public workflow started.');
 }
+echo "REAL_MYSQL_PRE_RESIDUE=PASS\n";
 
 $management->createRule(new CreateRuleCommand(
     $subject,
@@ -106,22 +114,22 @@ $rules = $management->inspectRules(new RuleCriteria($subject, 'country'));
 assertSameValue(2, $rules->count(), 'Public management lifecycle read count');
 assertSameValue(
     RuleLifecycleEnum::INACTIVE,
-    $repository->findByIdentity(new Maatify\Eligibility\Rule\RuleIdentity(
+    $management->inspectRule(new RuleIdentity(
         $subject->subjectType,
         $subject->subjectId,
         'country',
         'EG',
-    ))?->lifecycle,
+    ))->lifecycle,
     'Replaced EG lifecycle',
 );
 assertSameValue(
     RuleLifecycleEnum::ACTIVE,
-    $repository->findByIdentity(new Maatify\Eligibility\Rule\RuleIdentity(
+    $management->inspectRule(new RuleIdentity(
         $subject->subjectType,
         $subject->subjectId,
         'country',
         'KW',
-    ))?->lifecycle,
+    ))->lifecycle,
     'Replaced KW lifecycle',
 );
 
@@ -144,6 +152,7 @@ if (countRowsForSubject($pdo, 'maa_eligibility_subject_locks', $subject) !== 0) 
 
 echo "PRODUCTION_AUTOLOAD=PASS\n";
 echo "PUBLIC_WORKFLOW=PASS\n";
+echo "REAL_MYSQL_POST_RESIDUE=PASS\n";
 echo "REAL_MYSQL_RESIDUE=PASS\n";
 echo "CONSUMER_HARNESS_RUN=" . $runId . " RESULT=PASS\n";
 
@@ -173,6 +182,7 @@ function environment(string $name, string $default): string
     return is_string($value) && $value !== '' ? $value : $default;
 }
 
+/** @phpstan-impure */
 function countRowsForSubject(PDO $pdo, string $table, Subject $subject): int
 {
     if (!in_array($table, ['maa_eligibility_rules', 'maa_eligibility_subject_locks'], true)) {

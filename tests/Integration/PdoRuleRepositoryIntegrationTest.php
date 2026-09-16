@@ -9,6 +9,8 @@ use Maatify\Eligibility\Application\Command\CreateRuleCommand;
 use Maatify\Eligibility\Application\Command\DeactivateRuleCommand;
 use Maatify\Eligibility\Application\Query\ActiveDimensionKeysQuery;
 use Maatify\Eligibility\Application\Query\RuleCriteria;
+use Maatify\Eligibility\Application\Service\EligibilityEvaluationService;
+use Maatify\Eligibility\Decision\DecisionReasonEnum;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
 use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
@@ -17,6 +19,8 @@ use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
+use Maatify\Eligibility\Value\Context;
+use Maatify\Eligibility\Value\ContextDimension;
 use Maatify\Eligibility\Value\Subject;
 use Maatify\Eligibility\Value\SubjectCollection;
 use PDO;
@@ -309,20 +313,43 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
     #[Test]
     public function exactCaseUnicodeAndNonAsciiValuesRoundTripDistinctly(): void
     {
-        $values = ['EG', 'eg', "é", "e\u{0301}", 'مرحبا'];
-        foreach ($values as $value) {
-            $this->repository->create($this->command('product', '150', 'country', $value));
+        $values = [
+            'EG' => RuleEffectEnum::ALLOW,
+            'eg' => RuleEffectEnum::DENY,
+            "é" => RuleEffectEnum::ALLOW,
+            "e\u{0301}" => RuleEffectEnum::DENY,
+            'مرحبا' => RuleEffectEnum::ALLOW,
+        ];
+        foreach ($values as $value => $effect) {
+            $this->repository->create($this->command('product', '150', 'country', $value, $effect));
         }
 
-        foreach ($values as $value) {
+        foreach ($values as $value => $effect) {
             $found = $this->repository->findByIdentity(new RuleIdentity('product', '150', 'country', $value));
             self::assertNotNull($found);
             self::assertSame($value, $found->dimensionValue);
+            self::assertSame($effect, $found->effect);
         }
 
         self::assertCount(count($values), $this->repository->findByCriteria(new RuleCriteria(
             new Subject('product', '150'),
         )));
+
+        $evaluation = new EligibilityEvaluationService($this->repository);
+        foreach ($values as $value => $effect) {
+            $decision = $evaluation->decide(
+                new Subject('product', '150'),
+                new Context(ContextDimension::fromStrings('country', $value)),
+            );
+            self::assertSame(
+                $effect === RuleEffectEnum::DENY ? DecisionReasonEnum::DENIED : DecisionReasonEnum::ELIGIBLE,
+                $decision->reasonCode,
+            );
+            self::assertSame([$value], array_map(
+                static fn ($reference): string => $reference->dimensionValue,
+                $decision->dimensionOutcomes->items()[0]->matchedRules->items(),
+            ));
+        }
     }
 
     #[Test]

@@ -68,6 +68,11 @@ for ($run = 1; $run <= 2; $run++) {
             $runRoot . '/verify.stderr.log',
             $environment,
         );
+        $verificationOutput = file_get_contents($runRoot . '/verify.stdout.log');
+        if ($verificationOutput === false) {
+            fail('Consumer verification output could not be read.');
+        }
+        echo rtrim($verificationOutput) . PHP_EOL;
 
         echo 'HARNESS_RUN=' . $run . ' RESULT=PASS' . PHP_EOL;
     } catch (Throwable $exception) {
