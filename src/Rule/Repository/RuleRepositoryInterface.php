@@ -8,7 +8,6 @@ use Maatify\Eligibility\Application\Command\CleanupSubjectCommand;
 use Maatify\Eligibility\Application\Command\CreateRuleCommand;
 use Maatify\Eligibility\Application\Command\DeactivateRuleCommand;
 use Maatify\Eligibility\Application\Command\ReactivateRuleCommand;
-use Maatify\Eligibility\Application\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Application\Command\UpdateRuleEffectCommand;
 use Maatify\Eligibility\Application\Query\ActiveDimensionKeysQuery;
 use Maatify\Eligibility\Application\Query\RuleCriteria;
@@ -20,8 +19,8 @@ use Maatify\Eligibility\Value\SubjectCollection;
 
 interface RuleRepositoryInterface
 {
-    /** Returns the persistence identifier of the newly created active Rule. */
-    public function create(CreateRuleCommand $command): int;
+    /** Returns the canonical domain Rule accepted by persistence. */
+    public function create(CreateRuleCommand $command): Rule;
 
     /** Includes both active and inactive Rules. */
     public function findByIdentity(RuleIdentity $identity): ?Rule;
@@ -44,9 +43,6 @@ interface RuleRepositoryInterface
     /** Returns false only when the target Rule identity does not exist. */
     public function reactivate(ReactivateRuleCommand $command): bool;
 
-    /** Replaces the complete desired active set for one Subject and dimension. */
-    public function replaceDimensionRules(ReplaceDimensionRulesCommand $command): void;
-
-    /** Physically removes all Rules for the supplied Subject, idempotently. */
+    /** Physically removes all Rules for the supplied Subject. */
     public function cleanupSubject(CleanupSubjectCommand $command): void;
 }

@@ -1064,7 +1064,6 @@ This inventory records the public PHP types currently implemented by B1 and B2. 
 
 - `Maatify\Eligibility\Validation\CanonicalString::validate(mixed $value, string $field): string` validates a canonical package string without transforming it.
 - `Maatify\Eligibility\Value\Subject` represents `subjectType` and `subjectId`.
-- `Maatify\Eligibility\Value\SubjectCollection` is an ordered, duplicate-free collection of `Subject` values. It accepts an empty batch and exposes `count()`, iteration, `items(): list<Subject>`, and JSON serialization.
 - `Maatify\Eligibility\Value\ContextValue`, `ContextValueCollection`, `ContextDimension`, and `Context` represent the immutable Context shape. `Context` exposes `getDimension(mixed $dimensionKey): ?ContextDimension` and `hasDimension(mixed $dimensionKey): bool`.
 - `Maatify\Eligibility\Rule\Rule`, `RuleIdentity`, `RuleCollection`, `RuleEffectEnum`, and `RuleLifecycleEnum` represent typed Rules, natural identity, effects, lifecycle, and canonical Rule collections. `RuleCollection` exposes active and inactive lifecycle state through each returned `Rule`.
 - `Maatify\Eligibility\Decision\EligibilityDecision`, `DimensionOutcome`, `DimensionOutcomeCollection`, `RuleReference`, `RuleReferenceCollection`, `DecisionReasonEnum`, and `DimensionReasonEnum` represent immutable typed Decisions and complete matched-Rule traces.
@@ -1072,6 +1071,7 @@ This inventory records the public PHP types currently implemented by B1 and B2. 
 
 ### B2 commands and query contracts
 
+- `Maatify\Eligibility\Value\SubjectCollection` is the ordered, duplicate-free B2 batch value. It accepts an empty batch and exposes `count()`, iteration, `items(): list<Subject>`, and JSON serialization.
 - `CreateRuleCommand(Subject $subject, mixed $dimensionKey, mixed $dimensionValue, RuleEffectEnum $effect)` represents creation of a new active Rule. It has no initial lifecycle input.
 - `UpdateRuleEffectCommand(RuleIdentity $identity, RuleEffectEnum $effect)` represents an effect mutation.
 - `DeactivateRuleCommand(RuleIdentity $identity)` and `ReactivateRuleCommand(RuleIdentity $identity)` represent explicit lifecycle mutations.
@@ -1086,8 +1086,8 @@ This inventory records the public PHP types currently implemented by B1 and B2. 
 - `ActiveDimensionKeyCollection` contains only canonical dimension-key strings, rejects duplicates, and returns them in ascending bytewise order.
 - `SubjectDecisionResult` associates one `Subject` with one `EligibilityDecision`. `SubjectDecisionCollection` rejects duplicate Subject identities, accepts an empty result, and preserves the supplied result order.
 - `EligibilityEvaluationServiceInterface` exposes `decide(Subject $subject, Context $context): EligibilityDecision` and `decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollection`. The interface defines the public evaluation seam; B2 does not implement the evaluator.
-- `EligibilityManagementServiceInterface` exposes typed Rule creation, identity inspection, bounded Rule inspection, active-dimension inspection, effect/lifecycle mutations, complete dimension replacement, and Subject cleanup. Its state-setting methods return `void` except `createRule(...): Rule`; `inspectRule(...): Rule` has a typed Rule-not-found contract.
-- `RuleRepositoryInterface` is the replaceable package-owned persistence boundary. It exposes natural-identity lookup, bounded management reads, active Rule bulk loading for `SubjectCollection`, active-dimension lookup, Rule mutation primitives, complete dimension replacement, and Subject cleanup. Its `create(...): int` return is a persistence identifier contract; it does not expose that identifier through the B1 `Rule` model.
+- `EligibilityManagementServiceInterface` exposes typed Rule creation, identity inspection, bounded Rule inspection, active-dimension inspection, effect/lifecycle mutations, replacement intent, and Subject cleanup. Its state-setting methods return `void` except `createRule(...): Rule`; `inspectRule(...): Rule` has a typed Rule-not-found contract.
+- `RuleRepositoryInterface` is the replaceable package-owned persistence boundary. It exposes canonical domain-Rule creation without a storage identifier, natural-identity lookup, bounded management reads, active Rule bulk loading for `SubjectCollection`, active-dimension lookup, Rule mutation primitives, and Subject cleanup. Replacement intent remains above this persistence seam in `ReplaceDimensionRulesCommand` and `EligibilityManagementServiceInterface`; no replacement algorithm or atomicity contract is implemented by B2.
 
 ### B2 semantic exceptions
 

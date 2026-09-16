@@ -256,14 +256,18 @@ final class PublicContractTest extends TestCase
     }
 
     #[Test]
-    public function repositoryAndServicesExposeReplaceableTypedBoundaries(): void
+    public function repositoryAndServicesExposeSeparatedTypedBoundaries(): void
     {
-        self::assertTrue((new ReflectionClass(RuleRepositoryInterface::class))->isInterface());
-        self::assertTrue((new ReflectionClass(EligibilityEvaluationServiceInterface::class))->isInterface());
-        self::assertTrue((new ReflectionClass(EligibilityManagementServiceInterface::class))->isInterface());
+        $repository = new ReflectionClass(RuleRepositoryInterface::class);
+        $evaluationService = new ReflectionClass(EligibilityEvaluationServiceInterface::class);
+        $managementService = new ReflectionClass(EligibilityManagementServiceInterface::class);
+
+        self::assertTrue($repository->isInterface());
+        self::assertTrue($evaluationService->isInterface());
+        self::assertTrue($managementService->isInterface());
 
         $repositoryMethods = [
-            'create' => 'int',
+            'create' => Rule::class,
             'findByIdentity' => Rule::class,
             'findByCriteria' => RuleCollection::class,
             'findActiveForSubjects' => RuleCollection::class,
@@ -271,24 +275,29 @@ final class PublicContractTest extends TestCase
             'updateEffect' => 'bool',
             'deactivate' => 'bool',
             'reactivate' => 'bool',
-            'replaceDimensionRules' => 'void',
             'cleanupSubject' => 'void',
         ];
 
         foreach ($repositoryMethods as $methodName => $returnType) {
             self::assertSame(
                 $returnType,
-                self::namedReturnTypeName(
-                    (new ReflectionClass(RuleRepositoryInterface::class))->getMethod($methodName),
-                ),
+                self::namedReturnTypeName($repository->getMethod($methodName)),
             );
         }
 
+        self::assertFalse($repository->hasMethod('replaceDimensionRules'));
+        self::assertTrue($managementService->hasMethod('replaceDimensionRules'));
+        self::assertSame(
+            Rule::class,
+            self::namedReturnTypeName($managementService->getMethod('createRule')),
+        );
+        self::assertSame(
+            'void',
+            self::namedReturnTypeName($managementService->getMethod('replaceDimensionRules')),
+        );
         self::assertSame(
             SubjectDecisionCollection::class,
-            self::namedReturnTypeName(
-                (new ReflectionClass(EligibilityEvaluationServiceInterface::class))->getMethod('decideMany'),
-            ),
+            self::namedReturnTypeName($evaluationService->getMethod('decideMany')),
         );
     }
 
