@@ -164,12 +164,18 @@ final class EligibilityManagementService implements EligibilityManagementService
     private function executeTransaction(Closure $operation): void
     {
         $ownsTransaction = !$this->repository->inTransaction();
+        $savepoint = null;
         if ($ownsTransaction) {
             $this->repository->beginTransaction();
+        } else {
+            $savepoint = $this->repository->createOperationSavepoint();
         }
 
         try {
             $operation();
+            if ($savepoint !== null) {
+                $this->repository->releaseOperationSavepoint($savepoint);
+            }
             if ($ownsTransaction) {
                 $this->repository->commit();
             }
@@ -179,6 +185,18 @@ final class EligibilityManagementService implements EligibilityManagementService
                     $this->repository->rollBack();
                 } catch (\Throwable) {
                     // The operation's original Throwable is the contractually visible failure.
+                }
+            } elseif ($savepoint !== null && $this->repository->inTransaction()) {
+                try {
+                    $this->repository->rollbackToOperationSavepoint($savepoint);
+                } catch (\Throwable) {
+                    // The operation's original Throwable is the contractually visible failure.
+                }
+
+                try {
+                    $this->repository->releaseOperationSavepoint($savepoint);
+                } catch (\Throwable) {
+                    // Savepoint cleanup must not replace the operation's original Throwable.
                 }
             }
 

@@ -32,6 +32,9 @@ final class InMemoryRuleRepository implements RuleReplacementRepositoryInterface
     /** @var array<string, Rule>|null */
     private ?array $transactionSnapshot = null;
 
+    /** @var array<string, array<string, Rule>> */
+    private array $savepointSnapshots = [];
+
     public int $bulkReadCount = 0;
 
     public int $lockCount = 0;
@@ -42,7 +45,15 @@ final class InMemoryRuleRepository implements RuleReplacementRepositoryInterface
 
     public int $rollbackCount = 0;
 
+    public int $savepointCreateCount = 0;
+
+    public int $savepointRollbackCount = 0;
+
+    public int $savepointReleaseCount = 0;
+
     public ?\Throwable $failure = null;
+
+    public ?\Throwable $savepointRollbackFailure = null;
 
     public function seed(Rule ...$rules): void
     {
@@ -179,12 +190,14 @@ final class InMemoryRuleRepository implements RuleReplacementRepositoryInterface
         }
 
         $this->transactionSnapshot = $this->rules;
+        $this->savepointSnapshots = [];
         $this->beginCount++;
     }
 
     public function commit(): void
     {
         $this->transactionSnapshot = null;
+        $this->savepointSnapshots = [];
         $this->commitCount++;
     }
 
@@ -196,7 +209,44 @@ final class InMemoryRuleRepository implements RuleReplacementRepositoryInterface
 
         $this->rules = $this->transactionSnapshot ?? [];
         $this->transactionSnapshot = null;
+        $this->savepointSnapshots = [];
         $this->rollbackCount++;
+    }
+
+    public function createOperationSavepoint(): string
+    {
+        if (!$this->inTransaction()) {
+            throw new \LogicException('An operation savepoint requires an active test transaction.');
+        }
+
+        $savepoint = 'maa_eligibility_sp_' . (++$this->savepointCreateCount);
+        $this->savepointSnapshots[$savepoint] = $this->rules;
+
+        return $savepoint;
+    }
+
+    public function rollbackToOperationSavepoint(string $savepoint): void
+    {
+        if (!array_key_exists($savepoint, $this->savepointSnapshots)) {
+            throw new \LogicException('Unknown test operation savepoint.');
+        }
+
+        if ($this->savepointRollbackFailure !== null) {
+            throw $this->savepointRollbackFailure;
+        }
+
+        $this->rules = $this->savepointSnapshots[$savepoint];
+        $this->savepointRollbackCount++;
+    }
+
+    public function releaseOperationSavepoint(string $savepoint): void
+    {
+        if (!array_key_exists($savepoint, $this->savepointSnapshots)) {
+            throw new \LogicException('Unknown test operation savepoint.');
+        }
+
+        unset($this->savepointSnapshots[$savepoint]);
+        $this->savepointReleaseCount++;
     }
 
     public function lockSubjectForMutation(Subject $subject): void

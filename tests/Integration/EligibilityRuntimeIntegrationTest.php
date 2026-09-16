@@ -222,6 +222,92 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
     }
 
     #[Test]
+    public function outerHostFailureRollsBackOnlyReplacementAndPreservesHostWork(): void
+    {
+        $subject = new Subject('product', '150');
+        $otherConnection = IntegrationDatabase::connect();
+        $this->repository->create(new CreateRuleCommand(
+            $subject,
+            'country',
+            'EG',
+            RuleEffectEnum::ALLOW,
+        ));
+        $failure = new \RuntimeException('real outer-boundary injected failure');
+        $service = new EligibilityManagementService(new FaultingRuleReplacementRepository(
+            $this->repository,
+            $failure,
+        ));
+
+        try {
+            $this->pdo->beginTransaction();
+            $this->insertHostPriorWork();
+
+            try {
+                $service->replaceDimensionRules($this->replacement(
+                    $subject,
+                    new DesiredRule('EG', RuleEffectEnum::DENY),
+                    new DesiredRule('SA', RuleEffectEnum::ALLOW),
+                ));
+                self::fail('Expected the injected outer-boundary failure.');
+            } catch (\RuntimeException $exception) {
+                self::assertSame($failure, $exception);
+            }
+
+            self::assertTrue($this->pdo->inTransaction());
+            self::assertSame(['total' => 1, 'active' => 1, 'inactive' => 0], $this->stateCounts($subject, 'country'));
+            self::assertSame(1, $this->countRows($this->pdo, $subject, 'country', 'EG', 'active'));
+            self::assertSame(0, $this->countRows($this->pdo, $subject, 'country', 'SA', 'active'));
+            self::assertSame(1, $this->countHostPriorWork($this->pdo));
+
+            $this->pdo->commit();
+            self::assertFalse($this->pdo->inTransaction());
+            self::assertSame(1, $this->countHostPriorWork($otherConnection));
+            self::assertSame(1, $this->countRows($otherConnection, $subject, 'country', 'EG', 'active'));
+            self::assertSame(0, $this->countRows($otherConnection, $subject, 'country', 'SA', 'active'));
+        } finally {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            if ($otherConnection->inTransaction()) {
+                $otherConnection->rollBack();
+            }
+        }
+    }
+
+    #[Test]
+    public function outerCleanupFailureRollsBackRulesAndCoordinationToSavepoint(): void
+    {
+        $subject = new Subject('product', '150');
+        $this->management->replaceDimensionRules($this->replacement(
+            $subject,
+            new DesiredRule('EG', RuleEffectEnum::ALLOW),
+        ));
+        self::assertSame(1, $this->countCoordinationRows($subject));
+
+        $failure = new \RuntimeException('real cleanup coordination failure');
+        $service = new EligibilityManagementService(new FaultingRuleReplacementRepository(
+            $this->repository,
+            new \RuntimeException('unused create failure'),
+            $failure,
+        ));
+        $this->pdo->beginTransaction();
+
+        try {
+            $service->cleanupSubject(new CleanupSubjectCommand($subject));
+            self::fail('Expected the injected cleanup failure.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame($failure, $exception);
+        }
+
+        self::assertTrue($this->pdo->inTransaction());
+        self::assertSame(['total' => 1, 'active' => 1, 'inactive' => 0], $this->stateCounts($subject, 'country'));
+        self::assertSame(1, $this->countCoordinationRows($subject));
+        $this->pdo->commit();
+        self::assertFalse($this->pdo->inTransaction());
+        self::assertSame(1, $this->countCoordinationRows($subject));
+    }
+
+    #[Test]
     public function managementCleanupPhysicallyRemovesRulesAndCoordinationRows(): void
     {
         $subject = new Subject('product', '150');
@@ -306,9 +392,31 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         return (int) $statement->fetchColumn();
     }
 
-    private function countCoordinationRows(Subject $subject): int
+    private function insertHostPriorWork(): void
     {
         $statement = $this->pdo->prepare(
+            'INSERT INTO `maa_eligibility_rules` '
+            . '(`subject_type`, `subject_id`, `dimension_key`, `dimension_value`, `effect`, `lifecycle`) '
+            . 'VALUES (?, ?, ?, ?, ?, ?)',
+        );
+        $statement->execute(['host', 'prior', 'host_probe', 'write', 'allow', 'active']);
+    }
+
+    private function countHostPriorWork(PDO $pdo): int
+    {
+        $statement = $pdo->prepare(
+            'SELECT COUNT(*) FROM `maa_eligibility_rules` '
+            . 'WHERE `subject_type` = ? AND `subject_id` = ? AND `dimension_key` = ? AND `dimension_value` = ?',
+        );
+        $statement->execute(['host', 'prior', 'host_probe', 'write']);
+
+        return (int) $statement->fetchColumn();
+    }
+
+    private function countCoordinationRows(Subject $subject, ?PDO $pdo = null): int
+    {
+        $connection = $pdo ?? $this->pdo;
+        $statement = $connection->prepare(
             'SELECT COUNT(*) FROM `maa_eligibility_subject_locks` '
             . 'WHERE `subject_type` = ? AND `subject_id` = ?',
         );

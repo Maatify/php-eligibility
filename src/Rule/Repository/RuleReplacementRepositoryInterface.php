@@ -20,6 +20,15 @@ interface RuleReplacementRepositoryInterface extends RuleRepositoryInterface
 
     public function rollBack(): void;
 
+    /** Creates and returns an operation-local savepoint inside the active transaction. */
+    public function createOperationSavepoint(): string;
+
+    /** Rolls back only the operation-local savepoint, leaving the outer transaction active. */
+    public function rollbackToOperationSavepoint(string $savepoint): void;
+
+    /** Releases an operation-local savepoint without changing transaction ownership. */
+    public function releaseOperationSavepoint(string $savepoint): void;
+
     /** Acquires the package-owned Subject coordination lock inside a transaction. */
     public function lockSubjectForMutation(Subject $subject): void;
 

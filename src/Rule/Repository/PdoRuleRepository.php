@@ -256,6 +256,24 @@ final class PdoRuleRepository implements RuleReplacementRepositoryInterface
         $this->pdo->rollBack();
     }
 
+    public function createOperationSavepoint(): string
+    {
+        $savepoint = 'maa_eligibility_sp_' . bin2hex(random_bytes(16));
+        $this->executeSavepointStatement('SAVEPOINT ' . $savepoint);
+
+        return $savepoint;
+    }
+
+    public function rollbackToOperationSavepoint(string $savepoint): void
+    {
+        $this->executeSavepointStatement('ROLLBACK TO SAVEPOINT ' . $this->savepointName($savepoint));
+    }
+
+    public function releaseOperationSavepoint(string $savepoint): void
+    {
+        $this->executeSavepointStatement('RELEASE SAVEPOINT ' . $this->savepointName($savepoint));
+    }
+
     public function lockSubjectForMutation(Subject $subject): void
     {
         $statement = $this->pdo->prepare(
@@ -375,6 +393,20 @@ final class PdoRuleRepository implements RuleReplacementRepositoryInterface
         }
 
         return $value;
+    }
+
+    private function executeSavepointStatement(string $sql): void
+    {
+        $this->pdo->exec($sql);
+    }
+
+    private function savepointName(string $savepoint): string
+    {
+        if (preg_match('/\\Amaa_eligibility_sp_[0-9a-f]{32}\\z/D', $savepoint) !== 1) {
+            throw new \InvalidArgumentException('Invalid package operation savepoint name.');
+        }
+
+        return $savepoint;
     }
 
     /** @return list<string> */

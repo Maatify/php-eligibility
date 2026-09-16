@@ -20,6 +20,7 @@ use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Eligibility\Tests\Support\FaultingRuleReplacementRepository;
 use Maatify\Eligibility\Tests\Support\InMemoryRuleRepository;
 use Maatify\Eligibility\Value\Subject;
 use PHPUnit\Framework\Attributes\Test;
@@ -200,6 +201,8 @@ final class RuntimeManagementServiceTest extends TestCase
         self::assertSame(2, $repository->beginCount);
         self::assertSame(1, $repository->commitCount);
         self::assertSame(0, $repository->rollbackCount);
+        self::assertSame(1, $repository->savepointCreateCount);
+        self::assertSame(1, $repository->savepointReleaseCount);
         $repository->commit();
     }
 
@@ -228,6 +231,75 @@ final class RuntimeManagementServiceTest extends TestCase
             new RuleIdentity('product', '150', 'country', 'EG'),
         )->effect);
         self::assertSame(1, $repository->rollbackCount);
+    }
+
+    #[Test]
+    public function outerTransactionFailureRollsBackOnlyOperationSavepoint(): void
+    {
+        $subject = new Subject('product', '150');
+        $repository = new InMemoryRuleRepository();
+        $repository->seed($this->rule('EG', RuleEffectEnum::ALLOW));
+        $failure = new \RuntimeException('injected outer replacement failure');
+        $service = new EligibilityManagementService(new FaultingRuleReplacementRepository(
+            $repository,
+            $failure,
+        ));
+        $repository->beginTransaction();
+
+        try {
+            $service->replaceDimensionRules(new ReplaceDimensionRulesCommand(
+                $subject,
+                'country',
+                new DesiredRuleCollection(
+                    new DesiredRule('EG', RuleEffectEnum::DENY),
+                    new DesiredRule('SA', RuleEffectEnum::ALLOW),
+                ),
+            ));
+            self::fail('Expected the injected outer transaction Throwable.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame($failure, $exception);
+        }
+
+        self::assertTrue($repository->inTransaction());
+        self::assertSame(RuleEffectEnum::ALLOW, $service->inspectRule(
+            new RuleIdentity('product', '150', 'country', 'EG'),
+        )->effect);
+        self::assertCount(1, $service->inspectRules(new RuleCriteria(
+            $subject,
+            dimensionKey: 'country',
+        )));
+        self::assertSame(1, $repository->savepointCreateCount);
+        self::assertSame(1, $repository->savepointRollbackCount);
+        self::assertSame(1, $repository->savepointReleaseCount);
+        $repository->commit();
+    }
+
+    #[Test]
+    public function savepointRollbackFailureDoesNotReplaceOriginalThrowable(): void
+    {
+        $subject = new Subject('product', '150');
+        $repository = new InMemoryRuleRepository();
+        $repository->seed($this->rule('EG', RuleEffectEnum::ALLOW));
+        $failure = new \RuntimeException('original outer operation failure');
+        $repository->failure = $failure;
+        $repository->savepointRollbackFailure = new \RuntimeException('savepoint rollback failure');
+        $service = new EligibilityManagementService($repository);
+        $repository->beginTransaction();
+
+        try {
+            $service->replaceDimensionRules(new ReplaceDimensionRulesCommand(
+                $subject,
+                'country',
+                new DesiredRuleCollection(new DesiredRule('EG', RuleEffectEnum::DENY)),
+            ));
+            self::fail('Expected the original outer operation Throwable.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame($failure, $exception);
+        }
+
+        self::assertTrue($repository->inTransaction());
+        self::assertSame(0, $repository->savepointRollbackCount);
+        $repository->commit();
     }
 
     #[Test]

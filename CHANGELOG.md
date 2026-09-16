@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
 - Focused B2 contract coverage for duplicate-safe batches, canonical ordering, lifecycle-visible management results, replacement intent validation, scalar boundaries, and shared semantic exception hierarchies.
 - B3 Eligibility-owned `maa_eligibility_rules` schema and direct-PDO Rule repository foundation, including exact byte-safe persistence, bounded inputs, natural-identity uniqueness, lifecycle/effect primitives, management reads, active-dimension reads, bounded bulk loading, cleanup, and MySQL Integration coverage.
 - D2 database compatibility resolution recorded as capability-based MySQL-compatible database-server semantics through direct PDO; PHP runtime requirements are `ext-pdo` and `ext-pdo_mysql`; `mysql:8.4.11` is documented as a reproducibility fixture only, with no minimum MySQL or MariaDB product version claim.
-- B4 concrete evaluator and management services, shared single/batch evaluation semantics, typed lifecycle orchestration, atomic dimension replacement, package/Host transaction participation, Subject coordination locking, and focused real-MySQL runtime/concurrency coverage.
+- B4 concrete evaluator and management services, shared single/batch evaluation semantics, typed lifecycle orchestration, atomic dimension replacement, package/Host transaction participation with operation-local savepoints, Subject coordination locking, and focused real-MySQL runtime/concurrency coverage.
 
 ### Fixed
 

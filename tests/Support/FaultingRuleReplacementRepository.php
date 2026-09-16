@@ -26,9 +26,12 @@ final class FaultingRuleReplacementRepository implements RuleReplacementReposito
 {
     private bool $failed = false;
 
+    private bool $cleanupFailed = false;
+
     public function __construct(
         private readonly RuleReplacementRepositoryInterface $repository,
         private readonly \Throwable $failure,
+        private readonly ?\Throwable $cleanupFailure = null,
     ) {
     }
 
@@ -81,6 +84,10 @@ final class FaultingRuleReplacementRepository implements RuleReplacementReposito
     public function cleanupSubject(CleanupSubjectCommand $command): void
     {
         $this->repository->cleanupSubject($command);
+        if ($this->cleanupFailure !== null && !$this->cleanupFailed) {
+            $this->cleanupFailed = true;
+            throw $this->cleanupFailure;
+        }
     }
 
     public function inTransaction(): bool
@@ -101,6 +108,21 @@ final class FaultingRuleReplacementRepository implements RuleReplacementReposito
     public function rollBack(): void
     {
         $this->repository->rollBack();
+    }
+
+    public function createOperationSavepoint(): string
+    {
+        return $this->repository->createOperationSavepoint();
+    }
+
+    public function rollbackToOperationSavepoint(string $savepoint): void
+    {
+        $this->repository->rollbackToOperationSavepoint($savepoint);
+    }
+
+    public function releaseOperationSavepoint(string $savepoint): void
+    {
+        $this->repository->releaseOperationSavepoint($savepoint);
     }
 
     public function lockSubjectForMutation(Subject $subject): void
