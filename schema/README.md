@@ -24,6 +24,7 @@ not a package minimum version.
 
 - Asset: [`eligibility_rules.sql`](eligibility_rules.sql).
 - Package-owned table: `maa_eligibility_rules`.
+- Package-owned coordination table: `maa_eligibility_subject_locks`.
 - Table prefix: `maa_eligibility_`.
 - Internal `id`: `BIGINT UNSIGNED AUTO_INCREMENT`, used only as an infrastructure
   surrogate key and never exposed through `Rule` or B2 contracts.
@@ -31,6 +32,12 @@ not a package minimum version.
 - Canonical lifecycle values: `active` and `inactive`.
 - No Host foreign key, Host join, audit actor column, timestamp, log, or event log
   is part of this slice.
+- `maa_eligibility_subject_locks` contains one package-owned row per Subject
+  that has participated in replacement or cleanup. A replacement/cleanup
+  transaction creates the row if needed and locks it before reading or
+  mutating Rules. This explicit coordination row protects initially-empty
+  dimensions without relying on gap-lock behavior. It has no Host foreign key
+  and is deleted by the management cleanup operation for that Subject.
 
 Canonical strings are bounded in **bytes**, not characters, by the production
 source of truth `Maatify\Eligibility\Validation\CanonicalString` and validated

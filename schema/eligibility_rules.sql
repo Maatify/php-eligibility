@@ -36,3 +36,15 @@ CREATE TABLE IF NOT EXISTS `maa_eligibility_rules` (
         `dimension_value`
     )
 ) ENGINE=InnoDB COMMENT='Eligibility-owned Rule persistence; no Host coupling.';
+
+-- The coordination row is package-owned metadata. Replacements and cleanup
+-- acquire this row with a transaction-scoped row lock before reading or
+-- mutating a Subject. It exists even when the Subject currently has no Rules,
+-- so empty-dimension replacements do not rely on storage-engine gap locks.
+CREATE TABLE IF NOT EXISTS `maa_eligibility_subject_locks` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Infrastructure-only coordination key; never exposed through the public API.',
+    `subject_type` VARBINARY(64) NOT NULL COMMENT 'Host-provided canonical Subject type; no Host FK.',
+    `subject_id` VARBINARY(191) NOT NULL COMMENT 'Host-provided canonical Subject ID; no Host FK.',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_maa_eligibility_subject_locks_subject` (`subject_type`, `subject_id`)
+) ENGINE=InnoDB COMMENT='Eligibility-owned replacement/cleanup coordination rows; no Host coupling.';
