@@ -51,6 +51,9 @@ Reliability and security policy applied in every workflow:
   enabled for pull-request and non-default-branch runs only; default-branch
   (`main`) runs are not cancelled.
 - No `continue-on-error`, no `allow-failure`, no `|| true`, no silent skips.
+- Tool provisioning is deterministic: the workflow-lint gate always runs the
+  pinned `actionlint` release verified against its published SHA-256 checksum
+  and never relies on a binary found on the runner PATH.
 - No repository secrets are used by baseline CI; all credentials are
   test-only and local to the runner.
 
@@ -64,7 +67,7 @@ composer update --no-interaction --prefer-dist --no-progress
 
 The maintained local aggregate command `tools/check-local.sh` runs every
 non-service gate below in one pass and reflects the same verification
-contracts as their CI jobs. `php composer check:local` alias invokes it.
+contracts as their CI jobs. `composer check:local` invokes it.
 Integration/Harness gates require the MySQL fixture started first; use
 `tools/check-local.sh --with-integration` after the fixture is healthy.
 
@@ -86,7 +89,7 @@ Integration/Harness gates require the MySQL fixture started first; use
 | Integration repeatability / residue | Fixture up → `composer test:integration` twice (also `tools/check-local.sh --with-integration`) | Integration suite run twice in each ci-integration matrix cell | Repeated Integration run proves cleanup and repeatability per the CI Standard. |
 | Consumer Verification Harness | `composer test:harness` (requires MySQL fixture) | `composer test:harness` (ci-integration) | Two clean external-consumer runs; production PSR-4 autoload; real persistence; whole-table residue checks; no hidden Host dependencies. |
 | Composer security audit | `composer audit --no-interaction --abandoned=fail` | Same command (ci-quality) | No unaddressed security advisories; abandoned packages fail the gate. |
-| Workflow lint | `tools/lint-workflows.sh` | `tools/lint-workflows.sh` (ci-quality) | `actionlint` pinned `v1.7.12` over every `.github/workflows/*.yml`; downloaded binary verified against its published SHA-256 checksum. |
+| Workflow lint | `tools/lint-workflows.sh` | `tools/lint-workflows.sh` (ci-quality) | `actionlint` pinned `v1.7.12` over every `.github/workflows/*.yml`; the default always downloads the pinned release binary and verifies it against the published SHA-256 checksum file before execution, with no implicit reliance on a PATH binary. `ACTIONLINT_BIN`/`ACTIONLINT_VERSION` are explicit local-only overrides that fail closed in required CI. |
 
 ### Integration and Harness service prerequisites
 
@@ -153,9 +156,12 @@ suppression. Production code is never weakened to make tests mockable.
 | Composer | Runner-provided current Composer 2.x | Latest-compatible made explicit per run |
 
 No mutable references (`main`, `latest`, `v1`, ...) are used for external
-actions or the actionlint download. `ACTIONLINT_VERSION` and `ACTIONLINT_BIN`
-environment variables allow a maintainer to version-bump deliberately; the
-default in `tools/lint-workflows.sh` is the immutable reference.
+actions or the actionlint download, and a binary already installed on PATH is
+never consulted by the workflow-lint default. `tools/lint-workflows.sh` uses
+the immutable `v1.7.12` release by default; `ACTIONLINT_VERSION` and
+`ACTIONLINT_BIN` are explicit local-only overrides that fail closed in required
+CI, so a maintainer version bump must be deliberate and recorded in the
+CHANGELOG.
 
 ## 7. Fail-closed behavior
 

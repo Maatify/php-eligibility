@@ -13,6 +13,8 @@
 [![Package Reference](https://img.shields.io/badge/Reference-Read-blue)](ELIGIBILITY_PACKAGE_REFERENCE.md)
 [![Schema](https://img.shields.io/badge/Schema-Read-blue)](schema/README.md)
 [![CI Gate Map](https://img.shields.io/badge/CI%20Gate%20Map-View-blue)](docs/RC1_CI_QUALITY_GATE_MAP.md)
+[![Security Policy](https://img.shields.io/badge/Security-Policy-blue)](SECURITY.md)
+[![Contributing Guide](https://img.shields.io/badge/Contributing-Guide-blue)](CONTRIBUTING.md)
 
 Framework-neutral eligibility rules and typed decisions that answer one
 reusable business question about an external Subject in a supplied Context.
@@ -87,26 +89,42 @@ executed MariaDB verification.
 
 The package is **not yet published** to Packagist or any other Composer
 registry. Until the `1.0.0-rc.1` tag is published and externally resolvable, an
-external consumer cannot install it with `composer require` from Packagist.
+external consumer cannot `composer require maatify/php-eligibility` from
+Packagist.
 
-During development, consume it from a VCS/path repository, for example:
+### Development installation (current unpublished state)
+
+While the RC1 target is still unpublished, consume the package from a local
+checkout through a Composer path repository. The `1.0.0-rc.1` version is mapped
+explicitly in the repository configuration, because the corresponding tag does
+not exist yet and cannot be resolved from a remote repository. From your
+consumer project:
 
 ```bash
-composer config repositories.php-eligibility '{"type": "vcs", "url": "https://github.com/Maatify/php-eligibility"}'
+git clone --branch phase/v1.0.0-rc.1 https://github.com/Maatify/php-eligibility.git .tools/php-eligibility
+composer config repositories.php-eligibility '{"type": "path", "url": ".tools/php-eligibility", "options": {"symlink": true, "versions": {"maatify/php-eligibility": "1.0.0-rc.1"}}}'
 composer require maatify/php-eligibility:1.0.0-rc.1
 ```
 
-After the RC is actually published through its approved distribution source,
-installation becomes:
+This uses the `phase/v1.0.0-rc.1` development branch; it is executable in the
+current state and does not create or imply that an `1.0.0-rc.1` tag already
+exists or has been distributed. For developing the library itself (running the
+full local parity suite), clone into a working directory and follow
+[Development and Testing](#development-and-testing).
+
+### After the RC is published
+
+Once the `1.0.0-rc.1` tag is actually published through its approved
+distribution source, installation becomes:
 
 ```bash
 composer require maatify/php-eligibility:1.0.0-rc.1
 ```
 
-Installation requires `ext-pdo`, `ext-pdo_mysql`, and `ext-pcre`. The package
-performs no automatic setup: the schema asset is an install asset
-([`schema/eligibility_rules.sql`](schema/eligibility_rules.sql)), not a
-migration run at install time.
+Installation (both paths) requires `ext-pdo`, `ext-pdo_mysql`, and
+`ext-pcre`. The package performs no automatic setup: the schema asset is an
+install asset ([`schema/eligibility_rules.sql`](schema/eligibility_rules.sql)),
+not a migration run at install time.
 
 ## Quick Usage
 
@@ -259,8 +277,9 @@ Public surface (see the
   lifecycle. Canonical strings reject null/non-string/coerced input, malformed
   UTF-8, empty/whitespace-only values, and leading/trailing whitespace without
   trimming, case conversion, transliteration, or normalization.
-- **SG** in canonical bytewise order independent of database row order or
-  collation.
+- **Canonical ordering:** string comparison and ordering use ascending
+  bytewise ordering over the validated UTF-8 byte sequence, independent of
+  database row order or collation.
 - **Framework neutrality:** direct PDO persistence only; no ORM, no external
   query builder, no framework runtime requirement, and no Host foreign keys or
   joins. The Host validates external identities; the package trusts them.
@@ -287,8 +306,10 @@ Public surface (see the
 
 - No repository secrets in baseline CI; integration credentials are temporary
   and local to the runner/service container only.
-- CI actions are pinned to immutable full commit SHAs; the workflow lint and
-  audit binaries are checksum-verified.
+- CI actions are pinned to immutable full commit SHAs. The workflow-lint tool
+  (`actionlint` pinned to `v1.7.12`) is downloaded from its release and
+  verified against the published SHA-256 checksum file before execution; the
+  Composer security audit runs as part of the Composer gate.
 - The package never reads Host application databases, schemas, or credentials,
   and never requires Host-side mutations or setup scripts at install time.
 
@@ -302,6 +323,9 @@ Public surface (see the
 | [RC1 Readiness Audit](docs/RC1_READINESS_AUDIT.md) | Actual RC1 readiness state, evidence, and remaining owner-only actions. |
 | [CHANGELOG](CHANGELOG.md) | B1–B6 change history under `[Unreleased]`. |
 | [Delivery Plan](docs/RC1_DELIVERY_PLAN.md) | Phase/batch/PR roadmap for `phase/v1.0.0-rc.1`. |
+| [Security Policy](SECURITY.md) | Support state, vulnerability reporting, and scope. |
+| [Contributing Guide](CONTRIBUTING.md) | Contribution expectations, local verification, and PR requirements. |
+| [Code of Conduct](CODE_OF_CONDUCT.md) | Community rules and reporting. |
 
 ## Persistence and Schema
 

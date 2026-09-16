@@ -31,8 +31,8 @@ a release, or any distribution publication.
 | 5. D2 database compatibility contract resolved and proven | `PROVEN` | `ELIGIBILITY_PACKAGE_REFERENCE.md` D2 record; `schema/README.md`; real MySQL Integration evidence |
 | 6. Complete executable 52-scenario suite + Unit/Integration/concurrency evidence | `PROVEN` | `tests/Golden/`, `tests/Integration/`, `tests/Unit/` |
 | 7. Consumer Verification Harness: two clean repeatable runs | `PROVEN` | `composer test:harness` CI job and local runs |
-| 8. Full applicable CI gate green and fail-closed | `PROVEN` | Three successive-principal runs on the B6 HEAD `3adff5c` (Actions run IDs `35120662701`, `35120662802`, `35120662771`); see the check badge(s) on this PR and the evidence table below |
-| 9. Presentation synchronized, unpublished state distinguished | `IN PROGRESS` — completed by this PR (README, CHANGELOG, gate map) | This PR |
+| 8. Full applicable CI gate green and fail-closed | `PROVEN` | The `ci-quality`, `ci-tests`, and `ci-integration` check suites are green on this PR's current head, including their stable aggregate gates; the final head SHA and final run IDs are recorded in the PR description at evidence time (see section 5). |
+| 9. Presentation synchronized, unpublished state distinguished | `IN PROGRESS` — completed by this PR (README, CHANGELOG, gate map, SECURITY/CONTRIBUTING/CODE_OF_CONDUCT) | This PR |
 | 10. Base/head/merge-base, changed files, checks directly reviewed | `PENDING` — owner/lead review of this PR | This PR |
 | 11. No `BLOCKED BY DECISION` item remains | `PROVEN` — D1 and D2 resolved; no other decision gate exists in the roadmap | Delivery plan reconciliation |
 
@@ -66,27 +66,34 @@ a release, or any distribution publication.
    lint via pinned `actionlint`, immutable full-SHA actions, least privilege,
    timeouts, and concurrency policy.
 3. **Package presentation**: accurate README, CHANGELOG updated for B5 and B6,
-   Composer metadata synchronized with reality.
+   Composer metadata synchronized with reality, and the release-facing
+   governance set (`SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`)
+   present per the Presentation Standard.
 4. **Readiness evidence**: this audit and the gate map.
 
-## 5. GitHub Actions evidence (captured on the B6 HEAD)
+## 5. Verification evidence
 
-Run ID `35120662701` (`ci-quality`): Composer contract, Static analysis
-(PHP 8.4), Whitespace check, Workflow lint, and the Quality aggregate gate all
-concluded `success`.
+This audit intentionally does not embed individual commit SHAs or workflow run
+IDs: a printed head SHA becomes stale as the pull-request head moves, and
+embedding it would create a self-referential loop with the final head recorded
+in the PR description. The authoritative evidence is therefore:
 
-Run ID `35120662802` (`ci-tests`): Unit + Golden (PHP 8.4 and 8.5), Lowest
-dependencies (PHP 8.4), and the Tests aggregate gate all concluded `success`.
+- **Local/CI parity**: `tools/check-local.sh` (quality + tests) and
+  `tools/check-local.sh --with-integration` (real MySQL + Harness) rerun before
+  the evidence is submitted; the mapping is documented in
+  `docs/RC1_CI_QUALITY_GATE_MAP.md`.
+- **GitHub Actions**: the check suites of this PR itself. `ci-quality`
+  (including the `Quality aggregate gate`), `ci-tests` (including the `Tests
+  aggregate gate`), and `ci-integration` (including the `Integration aggregate
+  gate`) must be green on the current head.
+- **Final record**: the final head SHA and the three final workflow run IDs are
+  recorded in the PR description when the evidence is submitted and are not
+  duplicated here, so the audit cannot fall out of sync with reality.
 
-Run ID `35120662771` (`ci-integration`): Real MySQL Integration (PHP 8.4 and
-8.5), Integration aggregate gate all concluded `success`. The Integration run
-includes the repeated Integration suite and the two-run Consumer Verification
-Harness.
-
-These runs are the fail-closed CI gate superset required for closure-gate
-item 8. The initial failing runs of this PR (SC2016 workflow-lint finding,
-aggregate-gate jobs without a checkout, and the lowest-dependency PHPStan
-resolution) were repaired and re-proven; see the PR history.
+The earlier failing runs in this PR's history (the actionlint SC2016 workflow
+finding, aggregate-gate jobs that ran without a checkout, and the
+lowest-dependency PHPStan resolution) were repaired and re-proven on later
+runs; that remediation history is visible in the PR.
 
 ## 6. Remaining owner-only actions after this PR (not performed here)
 
@@ -102,10 +109,6 @@ resolution) were repaired and re-proven; see the PR history.
 
 ## 7. Non-blockers and scope boundaries
 
-- `SECURITY.md`, `CONTRIBUTING.md`, and `CODE_OF_CONDUCT.md` are not part of
-  this PR; the adopted Presentation Standard treats them as release-facing
-  files, and authoring them is tracked as deliberate follow-up work rather
-  than a closure-gate requirement.
 - No Composer code-style formatter is adopted; style integrity is covered by
   the whitespace gate and PHPStan max (see gate map section 2).
 - The pinned standards snapshot and the canonical Package Reference are

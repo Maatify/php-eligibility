@@ -3,14 +3,19 @@ set -euo pipefail
 
 # Maintained GitHub Actions workflow lint gate for maatify/php-eligibility.
 #
-# Uses actionlint pinned to a fixed released version. When an `actionlint`
-# binary is already available on PATH (for example after `brew install
-# actionlint`), it is used as-is. Otherwise the pinned release binary is
-# downloaded from GitHub Releases and verified against the official SHA-256
-# checksum file before execution, satisfying the documented integrity-verifiable
-# installation policy for downloaded CI tools.
+# The default (and the only mode allowed in required CI) is deterministic: the
+# `actionlint` release pinned below is downloaded from GitHub Releases and
+# verified against the official SHA-256 checksum file before execution. A
+# binary already present on PATH is never used implicitly, so CI results do
+# not depend on whatever happens to be installed on the runner image.
 #
-# Version policy: the version below is the immutable reference. Upgrade it
+# An explicit local override is available through ACTIONLINT_BIN (for example
+# a locally built or brew-installed binary) and ACTIONLINT_VERSION, but only
+# outside CI: in the required CI environment those variables fail closed so the
+# CI contract cannot drift. Nothing else can change the lint input; the pinned
+# download+verify path is the single deterministic default.
+#
+# Version policy: the version below is the immutable CI reference. Upgrade it
 # deliberately with the same release and record the change in CHANGELOG.md.
 
 version="${ACTIONLINT_VERSION:-1.7.12}"
@@ -21,6 +26,15 @@ fail() {
 	echo "error: $1" >&2
 	exit 1
 }
+
+if [[ -n "${CI:-}" ]]; then
+	if [[ -n "${ACTIONLINT_BIN:-}" ]]; then
+		fail "ACTIONLINT_BIN is a local-only override and must not be used in required CI."
+	fi
+	if [[ -n "${ACTIONLINT_VERSION:-}" ]]; then
+		fail "ACTIONLINT_VERSION is a local-only override and must not be used in required CI."
+	fi
+fi
 
 if [[ ! -d "$workflows_dir" ]]; then
 	echo "Workflow lint passed: no .github/workflows directory is present."
@@ -46,12 +60,10 @@ verify_asset() {
 	)
 }
 
-actionlint_bin="${ACTIONLINT_BIN:-}"
-if [[ -z "$actionlint_bin" ]]; then
-	actionlint_bin="$(command -v actionlint || true)"
-fi
-
-if [[ -z "$actionlint_bin" ]]; then
+if [[ -n "${ACTIONLINT_BIN:-}" ]]; then
+	actionlint_bin="$ACTIONLINT_BIN"
+	echo "Workflow lint using the explicit local ACTIONLINT_BIN override."
+else
 	case "$(uname -s)" in
 		Linux) os="linux" ;;
 		Darwin) os="darwin" ;;
