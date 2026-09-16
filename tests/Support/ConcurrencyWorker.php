@@ -10,10 +10,12 @@ use Maatify\Eligibility\Application\Service\EligibilityManagementService;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
 use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
+use Maatify\Eligibility\Tests\Support\ConcurrencyTimeout;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
 use Maatify\Eligibility\Value\Subject;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
+require_once __DIR__ . '/ConcurrencyTimeout.php';
 
 /** @var mixed $rawArguments */
 $rawArguments = $_SERVER['argv'] ?? [];
@@ -31,6 +33,11 @@ foreach (array_slice($rawArguments, 1) as $rawArgument) {
 $mode = $arguments[0] ?? '';
 
 try {
+    if ($mode === 'silent') {
+        silentWorker();
+        exit(0);
+    }
+
     $pdo = IntegrationDatabase::connect();
     $repository = new PdoRuleRepository($pdo);
 
@@ -189,14 +196,91 @@ function desiredRules(string $encoded): DesiredRuleCollection
 
 function awaitSignal(): void
 {
-    $signal = fgets(STDIN);
-    if ($signal === false || trim($signal) === '') {
-        throw new RuntimeException('Concurrency worker did not receive its signal.');
+    stream_set_blocking(STDIN, false);
+    $deadline = ConcurrencyTimeout::deadline();
+
+    while (true) {
+        if (ConcurrencyTimeout::expired($deadline)) {
+            throw new RuntimeException(sprintf(
+                'Concurrency worker timed out waiting for its signal after %d seconds.',
+                ConcurrencyTimeout::SECONDS,
+            ));
+        }
+
+        [$seconds, $microseconds] = ConcurrencyTimeout::selectTimeout($deadline);
+        $read = [STDIN];
+        $write = null;
+        $except = null;
+        $ready = @stream_select($read, $write, $except, $seconds, $microseconds);
+        if ($ready === false) {
+            throw new RuntimeException('Concurrency worker signal polling failed.');
+        }
+        if ($ready === 0) {
+            throw new RuntimeException(sprintf(
+                'Concurrency worker timed out waiting for its signal after %d seconds.',
+                ConcurrencyTimeout::SECONDS,
+            ));
+        }
+
+        $signal = fgets(STDIN);
+        if ($signal === false) {
+            if (feof(STDIN)) {
+                throw new RuntimeException('Concurrency worker input closed before its signal arrived.');
+            }
+
+            continue;
+        }
+        if (trim($signal) !== '') {
+            return;
+        }
     }
 }
 
 function writeLine(string $message): void
 {
-    fwrite(STDOUT, $message . PHP_EOL);
-    fflush(STDOUT);
+    stream_set_blocking(STDOUT, false);
+    stream_set_write_buffer(STDOUT, 0);
+    $payload = $message . PHP_EOL;
+    $offset = 0;
+    $deadline = ConcurrencyTimeout::deadline();
+
+    while ($offset < strlen($payload)) {
+        $written = fwrite(STDOUT, substr($payload, $offset));
+        if ($written === false) {
+            throw new RuntimeException('Concurrency worker output pipe could not be written.');
+        }
+        if ($written > 0) {
+            $offset += $written;
+            continue;
+        }
+        if (ConcurrencyTimeout::expired($deadline)) {
+            throw new RuntimeException(sprintf(
+                'Concurrency worker timed out writing output after %d seconds.',
+                ConcurrencyTimeout::SECONDS,
+            ));
+        }
+
+        [$seconds, $microseconds] = ConcurrencyTimeout::selectTimeout($deadline);
+        $read = null;
+        $write = [STDOUT];
+        $except = null;
+        $ready = @stream_select($read, $write, $except, $seconds, $microseconds);
+        if ($ready === false) {
+            throw new RuntimeException('Concurrency worker output polling failed.');
+        }
+        if ($ready === 0) {
+            throw new RuntimeException(sprintf(
+                'Concurrency worker timed out writing output after %d seconds.',
+                ConcurrencyTimeout::SECONDS,
+            ));
+        }
+    }
+}
+
+function silentWorker(): void
+{
+    $deadline = ConcurrencyTimeout::deadline();
+    while (!ConcurrencyTimeout::expired($deadline)) {
+        usleep(10_000);
+    }
 }

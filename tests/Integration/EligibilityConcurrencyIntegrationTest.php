@@ -12,8 +12,10 @@ use Maatify\Eligibility\Application\Query\RuleCriteria;
 use Maatify\Eligibility\Application\Service\EligibilityManagementService;
 use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
+use Maatify\Eligibility\Tests\Support\ConcurrencyTimeout;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
 use Maatify\Eligibility\Value\Subject;
+use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use PDO;
@@ -25,6 +27,9 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
     private PdoRuleRepository $repository;
 
     private EligibilityManagementService $management;
+
+    /** @var array<int, string> */
+    private array $stdoutBuffers = [];
 
     protected function setUp(): void
     {
@@ -46,10 +51,37 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
     }
 
     #[Test]
+    public function missingWorkerOutputFailsWithinTheHarnessDeadline(): void
+    {
+        $worker = null;
+        try {
+            $worker = $this->startWorker(['silent']);
+            $startedAt = hrtime(true);
+
+            try {
+                $this->readLine($worker, 'silent worker output');
+                self::fail('Expected the silent worker output wait to time out.');
+            } catch (AssertionFailedError $exception) {
+                self::assertStringContainsString(
+                    'Timed out waiting for silent worker output',
+                    $exception->getMessage(),
+                );
+                self::assertLessThan(
+                    (ConcurrencyTimeout::SECONDS + 1) * 1_000_000_000,
+                    hrtime(true) - $startedAt,
+                );
+            }
+        } finally {
+            $this->closeWorkers($worker, null);
+        }
+    }
+
+    #[Test]
     public function concurrentCreateHasOneWinnerAndTypedDuplicateOutcome(): void
     {
         $workerA = null;
         $workerB = null;
+        $primaryFailure = null;
         try {
             $workerA = $this->startWorker([
                 'hold-create',
@@ -59,7 +91,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                 'EG',
                 RuleEffectEnum::ALLOW->value,
             ]);
-            self::assertSame('CREATED', $this->readLine($workerA['stdout']));
+            self::assertSame('CREATED', $this->readLine($workerA, 'worker A create result'));
 
             $workerB = $this->startWorker([
                 'create',
@@ -69,14 +101,16 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                 'EG',
                 RuleEffectEnum::DENY->value,
             ]);
-            self::assertSame('STARTED', $this->readLine($workerB['stdout']));
+            self::assertSame('STARTED', $this->readLine($workerB, 'worker B start event'));
 
-            $this->signal($workerA['stdin'], 'COMMIT');
-            self::assertSame('DONE', $this->readLine($workerA['stdout']));
-            self::assertSame('RESULT:DUPLICATE', $this->readLine($workerB['stdout']));
+            $this->signal($workerA, 'COMMIT');
+            self::assertSame('DONE', $this->readLine($workerA, 'worker A commit result'));
+            self::assertSame('RESULT:DUPLICATE', $this->readLine($workerB, 'worker B duplicate result'));
+        } catch (\Throwable $exception) {
+            $primaryFailure = $exception;
+            throw $exception;
         } finally {
-            $this->closeWorker($workerA);
-            $this->closeWorker($workerB);
+            $this->closeWorkers($workerA, $workerB, $primaryFailure !== null);
         }
 
         self::assertSame(1, $this->countAllRules());
@@ -92,6 +126,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         $workerA = null;
         $workerB = null;
         $observer = IntegrationDatabase::connect();
+        $primaryFailure = null;
         try {
             $workerA = $this->startWorker([
                 'hold-replace',
@@ -102,7 +137,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                     ['EG', RuleEffectEnum::ALLOW->value],
                 ]),
             ]);
-            self::assertSame('LOCKED', $this->readLine($workerA['stdout']));
+            self::assertSame('LOCKED', $this->readLine($workerA, 'worker A subject lock'));
 
             $workerB = $this->startWorker([
                 'replace',
@@ -114,23 +149,28 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                     ['KW', RuleEffectEnum::ALLOW->value],
                 ]),
             ]);
-            self::assertSame('STARTED', $this->readLine($workerB['stdout']));
-            self::assertSame('ATTEMPTING_LOCK', $this->readLine($workerB['stdout']));
+            self::assertSame('STARTED', $this->readLine($workerB, 'worker B start event'));
+            self::assertSame('ATTEMPTING_LOCK', $this->readLine($workerB, 'worker B subject lock attempt'));
 
-            $this->signal($workerA['stdin'], 'REPLACE');
-            self::assertSame('REPLACED', $this->readLine($workerA['stdout']));
+            $this->signal($workerA, 'REPLACE');
+            self::assertSame('REPLACED', $this->readLine($workerA, 'worker A replacement result'));
 
             $observerRepository = new PdoRuleRepository($observer);
             self::assertCount(0, $observerRepository->findByCriteria(new RuleCriteria($subject)));
 
-            $this->signal($workerA['stdin'], 'COMMIT');
-            self::assertSame('DONE', $this->readLine($workerA['stdout']));
-            self::assertSame('DONE', $this->readLine($workerB['stdout']));
+            $this->signal($workerA, 'COMMIT');
+            self::assertSame('DONE', $this->readLine($workerA, 'worker A commit result'));
+            self::assertSame('DONE', $this->readLine($workerB, 'worker B replacement result'));
+        } catch (\Throwable $exception) {
+            $primaryFailure = $exception;
+            throw $exception;
         } finally {
-            $this->closeWorker($workerA);
-            $this->closeWorker($workerB);
-            if ($observer->inTransaction()) {
-                $observer->rollBack();
+            try {
+                $this->closeWorkers($workerA, $workerB, $primaryFailure !== null);
+            } finally {
+                if ($observer->inTransaction()) {
+                    $observer->rollBack();
+                }
             }
         }
 
@@ -158,6 +198,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
 
         $workerA = null;
         $workerB = null;
+        $primaryFailure = null;
         try {
             $workerA = $this->startWorker([
                 'hold-replace',
@@ -169,7 +210,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                     ['A2', RuleEffectEnum::DENY->value],
                 ]),
             ]);
-            self::assertSame('LOCKED', $this->readLine($workerA['stdout']));
+            self::assertSame('LOCKED', $this->readLine($workerA, 'worker A subject lock'));
 
             $workerB = $this->startWorker([
                 'replace',
@@ -181,17 +222,19 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                     ['B2', RuleEffectEnum::DENY->value],
                 ]),
             ]);
-            self::assertSame('STARTED', $this->readLine($workerB['stdout']));
-            self::assertSame('ATTEMPTING_LOCK', $this->readLine($workerB['stdout']));
+            self::assertSame('STARTED', $this->readLine($workerB, 'worker B start event'));
+            self::assertSame('ATTEMPTING_LOCK', $this->readLine($workerB, 'worker B subject lock attempt'));
 
-            $this->signal($workerA['stdin'], 'REPLACE');
-            self::assertSame('REPLACED', $this->readLine($workerA['stdout']));
-            $this->signal($workerA['stdin'], 'COMMIT');
-            self::assertSame('DONE', $this->readLine($workerA['stdout']));
-            self::assertSame('DONE', $this->readLine($workerB['stdout']));
+            $this->signal($workerA, 'REPLACE');
+            self::assertSame('REPLACED', $this->readLine($workerA, 'worker A replacement result'));
+            $this->signal($workerA, 'COMMIT');
+            self::assertSame('DONE', $this->readLine($workerA, 'worker A commit result'));
+            self::assertSame('DONE', $this->readLine($workerB, 'worker B replacement result'));
+        } catch (\Throwable $exception) {
+            $primaryFailure = $exception;
+            throw $exception;
         } finally {
-            $this->closeWorker($workerA);
-            $this->closeWorker($workerB);
+            $this->closeWorkers($workerA, $workerB, $primaryFailure !== null);
         }
 
         $rules = $this->repository->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Rule\RuleLifecycleEnum::ACTIVE));
@@ -251,6 +294,11 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         /** @var resource $stderr */
         $stderr = $pipes[2];
 
+        stream_set_blocking($stdin, false);
+        stream_set_blocking($stdout, false);
+        stream_set_blocking($stderr, false);
+        stream_set_write_buffer($stdin, 0);
+
         return [
             'process' => $process,
             'stdin' => $stdin,
@@ -259,24 +307,123 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         ];
     }
 
-    /** @param resource $pipe */
-    private function readLine($pipe): string
+    /**
+     * @param array{process: resource, stdin: resource, stdout: resource, stderr: resource} $worker
+     */
+    private function readLine(array $worker, string $event): string
     {
-        $line = fgets($pipe);
-        if ($line === false) {
-            self::fail('Concurrency worker closed its output unexpectedly.');
-        }
+        $pipe = $worker['stdout'];
+        $pipeId = get_resource_id($pipe);
+        $buffer = $this->stdoutBuffers[$pipeId] ?? '';
+        $deadline = ConcurrencyTimeout::deadline();
 
-        return trim($line);
+        while (true) {
+            $lineEnd = strpos($buffer, PHP_EOL);
+            if ($lineEnd !== false) {
+                $line = substr($buffer, 0, $lineEnd);
+                $this->stdoutBuffers[$pipeId] = substr($buffer, $lineEnd + strlen(PHP_EOL));
+
+                return trim($line);
+            }
+
+            if (feof($pipe)) {
+                $this->stdoutBuffers[$pipeId] = $buffer;
+                $this->failWorkerWait($worker, sprintf(
+                    'Concurrency worker closed its output while waiting for %s.',
+                    $event,
+                ));
+            }
+
+            if (ConcurrencyTimeout::expired($deadline)) {
+                $this->failWorkerWait($worker, sprintf(
+                    'Timed out waiting for %s after %d seconds.',
+                    $event,
+                    ConcurrencyTimeout::SECONDS,
+                ));
+            }
+
+            [$seconds, $microseconds] = ConcurrencyTimeout::selectTimeout($deadline);
+            $read = [$pipe];
+            $write = null;
+            $except = null;
+            $ready = @stream_select($read, $write, $except, $seconds, $microseconds);
+            if ($ready === false) {
+                $this->failWorkerWait($worker, sprintf(
+                    'Could not wait for %s because worker output polling failed.',
+                    $event,
+                ));
+            }
+            if ($ready === 0) {
+                $this->failWorkerWait($worker, sprintf(
+                    'Timed out waiting for %s after %d seconds.',
+                    $event,
+                    ConcurrencyTimeout::SECONDS,
+                ));
+            }
+
+            $chunk = fread($pipe, 8192);
+            if ($chunk === false) {
+                $this->failWorkerWait($worker, sprintf(
+                    'Could not read %s from the concurrency worker.',
+                    $event,
+                ));
+            }
+            if ($chunk !== '') {
+                $buffer .= $chunk;
+            }
+        }
     }
 
-    /** @param resource $pipe */
-    private function signal($pipe, string $signal): void
+    /**
+     * @param array{process: resource, stdin: resource, stdout: resource, stderr: resource} $worker
+     */
+    private function signal(array $worker, string $signal): void
     {
-        if (fwrite($pipe, $signal . PHP_EOL) === false) {
-            self::fail('Could not signal concurrency worker.');
+        $pipe = $worker['stdin'];
+        $payload = $signal . PHP_EOL;
+        $offset = 0;
+        $deadline = ConcurrencyTimeout::deadline();
+
+        while ($offset < strlen($payload)) {
+            $written = fwrite($pipe, substr($payload, $offset));
+            if ($written === false) {
+                $this->failWorkerWait($worker, sprintf(
+                    'Could not send signal %s to the concurrency worker.',
+                    $signal,
+                ));
+            }
+            if ($written > 0) {
+                $offset += $written;
+                continue;
+            }
+
+            if (ConcurrencyTimeout::expired($deadline)) {
+                $this->failWorkerWait($worker, sprintf(
+                    'Timed out sending signal %s after %d seconds.',
+                    $signal,
+                    ConcurrencyTimeout::SECONDS,
+                ));
+            }
+
+            [$seconds, $microseconds] = ConcurrencyTimeout::selectTimeout($deadline);
+            $read = null;
+            $write = [$pipe];
+            $except = null;
+            $ready = @stream_select($read, $write, $except, $seconds, $microseconds);
+            if ($ready === false) {
+                $this->failWorkerWait($worker, sprintf(
+                    'Could not send signal %s because worker input polling failed.',
+                    $signal,
+                ));
+            }
+            if ($ready === 0) {
+                $this->failWorkerWait($worker, sprintf(
+                    'Timed out sending signal %s after %d seconds.',
+                    $signal,
+                    ConcurrencyTimeout::SECONDS,
+                ));
+            }
         }
-        fflush($pipe);
     }
 
     /**
@@ -288,10 +435,107 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             return;
         }
 
+        $pipeId = get_resource_id($worker['stdout']);
         fclose($worker['stdin']);
-        fclose($worker['stdout']);
-        fclose($worker['stderr']);
-        $exitCode = proc_close($worker['process']);
-        self::assertSame(0, $exitCode);
+        $status = $this->waitForWorker($worker['process'], ConcurrencyTimeout::deadline());
+        $terminated = false;
+
+        if ($status['running']) {
+            $terminated = true;
+            proc_terminate($worker['process']);
+            $status = $this->waitForWorker($worker['process'], ConcurrencyTimeout::deadline());
+        }
+
+        if ($status['running']) {
+            proc_terminate($worker['process'], 9);
+            $status = $this->waitForWorker($worker['process'], ConcurrencyTimeout::deadline());
+        }
+
+        try {
+            if ($status['running']) {
+                self::fail('Concurrency worker did not terminate within the cleanup deadline.');
+            }
+
+            fclose($worker['stdout']);
+            fclose($worker['stderr']);
+            $exitCode = proc_close($worker['process']);
+            if (!$terminated) {
+                self::assertSame(0, $exitCode);
+            }
+        } finally {
+            if (is_resource($worker['stdout'])) {
+                fclose($worker['stdout']);
+            }
+            if (is_resource($worker['stderr'])) {
+                fclose($worker['stderr']);
+            }
+            unset($this->stdoutBuffers[$pipeId]);
+        }
+    }
+
+    /**
+     * @param array{process: resource, stdin: resource, stdout: resource, stderr: resource}|null $workerA
+     * @param array{process: resource, stdin: resource, stdout: resource, stderr: resource}|null $workerB
+     */
+    private function closeWorkers(?array $workerA, ?array $workerB, bool $preserveOriginalFailure = false): void
+    {
+        $cleanupFailure = null;
+        foreach ([$workerA, $workerB] as $worker) {
+            try {
+                $this->closeWorker($worker);
+            } catch (\Throwable $exception) {
+                $cleanupFailure ??= $exception;
+            }
+        }
+
+        if ($cleanupFailure !== null && !$preserveOriginalFailure) {
+            throw $cleanupFailure;
+        }
+    }
+
+    /**
+     * @param resource $process
+     * @return array{command: string, pid: int, running: bool, signaled: bool, stopped: bool, exitcode: int, termsig: int, stopsig: int}
+     */
+    private function waitForWorker($process, int $deadline): array
+    {
+        do {
+            $status = proc_get_status($process);
+            if (!$status['running'] || ConcurrencyTimeout::expired($deadline)) {
+                return $status;
+            }
+
+            usleep(10_000);
+        } while (true);
+    }
+
+    /**
+     * @param array{process: resource, stdin: resource, stdout: resource, stderr: resource} $worker
+     * @return never
+     */
+    private function failWorkerWait(array $worker, string $message): never
+    {
+        $diagnostic = $this->readAvailable($worker['stderr']);
+        if ($diagnostic !== '') {
+            $message .= ' stderr: ' . $diagnostic;
+        }
+
+        self::fail($message);
+    }
+
+    /** @param resource $pipe */
+    private function readAvailable($pipe): string
+    {
+        $contents = '';
+        while (true) {
+            $chunk = fread($pipe, 8192);
+            if ($chunk === false || $chunk === '') {
+                break;
+            }
+
+            $contents .= $chunk;
+        }
+
+        return trim(substr($contents, 0, 4096));
     }
 }
