@@ -1056,6 +1056,47 @@ Rule management follows the same boundary: the Host submits typed management com
 
 The Consumer Verification Harness required by the adopted Testing and CI Standards is an RC1 readiness gate for a later implementation/readiness slice. It MUST exercise this external-consumer workflow through Composer production autoload and the public contracts in clean, repeatable consumer states, including the real persistence boundary when applicable. This Standards Decision Alignment pass freezes the workflow contract only; it does not implement or design the Harness scripts, fixtures, database setup, or CI job.
 
+## Public Runtime API inventory
+
+This inventory records the public PHP types currently implemented by B1 and B2. It is an inventory of the code at this branch, not a claim that the B2 service or repository interfaces already have a concrete evaluator or persistence adapter.
+
+### B1 model and validation types
+
+- `Maatify\Eligibility\Validation\CanonicalString::validate(mixed $value, string $field): string` validates a canonical package string without transforming it.
+- `Maatify\Eligibility\Value\Subject` represents `subjectType` and `subjectId`.
+- `Maatify\Eligibility\Value\ContextValue`, `ContextValueCollection`, `ContextDimension`, and `Context` represent the immutable Context shape. `Context` exposes `getDimension(mixed $dimensionKey): ?ContextDimension` and `hasDimension(mixed $dimensionKey): bool`.
+- `Maatify\Eligibility\Rule\Rule`, `RuleIdentity`, `RuleCollection`, `RuleEffectEnum`, and `RuleLifecycleEnum` represent typed Rules, natural identity, effects, lifecycle, and canonical Rule collections. `RuleCollection` exposes active and inactive lifecycle state through each returned `Rule`.
+- `Maatify\Eligibility\Decision\EligibilityDecision`, `DimensionOutcome`, `DimensionOutcomeCollection`, `RuleReference`, `RuleReferenceCollection`, `DecisionReasonEnum`, and `DimensionReasonEnum` represent immutable typed Decisions and complete matched-Rule traces.
+- `Maatify\Eligibility\Exception\EligibilityExceptionInterface` is the single package marker. `InvalidEligibilityInputException` is the B1 typed validation error and uses the shared `maatify/exceptions` hierarchy.
+
+### B2 commands and query contracts
+
+- `Maatify\Eligibility\Value\SubjectCollection` is the ordered, duplicate-free B2 batch value. It accepts an empty batch and exposes `count()`, iteration, `items(): list<Subject>`, and JSON serialization.
+- `CreateRuleCommand(Subject $subject, mixed $dimensionKey, mixed $dimensionValue, RuleEffectEnum $effect)` represents creation of a new active Rule. It has no initial lifecycle input.
+- `UpdateRuleEffectCommand(RuleIdentity $identity, RuleEffectEnum $effect)` represents an effect mutation.
+- `DeactivateRuleCommand(RuleIdentity $identity)` and `ReactivateRuleCommand(RuleIdentity $identity)` represent explicit lifecycle mutations.
+- `DesiredRule(mixed $dimensionValue, RuleEffectEnum $effect)` represents one desired active value/effect pair without lifecycle state. `DesiredRuleCollection` rejects duplicate dimension values, orders values canonically, and accepts an empty set.
+- `ReplaceDimensionRulesCommand(Subject $subject, mixed $dimensionKey, DesiredRuleCollection $desiredRules)` represents complete desired active-set replacement intent.
+- `CleanupSubjectCommand(Subject $subject)` represents idempotent Subject cleanup intent.
+- `RuleCriteria(Subject $subject, mixed $dimensionKey = null, ?RuleLifecycleEnum $lifecycle = null, mixed $maxResults = 100)` represents a bounded management read. A dimension filter is optional, lifecycle filtering is optional, and `maxResults` must be an integer from `1` through `500`. This is a bounded read limit, not Host-global pagination or search.
+- `ActiveDimensionKeysQuery(Subject $subject)` represents active-dimension introspection for one Subject.
+
+### B2 typed results and service boundaries
+
+- `ActiveDimensionKeyCollection` contains only canonical dimension-key strings, rejects duplicates, and returns them in ascending bytewise order.
+- `SubjectDecisionResult` associates one `Subject` with one `EligibilityDecision`. `SubjectDecisionCollection` rejects duplicate Subject identities, accepts an empty result, and preserves the supplied result order.
+- `EligibilityEvaluationServiceInterface` exposes `decide(Subject $subject, Context $context): EligibilityDecision` and `decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollection`. The interface defines the public evaluation seam; B2 does not implement the evaluator.
+- `EligibilityManagementServiceInterface` exposes typed Rule creation, identity inspection, bounded Rule inspection, active-dimension inspection, effect/lifecycle mutations, replacement intent, and Subject cleanup. Its state-setting methods return `void` except `createRule(...): Rule`; `inspectRule(...): Rule` has a typed Rule-not-found contract.
+- `RuleRepositoryInterface` is the replaceable package-owned persistence boundary. It exposes canonical domain-Rule creation without a storage identifier, natural-identity lookup, bounded management reads, active Rule bulk loading for `SubjectCollection`, active-dimension lookup, Rule mutation primitives, and Subject cleanup. Replacement intent remains above this persistence seam in `ReplaceDimensionRulesCommand` and `EligibilityManagementServiceInterface`; no replacement algorithm or atomicity contract is implemented by B2.
+
+### B2 semantic exceptions
+
+- `RuleNotFoundException` extends the shared `ResourceNotFoundMaatifyException` hierarchy and identifies the requested `RuleIdentity`.
+- `RuleIdentityConflictException` extends the shared `GenericConflictMaatifyException` hierarchy and identifies a conflicting natural identity.
+- `RuleConcurrencyConflictException` extends the shared `GenericConflictMaatifyException` hierarchy for an unresolved Rule uniqueness/concurrency condition.
+
+All three B2 semantic exceptions implement `EligibilityExceptionInterface`. They do not classify PDO or driver failures; known storage conversion and unknown throwable propagation remain later persistence/service behavior. No concrete B2 service, evaluator, or repository adapter is claimed by this inventory.
+
 ## RC1 exclusions
 
 The following are explicitly outside the first RC scope unless a later documented decision adds them before implementation freeze:
