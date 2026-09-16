@@ -1,0 +1,202 @@
+<?php
+
+declare(strict_types=1);
+
+use Maatify\Eligibility\Application\Command\CreateRuleCommand;
+use Maatify\Eligibility\Application\Command\DesiredRule;
+use Maatify\Eligibility\Application\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Application\Command\ReplaceDimensionRulesCommand;
+use Maatify\Eligibility\Application\Service\EligibilityManagementService;
+use Maatify\Eligibility\Exception\RuleIdentityConflictException;
+use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
+use Maatify\Eligibility\Rule\RuleEffectEnum;
+use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
+use Maatify\Eligibility\Value\Subject;
+
+require dirname(__DIR__, 2) . '/vendor/autoload.php';
+
+/** @var mixed $rawArguments */
+$rawArguments = $_SERVER['argv'] ?? [];
+if (!is_array($rawArguments)) {
+    throw new InvalidArgumentException('Worker arguments are unavailable.');
+}
+
+$arguments = [];
+foreach (array_slice($rawArguments, 1) as $rawArgument) {
+    if (!is_string($rawArgument)) {
+        throw new InvalidArgumentException('Worker arguments must be strings.');
+    }
+    $arguments[] = $rawArgument;
+}
+$mode = $arguments[0] ?? '';
+
+try {
+    $pdo = IntegrationDatabase::connect();
+    $repository = new PdoRuleRepository($pdo);
+
+    match ($mode) {
+        'hold-create' => holdCreate($pdo, $repository, $arguments),
+        'create' => create($repository, $arguments),
+        'hold-replace' => holdReplace($pdo, $repository, $arguments),
+        'replace' => replace($repository, $arguments),
+        default => throw new InvalidArgumentException('Unknown concurrency worker mode.'),
+    };
+} catch (Throwable $exception) {
+    writeLine('ERROR:' . $exception::class . ':' . $exception->getMessage());
+    exit(1);
+}
+
+/** @param list<string> $arguments */
+function holdCreate(PDO $pdo, PdoRuleRepository $repository, array $arguments): void
+{
+    $pdo->beginTransaction();
+    try {
+        $repository->create(createCommand($arguments));
+        writeLine('CREATED');
+        awaitSignal();
+        $pdo->commit();
+        writeLine('DONE');
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $exception;
+    }
+}
+
+/** @param list<string> $arguments */
+function create(PdoRuleRepository $repository, array $arguments): void
+{
+    writeLine('STARTED');
+    try {
+        $repository->create(createCommand($arguments));
+        writeLine('RESULT:SUCCESS');
+    } catch (RuleIdentityConflictException) {
+        writeLine('RESULT:DUPLICATE');
+    }
+}
+
+/** @param list<string> $arguments */
+function holdReplace(PDO $pdo, PdoRuleRepository $repository, array $arguments): void
+{
+    $subject = subjectFromArguments($arguments);
+    $pdo->beginTransaction();
+    try {
+        $repository->lockSubjectForMutation($subject);
+        writeLine('LOCKED');
+        awaitSignal();
+        (new EligibilityManagementService($repository))->replaceDimensionRules(
+            replacementCommand($arguments),
+        );
+        writeLine('REPLACED');
+        awaitSignal();
+        $pdo->commit();
+        writeLine('DONE');
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $exception;
+    }
+}
+
+/** @param list<string> $arguments */
+function replace(PdoRuleRepository $repository, array $arguments): void
+{
+    writeLine('STARTED');
+    writeLine('ATTEMPTING_LOCK');
+    (new EligibilityManagementService($repository))->replaceDimensionRules(
+        replacementCommand($arguments),
+    );
+    writeLine('DONE');
+}
+
+/** @param list<string> $arguments */
+function createCommand(array $arguments): CreateRuleCommand
+{
+    if (count($arguments) !== 6) {
+        throw new InvalidArgumentException('Create worker arguments are invalid.');
+    }
+
+    $effect = RuleEffectEnum::tryFrom($arguments[5]);
+    if ($effect === null) {
+        throw new InvalidArgumentException('Create worker effect is invalid.');
+    }
+
+    return new CreateRuleCommand(
+        new Subject($arguments[1], $arguments[2]),
+        $arguments[3],
+        $arguments[4],
+        $effect,
+    );
+}
+
+/** @param list<string> $arguments */
+function replacementCommand(array $arguments): ReplaceDimensionRulesCommand
+{
+    if (count($arguments) !== 5) {
+        throw new InvalidArgumentException('Replacement worker arguments are invalid.');
+    }
+
+    return new ReplaceDimensionRulesCommand(
+        subjectFromArguments($arguments),
+        $arguments[3],
+        desiredRules($arguments[4]),
+    );
+}
+
+/** @param list<string> $arguments */
+function subjectFromArguments(array $arguments): Subject
+{
+    if (count($arguments) < 3) {
+        throw new InvalidArgumentException('Subject worker arguments are invalid.');
+    }
+
+    return new Subject($arguments[1], $arguments[2]);
+}
+
+function desiredRules(string $encoded): DesiredRuleCollection
+{
+    $decoded = json_decode($encoded, true, 512, JSON_THROW_ON_ERROR);
+    if (!is_array($decoded)) {
+        throw new InvalidArgumentException('Desired rules must be a JSON array.');
+    }
+
+    $desired = [];
+    foreach ($decoded as $item) {
+        if (!is_array($item) || count($item) !== 2) {
+            throw new InvalidArgumentException('A desired worker rule must contain value and effect.');
+        }
+
+        $value = $item[0] ?? null;
+        $effectValue = $item[1] ?? null;
+        if (!is_string($value) || !is_string($effectValue)) {
+            throw new InvalidArgumentException('Desired worker rule fields must be strings.');
+        }
+
+        $effect = RuleEffectEnum::tryFrom($effectValue);
+        if ($effect === null) {
+            throw new InvalidArgumentException('Desired worker rule effect is invalid.');
+        }
+
+        $desired[] = new DesiredRule($value, $effect);
+    }
+
+    return new DesiredRuleCollection(...$desired);
+}
+
+function awaitSignal(): void
+{
+    $signal = fgets(STDIN);
+    if ($signal === false || trim($signal) === '') {
+        throw new RuntimeException('Concurrency worker did not receive its signal.');
+    }
+}
+
+function writeLine(string $message): void
+{
+    fwrite(STDOUT, $message . PHP_EOL);
+    fflush(STDOUT);
+}
