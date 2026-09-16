@@ -15,8 +15,8 @@ final readonly class Subject implements JsonSerializable
 
     public function __construct(mixed $subjectType, mixed $subjectId)
     {
-        $this->subjectType = CanonicalString::validate($subjectType, 'subjectType');
-        $this->subjectId = CanonicalString::validate($subjectId, 'subjectId');
+        $this->subjectType = CanonicalString::validateSubjectType($subjectType);
+        $this->subjectId = CanonicalString::validateSubjectId($subjectId);
     }
 
     /** @return array{subjectType: string, subjectId: string} */

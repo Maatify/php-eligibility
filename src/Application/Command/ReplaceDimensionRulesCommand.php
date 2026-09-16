@@ -16,6 +16,6 @@ final readonly class ReplaceDimensionRulesCommand
         mixed $dimensionKey,
         public DesiredRuleCollection $desiredRules,
     ) {
-        $this->dimensionKey = CanonicalString::validate($dimensionKey, 'dimensionKey');
+        $this->dimensionKey = CanonicalString::validateDimensionKey($dimensionKey);
     }
 }

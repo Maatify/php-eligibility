@@ -28,8 +28,9 @@ not a package minimum version.
 - No Host foreign key, Host join, audit actor column, timestamp, log, or event log
   is part of this slice.
 
-Canonical strings are bounded in **bytes**, not characters, and validated in PHP
-before SQL:
+Canonical strings are bounded in **bytes**, not characters, by the production
+source of truth `Maatify\Eligibility\Validation\CanonicalString` and validated
+there before SQL:
 
 | Field | Maximum | SQL type |
 |---|---:|---|
@@ -69,10 +70,10 @@ docker compose -f docker-compose.integration.yml up -d --wait
 composer test:integration
 ```
 
-The fixture uses database `maatify_eligibility_test`, user
-`eligibility_test`, password `eligibility_test`, and host port `13306`; these
-credentials are test-only and must not be reused for production. The test
-environment can be overridden with `ELIGIBILITY_TEST_DB_HOST`,
+The fixture binds host port `13306` to loopback only (`127.0.0.1:13306`), and
+uses database `maatify_eligibility_test`, user `eligibility_test`, and password
+`eligibility_test`; these credentials are test-only and must not be reused for
+production. The test environment can be overridden with `ELIGIBILITY_TEST_DB_HOST`,
 `ELIGIBILITY_TEST_DB_PORT`, `ELIGIBILITY_TEST_DB_NAME`,
 `ELIGIBILITY_TEST_DB_USER`, and `ELIGIBILITY_TEST_DB_PASSWORD`.
 

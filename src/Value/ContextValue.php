@@ -13,7 +13,7 @@ final readonly class ContextValue implements JsonSerializable, \Stringable
 
     public function __construct(mixed $value)
     {
-        $this->value = CanonicalString::validate($value, 'contextValue');
+        $this->value = CanonicalString::validateDimensionValue($value, 'contextValue');
     }
 
     public function __toString(): string

@@ -27,10 +27,10 @@ final readonly class RuleReference implements JsonSerializable
         mixed $dimensionValue,
         public RuleEffectEnum $effect,
     ) {
-        $this->subjectType = CanonicalString::validate($subjectType, 'subjectType');
-        $this->subjectId = CanonicalString::validate($subjectId, 'subjectId');
-        $this->dimensionKey = CanonicalString::validate($dimensionKey, 'dimensionKey');
-        $this->dimensionValue = CanonicalString::validate($dimensionValue, 'dimensionValue');
+        $this->subjectType = CanonicalString::validateSubjectType($subjectType);
+        $this->subjectId = CanonicalString::validateSubjectId($subjectId);
+        $this->dimensionKey = CanonicalString::validateDimensionKey($dimensionKey);
+        $this->dimensionValue = CanonicalString::validateDimensionValue($dimensionValue);
     }
 
     public static function fromRule(Rule $rule): self

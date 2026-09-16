@@ -57,7 +57,7 @@ final readonly class ContextValueCollection implements Countable, IteratorAggreg
 
     public function contains(mixed $value): bool
     {
-        $canonicalValue = CanonicalString::validate($value, 'contextValue');
+        $canonicalValue = CanonicalString::validateDimensionValue($value, 'contextValue');
 
         foreach ($this->items as $item) {
             if ($item->value === $canonicalValue) {

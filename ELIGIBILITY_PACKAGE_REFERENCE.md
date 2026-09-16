@@ -72,7 +72,22 @@ Malformed UTF-8, null values, non-string values at typed package boundaries, emp
 
 RC1 does not restrict business values to ASCII. Persistence MUST preserve the exact validated UTF-8 sequence and MUST NOT silently normalize or truncate it.
 
-Exact maximum lengths remain a contracts/schema-slice decision, but bounded limits MUST be explicitly documented and enforced consistently before RC1 release readiness.
+RC1 canonical package bounds are resolved and apply at every semantic package
+boundary, not only at SQL columns. `Maatify\Eligibility\Validation\CanonicalString`
+is the production source of truth and measures bytes with `strlen()` after valid
+UTF-8 validation:
+
+| Canonical component | Maximum bytes |
+|---|---:|
+| `subject_type` | 64 |
+| `subject_id` | 191 |
+| `dimension_key` | 64 |
+| `dimension_value` | 255 |
+
+Every public/raw boundary for these components MUST reject an over-limit value
+with `InvalidEligibilityInputException` before constructing contract state or
+performing persistence work. These are canonical RC1 package bounds, not merely
+SQL column-size choices.
 
 ## Subject
 
@@ -1104,7 +1119,7 @@ This inventory records the public PHP types currently implemented by B1 and B2. 
 
 ### B1 model and validation types
 
-- `Maatify\Eligibility\Validation\CanonicalString::validate(mixed $value, string $field): string` validates a canonical package string without transforming it.
+- `Maatify\Eligibility\Validation\CanonicalString::validate(mixed $value, string $field): string` validates a generic canonical package string without transforming it. Its semantic bounded methods and constants are the single source of truth for the four RC1 canonical component limits; canonical ordering remains intentionally generic and unbounded.
 - `Maatify\Eligibility\Value\Subject` represents `subjectType` and `subjectId`.
 - `Maatify\Eligibility\Value\ContextValue`, `ContextValueCollection`, `ContextDimension`, and `Context` represent the immutable Context shape. `Context` exposes `getDimension(mixed $dimensionKey): ?ContextDimension` and `hasDimension(mixed $dimensionKey): bool`.
 - `Maatify\Eligibility\Rule\Rule`, `RuleIdentity`, `RuleCollection`, `RuleEffectEnum`, and `RuleLifecycleEnum` represent typed Rules, natural identity, effects, lifecycle, and canonical Rule collections. `RuleCollection` exposes active and inactive lifecycle state through each returned `Rule`.

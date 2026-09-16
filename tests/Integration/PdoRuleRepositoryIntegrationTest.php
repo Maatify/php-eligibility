@@ -21,8 +21,11 @@ use Maatify\Eligibility\Value\Subject;
 use Maatify\Eligibility\Value\SubjectCollection;
 use PDO;
 use PDOException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
+use ReflectionProperty;
 
 final class PdoRuleRepositoryIntegrationTest extends TestCase
 {
@@ -335,25 +338,25 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         self::assertNotNull($found);
         self::assertSame(str_repeat('v', 255), $found->dimensionValue);
 
-        $this->assertCreateRejects(new CreateRuleCommand(
+        $this->assertInvalid(static fn (): CreateRuleCommand => new CreateRuleCommand(
             new Subject(str_repeat('s', 65), 'id'),
             'key',
             'value',
             RuleEffectEnum::ALLOW,
         ));
-        $this->assertCreateRejects(new CreateRuleCommand(
+        $this->assertInvalid(static fn (): CreateRuleCommand => new CreateRuleCommand(
             new Subject('type', str_repeat('i', 192)),
             'key',
             'value',
             RuleEffectEnum::ALLOW,
         ));
-        $this->assertCreateRejects(new CreateRuleCommand(
+        $this->assertInvalid(static fn (): CreateRuleCommand => new CreateRuleCommand(
             new Subject('type', 'id'),
             str_repeat('k', 65),
             'value',
             RuleEffectEnum::ALLOW,
         ));
-        $this->assertCreateRejects(new CreateRuleCommand(
+        $this->assertInvalid(static fn (): CreateRuleCommand => new CreateRuleCommand(
             new Subject('type', 'id'),
             'key',
             str_repeat('v', 256),
@@ -363,6 +366,53 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         self::assertCount(1, $this->repository->findByCriteria(new RuleCriteria(
             new Subject(str_repeat('s', 64), str_repeat('i', 191)),
         )));
+    }
+
+    #[Test]
+    #[DataProvider('repositoryOverLimitComponents')]
+    public function repositoryDefensivelyRejectsForgedOverLimitCommands(string $component): void
+    {
+        $subjectType = $component === 'subject_type'
+            ? str_repeat('s', 65)
+            : 'type';
+        $subjectId = $component === 'subject_id'
+            ? str_repeat('i', 192)
+            : 'id';
+        $dimensionKey = $component === 'dimension_key'
+            ? str_repeat('k', 65)
+            : 'key';
+        $dimensionValue = $component === 'dimension_value'
+            ? str_repeat('v', 256)
+            : 'value';
+
+        $subject = $this->forgeReadonly(Subject::class, [
+            'subjectType' => $subjectType,
+            'subjectId' => $subjectId,
+        ]);
+        $command = $this->forgeReadonly(CreateRuleCommand::class, [
+            'subject' => $subject,
+            'dimensionKey' => $dimensionKey,
+            'dimensionValue' => $dimensionValue,
+            'effect' => RuleEffectEnum::ALLOW,
+        ]);
+
+        $this->assertCreateRejects($command);
+
+        $countStatement = $this->pdo->query('SELECT COUNT(*) FROM `maa_eligibility_rules`');
+        if ($countStatement === false) {
+            self::fail('Could not inspect the Eligibility row count.');
+        }
+
+        self::assertSame(0, (int) $countStatement->fetchColumn());
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function repositoryOverLimitComponents(): iterable
+    {
+        yield 'subject_type' => ['subject_type'];
+        yield 'subject_id' => ['subject_id'];
+        yield 'dimension_key' => ['dimension_key'];
+        yield 'dimension_value' => ['dimension_value'];
     }
 
     #[Test]
@@ -431,5 +481,31 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         } catch (InvalidEligibilityInputException) {
             self::addToAssertionCount(1);
         }
+    }
+
+    private function assertInvalid(callable $callback): void
+    {
+        try {
+            $callback();
+            self::fail('Expected InvalidEligibilityInputException.');
+        } catch (InvalidEligibilityInputException) {
+            self::addToAssertionCount(1);
+        }
+    }
+
+    /**
+     * @template T of object
+     * @param class-string<T> $class
+     * @param array<string, mixed> $values
+     * @return T
+     */
+    private function forgeReadonly(string $class, array $values): object
+    {
+        $object = (new ReflectionClass($class))->newInstanceWithoutConstructor();
+        foreach ($values as $propertyName => $value) {
+            (new ReflectionProperty($class, $propertyName))->setValue($object, $value);
+        }
+
+        return $object;
     }
 }

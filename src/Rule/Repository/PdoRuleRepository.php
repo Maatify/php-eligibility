@@ -18,6 +18,7 @@ use Maatify\Eligibility\Rule\RuleCollection;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Eligibility\Validation\CanonicalString;
 use Maatify\Eligibility\Value\Subject;
 use Maatify\Eligibility\Value\SubjectCollection;
 use PDO;
@@ -28,14 +29,6 @@ final class PdoRuleRepository implements RuleRepositoryInterface
 {
     private const TABLE = 'maa_eligibility_rules';
 
-    private const SUBJECT_TYPE_MAX_BYTES = 64;
-
-    private const SUBJECT_ID_MAX_BYTES = 191;
-
-    private const DIMENSION_KEY_MAX_BYTES = 64;
-
-    private const DIMENSION_VALUE_MAX_BYTES = 255;
-
     private const BULK_SUBJECT_CHUNK_SIZE = 100;
 
     public function __construct(private readonly PDO $pdo)
@@ -44,26 +37,10 @@ final class PdoRuleRepository implements RuleRepositoryInterface
 
     public function create(CreateRuleCommand $command): Rule
     {
-        $subjectType = $this->boundedString(
-            $command->subject->subjectType,
-            'subjectType',
-            self::SUBJECT_TYPE_MAX_BYTES,
-        );
-        $subjectId = $this->boundedString(
-            $command->subject->subjectId,
-            'subjectId',
-            self::SUBJECT_ID_MAX_BYTES,
-        );
-        $dimensionKey = $this->boundedString(
-            $command->dimensionKey,
-            'dimensionKey',
-            self::DIMENSION_KEY_MAX_BYTES,
-        );
-        $dimensionValue = $this->boundedString(
-            $command->dimensionValue,
-            'dimensionValue',
-            self::DIMENSION_VALUE_MAX_BYTES,
-        );
+        $subjectType = CanonicalString::validateSubjectType($command->subject->subjectType);
+        $subjectId = CanonicalString::validateSubjectId($command->subject->subjectId);
+        $dimensionKey = CanonicalString::validateDimensionKey($command->dimensionKey);
+        $dimensionValue = CanonicalString::validateDimensionValue($command->dimensionValue);
 
         $statement = $this->pdo->prepare(
             'INSERT INTO `' . self::TABLE . '` '
@@ -122,25 +99,13 @@ final class PdoRuleRepository implements RuleRepositoryInterface
             '`subject_id` = ?',
         ];
         $parameters = [
-            $this->boundedString(
-                $criteria->subject->subjectType,
-                'subjectType',
-                self::SUBJECT_TYPE_MAX_BYTES,
-            ),
-            $this->boundedString(
-                $criteria->subject->subjectId,
-                'subjectId',
-                self::SUBJECT_ID_MAX_BYTES,
-            ),
+            CanonicalString::validateSubjectType($criteria->subject->subjectType),
+            CanonicalString::validateSubjectId($criteria->subject->subjectId),
         ];
 
         if ($criteria->dimensionKey !== null) {
             $conditions[] = '`dimension_key` = ?';
-            $parameters[] = $this->boundedString(
-                $criteria->dimensionKey,
-                'dimensionKey',
-                self::DIMENSION_KEY_MAX_BYTES,
-            );
+            $parameters[] = CanonicalString::validateDimensionKey($criteria->dimensionKey);
         }
 
         if ($criteria->lifecycle !== null) {
@@ -180,16 +145,8 @@ final class PdoRuleRepository implements RuleRepositoryInterface
 
             foreach ($chunk as $subject) {
                 $subjectConditions[] = '(`subject_type` = ? AND `subject_id` = ?)';
-                $parameters[] = $this->boundedString(
-                    $subject->subjectType,
-                    'subjectType',
-                    self::SUBJECT_TYPE_MAX_BYTES,
-                );
-                $parameters[] = $this->boundedString(
-                    $subject->subjectId,
-                    'subjectId',
-                    self::SUBJECT_ID_MAX_BYTES,
-                );
+                $parameters[] = CanonicalString::validateSubjectType($subject->subjectType);
+                $parameters[] = CanonicalString::validateSubjectId($subject->subjectId);
             }
 
             $rows = $this->fetchRows(
@@ -214,26 +171,16 @@ final class PdoRuleRepository implements RuleRepositoryInterface
             'SELECT DISTINCT `dimension_key` FROM `' . self::TABLE . '` '
             . 'WHERE `subject_type` = ? AND `subject_id` = ? AND `lifecycle` = ?',
             [
-                $this->boundedString(
-                    $query->subject->subjectType,
-                    'subjectType',
-                    self::SUBJECT_TYPE_MAX_BYTES,
-                ),
-                $this->boundedString(
-                    $query->subject->subjectId,
-                    'subjectId',
-                    self::SUBJECT_ID_MAX_BYTES,
-                ),
+                CanonicalString::validateSubjectType($query->subject->subjectType),
+                CanonicalString::validateSubjectId($query->subject->subjectId),
                 RuleLifecycleEnum::ACTIVE->value,
             ],
         );
 
         $dimensionKeys = [];
         foreach ($rows as $row) {
-            $dimensionKeys[] = $this->boundedString(
+            $dimensionKeys[] = CanonicalString::validateDimensionKey(
                 $this->rowString($row, 'dimension_key'),
-                'dimensionKey',
-                self::DIMENSION_KEY_MAX_BYTES,
             );
         }
 
@@ -282,16 +229,8 @@ final class PdoRuleRepository implements RuleRepositoryInterface
             'DELETE FROM `' . self::TABLE . '` WHERE `subject_type` = ? AND `subject_id` = ?',
         );
         $this->bindAndExecute($statement, [
-            $this->boundedString(
-                $command->subject->subjectType,
-                'subjectType',
-                self::SUBJECT_TYPE_MAX_BYTES,
-            ),
-            $this->boundedString(
-                $command->subject->subjectId,
-                'subjectId',
-                self::SUBJECT_ID_MAX_BYTES,
-            ),
+            CanonicalString::validateSubjectType($command->subject->subjectType),
+            CanonicalString::validateSubjectId($command->subject->subjectId),
         ]);
     }
 
@@ -345,26 +284,10 @@ final class PdoRuleRepository implements RuleRepositoryInterface
     /** @param array<string, mixed> $row */
     private function hydrate(array $row): Rule
     {
-        $subjectType = $this->boundedString(
-            $this->rowString($row, 'subject_type'),
-            'subjectType',
-            self::SUBJECT_TYPE_MAX_BYTES,
-        );
-        $subjectId = $this->boundedString(
-            $this->rowString($row, 'subject_id'),
-            'subjectId',
-            self::SUBJECT_ID_MAX_BYTES,
-        );
-        $dimensionKey = $this->boundedString(
-            $this->rowString($row, 'dimension_key'),
-            'dimensionKey',
-            self::DIMENSION_KEY_MAX_BYTES,
-        );
-        $dimensionValue = $this->boundedString(
-            $this->rowString($row, 'dimension_value'),
-            'dimensionValue',
-            self::DIMENSION_VALUE_MAX_BYTES,
-        );
+        $subjectType = CanonicalString::validateSubjectType($this->rowString($row, 'subject_type'));
+        $subjectId = CanonicalString::validateSubjectId($this->rowString($row, 'subject_id'));
+        $dimensionKey = CanonicalString::validateDimensionKey($this->rowString($row, 'dimension_key'));
+        $dimensionValue = CanonicalString::validateDimensionValue($this->rowString($row, 'dimension_value'));
 
         return new Rule(
             new Subject($subjectType, $subjectId),
@@ -386,18 +309,6 @@ final class PdoRuleRepository implements RuleRepositoryInterface
         return $value;
     }
 
-    private function boundedString(mixed $value, string $field, int $maxBytes): string
-    {
-        $canonical = \Maatify\Eligibility\Validation\CanonicalString::validate($value, $field);
-        if (strlen($canonical) > $maxBytes) {
-            throw new \Maatify\Eligibility\Exception\InvalidEligibilityInputException(
-                sprintf('%s must not exceed %d bytes.', $field, $maxBytes),
-            );
-        }
-
-        return $canonical;
-    }
-
     /** @return list<string> */
     private function identityParameters(RuleIdentity $identity): array
     {
@@ -412,10 +323,10 @@ final class PdoRuleRepository implements RuleRepositoryInterface
     private function boundedIdentity(RuleIdentity $identity): RuleIdentity
     {
         return new RuleIdentity(
-            $this->boundedString($identity->subjectType, 'subjectType', self::SUBJECT_TYPE_MAX_BYTES),
-            $this->boundedString($identity->subjectId, 'subjectId', self::SUBJECT_ID_MAX_BYTES),
-            $this->boundedString($identity->dimensionKey, 'dimensionKey', self::DIMENSION_KEY_MAX_BYTES),
-            $this->boundedString($identity->dimensionValue, 'dimensionValue', self::DIMENSION_VALUE_MAX_BYTES),
+            CanonicalString::validateSubjectType($identity->subjectType),
+            CanonicalString::validateSubjectId($identity->subjectId),
+            CanonicalString::validateDimensionKey($identity->dimensionKey),
+            CanonicalString::validateDimensionValue($identity->dimensionValue),
         );
     }
 

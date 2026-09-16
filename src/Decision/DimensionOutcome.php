@@ -19,7 +19,7 @@ final readonly class DimensionOutcome implements JsonSerializable
         public DimensionReasonEnum $reasonCode,
         public RuleReferenceCollection $matchedRules,
     ) {
-        $this->dimensionKey = CanonicalString::validate($dimensionKey, 'dimensionKey');
+        $this->dimensionKey = CanonicalString::validateDimensionKey($dimensionKey);
         if (!is_bool($passed)) {
             throw new InvalidEligibilityInputException('Dimension outcome passed state must be a boolean.');
         }

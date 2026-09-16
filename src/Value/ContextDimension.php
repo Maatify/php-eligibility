@@ -13,7 +13,7 @@ final readonly class ContextDimension implements JsonSerializable
 
     public function __construct(mixed $dimensionKey, public ContextValueCollection $values)
     {
-        $this->dimensionKey = CanonicalString::validate($dimensionKey, 'dimensionKey');
+        $this->dimensionKey = CanonicalString::validateDimensionKey($dimensionKey);
     }
 
     public static function fromStrings(mixed $dimensionKey, mixed ...$values): self

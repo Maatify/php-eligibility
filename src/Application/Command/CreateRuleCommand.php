@@ -20,7 +20,7 @@ final readonly class CreateRuleCommand
         mixed $dimensionValue,
         public RuleEffectEnum $effect,
     ) {
-        $this->dimensionKey = CanonicalString::validate($dimensionKey, 'dimensionKey');
-        $this->dimensionValue = CanonicalString::validate($dimensionValue, 'dimensionValue');
+        $this->dimensionKey = CanonicalString::validateDimensionKey($dimensionKey);
+        $this->dimensionValue = CanonicalString::validateDimensionValue($dimensionValue);
     }
 }
