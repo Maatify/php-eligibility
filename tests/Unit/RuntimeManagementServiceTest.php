@@ -59,8 +59,24 @@ final class RuntimeManagementServiceTest extends TestCase
             self::assertSame($identity, $exception->identity());
         }
 
-        $this->expectException(RuleNotFoundException::class);
-        $service->deactivateRule(new DeactivateRuleCommand($identity));
+        $this->assertMissingMutationProducesTypedNotFound(
+            static function () use ($service, $identity): void {
+                $service->deactivateRule(new DeactivateRuleCommand($identity));
+            },
+            $identity,
+        );
+        $this->assertMissingMutationProducesTypedNotFound(
+            static function () use ($service, $identity): void {
+                $service->reactivateRule(new ReactivateRuleCommand($identity));
+            },
+            $identity,
+        );
+        $this->assertMissingMutationProducesTypedNotFound(
+            static function () use ($service, $identity): void {
+                $service->updateRuleEffect(new UpdateRuleEffectCommand($identity, RuleEffectEnum::DENY));
+            },
+            $identity,
+        );
     }
 
     #[Test]
@@ -96,6 +112,7 @@ final class RuntimeManagementServiceTest extends TestCase
 
         $service->deactivateRule(new DeactivateRuleCommand($identity));
         $service->deactivateRule(new DeactivateRuleCommand($identity));
+        $service->updateRuleEffect(new UpdateRuleEffectCommand($identity, RuleEffectEnum::DENY));
         $service->updateRuleEffect(new UpdateRuleEffectCommand($identity, RuleEffectEnum::DENY));
         self::assertSame(RuleLifecycleEnum::INACTIVE, $service->inspectRule($identity)->lifecycle);
         self::assertSame(RuleEffectEnum::DENY, $service->inspectRule($identity)->effect);
@@ -330,5 +347,16 @@ final class RuntimeManagementServiceTest extends TestCase
         string $subjectId = '150',
     ): Rule {
         return Rule::active(new Subject($subjectType, $subjectId), $dimension, $value, $effect);
+    }
+
+    /** @param callable(): void $mutation */
+    private function assertMissingMutationProducesTypedNotFound(callable $mutation, RuleIdentity $identity): void
+    {
+        try {
+            $mutation();
+            self::fail('Expected a missing Rule mutation to throw RuleNotFoundException.');
+        } catch (RuleNotFoundException $exception) {
+            self::assertSame($identity, $exception->identity());
+        }
     }
 }

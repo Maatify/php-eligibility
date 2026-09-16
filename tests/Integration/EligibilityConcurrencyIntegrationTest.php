@@ -9,11 +9,16 @@ use Maatify\Eligibility\Application\Command\DesiredRule;
 use Maatify\Eligibility\Application\Command\DesiredRuleCollection;
 use Maatify\Eligibility\Application\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Application\Query\RuleCriteria;
+use Maatify\Eligibility\Application\Service\EligibilityEvaluationService;
 use Maatify\Eligibility\Application\Service\EligibilityManagementService;
+use Maatify\Eligibility\Decision\DecisionReasonEnum;
 use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
+use Maatify\Eligibility\Rule\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\ConcurrencyTimeout;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
+use Maatify\Eligibility\Value\Context;
+use Maatify\Eligibility\Value\ContextDimension;
 use Maatify\Eligibility\Value\Subject;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\Test;
@@ -235,6 +240,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
 
         $workerA = null;
         $workerB = null;
+        $observer = IntegrationDatabase::connect();
         $primaryFailure = null;
         try {
             $workerA = $this->startWorker([
@@ -264,14 +270,75 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
 
             $this->signal($workerA, 'REPLACE');
             self::assertSame('REPLACED', $this->readLine($workerA, 'worker A replacement result'));
+
+            $observerRepository = new PdoRuleRepository($observer);
+            $observerManagement = new EligibilityManagementService($observerRepository);
+            $observerEvaluation = new EligibilityEvaluationService($observerRepository);
+            $committedBefore = $observerManagement->inspectRules(new RuleCriteria(
+                $subject,
+                'country',
+                lifecycle: RuleLifecycleEnum::ACTIVE,
+            ));
+            self::assertSame(
+                [['OLD', RuleEffectEnum::ALLOW]],
+                array_map(
+                    static fn (\Maatify\Eligibility\Rule\Rule $rule): array => [
+                        $rule->dimensionValue,
+                        $rule->effect,
+                    ],
+                    $committedBefore->items(),
+                ),
+            );
+            self::assertSame(DecisionReasonEnum::ELIGIBLE, $observerEvaluation->decide(
+                $subject,
+                new Context(ContextDimension::fromStrings('country', 'OLD')),
+            )->reasonCode);
+            self::assertSame(DecisionReasonEnum::DENIED, $observerEvaluation->decide(
+                $subject,
+                new Context(ContextDimension::fromStrings('country', 'A')),
+            )->reasonCode);
+
             $this->signal($workerA, 'COMMIT');
             self::assertSame('DONE', $this->readLine($workerA, 'worker A commit result'));
             self::assertSame('DONE', $this->readLine($workerB, 'worker B replacement result'));
+
+            $committedAfter = $observerManagement->inspectRules(new RuleCriteria(
+                $subject,
+                'country',
+                lifecycle: RuleLifecycleEnum::ACTIVE,
+            ));
+            self::assertSame(
+                [
+                    ['B', RuleEffectEnum::ALLOW],
+                    ['B2', RuleEffectEnum::DENY],
+                ],
+                array_map(
+                    static fn (\Maatify\Eligibility\Rule\Rule $rule): array => [
+                        $rule->dimensionValue,
+                        $rule->effect,
+                    ],
+                    $committedAfter->items(),
+                ),
+            );
+            self::assertSame(DecisionReasonEnum::ELIGIBLE, $observerEvaluation->decide(
+                $subject,
+                new Context(ContextDimension::fromStrings('country', 'B')),
+            )->reasonCode);
+            self::assertSame(DecisionReasonEnum::DENIED, $observerEvaluation->decide(
+                $subject,
+                new Context(ContextDimension::fromStrings('country', 'A')),
+            )->reasonCode);
         } catch (\Throwable $exception) {
             $primaryFailure = $exception;
             throw $exception;
         } finally {
-            $this->closeWorkers($workerA, $workerB, $primaryFailure !== null);
+            try {
+                $this->closeWorkers($workerA, $workerB, $primaryFailure !== null);
+            } finally {
+                if ($observer->inTransaction()) {
+                    $observer->rollBack();
+                }
+            }
         }
 
         $rules = $this->repository->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Rule\RuleLifecycleEnum::ACTIVE));

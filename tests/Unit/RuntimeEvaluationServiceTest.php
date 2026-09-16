@@ -56,6 +56,23 @@ final class RuntimeEvaluationServiceTest extends TestCase
     }
 
     #[Test]
+    public function oneMatchingContextValueSatisfiesAnAllowList(): void
+    {
+        $decision = $this->evaluate(
+            new Context(ContextDimension::fromStrings('country', 'SA', 'EG')),
+            $this->rule('EG', RuleEffectEnum::ALLOW),
+        );
+        $outcome = $decision->dimensionOutcomes->items()[0];
+
+        self::assertTrue($decision->eligible);
+        self::assertSame(DimensionReasonEnum::PASSED_ALLOW_LIST, $outcome->reasonCode);
+        self::assertSame(['EG'], array_map(
+            static fn ($reference): string => $reference->dimensionValue,
+            $outcome->matchedRules->items(),
+        ));
+    }
+
+    #[Test]
     public function allowListUnsatisfiedAndMissingContextAreDistinctFailures(): void
     {
         $unsatisfied = $this->evaluate(
@@ -99,6 +116,23 @@ final class RuntimeEvaluationServiceTest extends TestCase
     }
 
     #[Test]
+    public function matchingDenyOnlyValueDenies(): void
+    {
+        $decision = $this->evaluate(
+            new Context(ContextDimension::fromStrings('country', 'EG')),
+            $this->rule('EG', RuleEffectEnum::DENY),
+        );
+        $outcome = $decision->dimensionOutcomes->items()[0];
+
+        self::assertFalse($decision->eligible);
+        self::assertSame(DimensionReasonEnum::DENIED_BY_RULE, $outcome->reasonCode);
+        self::assertSame(['EG'], array_map(
+            static fn ($reference): string => $reference->dimensionValue,
+            $outcome->matchedRules->items(),
+        ));
+    }
+
+    #[Test]
     public function denyMatchWinsAndTraceContainsEveryMatchingEffect(): void
     {
         $decision = $this->evaluate(
@@ -123,19 +157,22 @@ final class RuntimeEvaluationServiceTest extends TestCase
             new Context(
                 ContextDimension::fromStrings('country', 'SA'),
                 ContextDimension::fromStrings('customer_type', 'vip'),
+                ContextDimension::fromStrings('segment', 'enterprise'),
             ),
             $this->rule('EG', RuleEffectEnum::ALLOW),
             $this->rule('vip', RuleEffectEnum::ALLOW, 'customer_type'),
+            $this->rule('gold', RuleEffectEnum::ALLOW, 'segment'),
         );
         $outcomes = $decision->dimensionOutcomes->items();
 
         self::assertFalse($decision->eligible);
-        self::assertSame(['country', 'customer_type'], array_map(
+        self::assertSame(['country', 'customer_type', 'segment'], array_map(
             static fn ($outcome): string => $outcome->dimensionKey,
             $outcomes,
         ));
         self::assertSame(DimensionReasonEnum::ALLOW_LIST_UNSATISFIED, $outcomes[0]->reasonCode);
         self::assertSame(DimensionReasonEnum::PASSED_ALLOW_LIST, $outcomes[1]->reasonCode);
+        self::assertSame(DimensionReasonEnum::ALLOW_LIST_UNSATISFIED, $outcomes[2]->reasonCode);
     }
 
     #[Test]

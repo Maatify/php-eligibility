@@ -6,6 +6,7 @@ namespace Maatify\Eligibility\Tests\Integration;
 
 use Maatify\Eligibility\Application\Command\CleanupSubjectCommand;
 use Maatify\Eligibility\Application\Command\CreateRuleCommand;
+use Maatify\Eligibility\Application\Command\DeactivateRuleCommand;
 use Maatify\Eligibility\Application\Command\DesiredRule;
 use Maatify\Eligibility\Application\Command\DesiredRuleCollection;
 use Maatify\Eligibility\Application\Command\ReplaceDimensionRulesCommand;
@@ -145,6 +146,83 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         self::assertSame(RuleEffectEnum::DENY, $this->repository->findByIdentity(
             new RuleIdentity('bulk', '500', 'country', 'v000'),
         )?->effect);
+    }
+
+    #[Test]
+    public function realReplacementReactivatesExistingRulesAndEmptyReplacementDeactivatesWithoutDeleting(): void
+    {
+        $subject = new Subject('product', '150');
+        $otherSubject = new Subject('product', '151');
+
+        $eg = $this->management->createRule(new CreateRuleCommand(
+            $subject,
+            'country',
+            'EG',
+            RuleEffectEnum::ALLOW,
+        ));
+        $sa = $this->management->createRule(new CreateRuleCommand(
+            $subject,
+            'country',
+            'SA',
+            RuleEffectEnum::ALLOW,
+        ));
+        $kw = $this->management->createRule(new CreateRuleCommand(
+            $subject,
+            'country',
+            'KW',
+            RuleEffectEnum::DENY,
+        ));
+        $this->management->deactivateRule(new DeactivateRuleCommand($kw->naturalIdentity()));
+        $this->management->createRule(new CreateRuleCommand(
+            $subject,
+            'customer_type',
+            'retail',
+            RuleEffectEnum::ALLOW,
+        ));
+        $this->management->createRule(new CreateRuleCommand(
+            $otherSubject,
+            'country',
+            'EG',
+            RuleEffectEnum::DENY,
+        ));
+
+        $replacement = $this->replacement(
+            $subject,
+            new DesiredRule('EG', RuleEffectEnum::DENY),
+            new DesiredRule('KW', RuleEffectEnum::ALLOW),
+            new DesiredRule('QA', RuleEffectEnum::ALLOW),
+        );
+        $this->management->replaceDimensionRules($replacement);
+        $this->management->replaceDimensionRules($replacement);
+
+        self::assertSame(['total' => 4, 'active' => 3, 'inactive' => 1], $this->stateCounts($subject, 'country'));
+        $foundEg = $this->repository->findByIdentity($eg->naturalIdentity());
+        $foundSa = $this->repository->findByIdentity($sa->naturalIdentity());
+        $foundKw = $this->repository->findByIdentity($kw->naturalIdentity());
+        self::assertNotNull($foundEg);
+        self::assertNotNull($foundSa);
+        self::assertNotNull($foundKw);
+        self::assertSame(RuleEffectEnum::DENY, $foundEg->effect);
+        self::assertSame(RuleLifecycleEnum::INACTIVE, $foundSa->lifecycle);
+        self::assertSame(RuleEffectEnum::ALLOW, $foundKw->effect);
+        self::assertSame(RuleLifecycleEnum::ACTIVE, $foundKw->lifecycle);
+        self::assertSame(['total' => 1, 'active' => 1, 'inactive' => 0], $this->stateCounts($subject, 'customer_type'));
+        self::assertSame(['total' => 1, 'active' => 1, 'inactive' => 0], $this->stateCounts($otherSubject, 'country'));
+
+        $this->management->replaceDimensionRules($this->replacement($subject));
+        $this->management->replaceDimensionRules($this->replacement($subject));
+
+        self::assertSame(['total' => 4, 'active' => 0, 'inactive' => 4], $this->stateCounts($subject, 'country'));
+        $foundKwAfterEmpty = $this->repository->findByIdentity($kw->naturalIdentity());
+        self::assertNotNull($foundKwAfterEmpty);
+        self::assertSame(RuleEffectEnum::ALLOW, $foundKwAfterEmpty->effect);
+        self::assertSame(DecisionReasonEnum::ELIGIBLE, $this->evaluation->decide(
+            $subject,
+            new Context(
+                ContextDimension::fromStrings('country', 'EG'),
+                ContextDimension::fromStrings('customer_type', 'retail'),
+            ),
+        )->reasonCode);
     }
 
     #[Test]
@@ -311,15 +389,22 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
     public function managementCleanupPhysicallyRemovesRulesAndCoordinationRows(): void
     {
         $subject = new Subject('product', '150');
+        $otherSubject = new Subject('product', '151');
         $this->management->replaceDimensionRules($this->replacement(
             $subject,
             new DesiredRule('EG', RuleEffectEnum::ALLOW),
+        ));
+        $this->management->replaceDimensionRules($this->replacement(
+            $otherSubject,
+            new DesiredRule('EG', RuleEffectEnum::DENY),
         ));
         $this->management->cleanupSubject(new CleanupSubjectCommand($subject));
         $this->management->cleanupSubject(new CleanupSubjectCommand($subject));
 
         self::assertCount(0, $this->management->inspectRules(new RuleCriteria($subject)));
         self::assertSame(0, $this->countCoordinationRows($subject));
+        self::assertCount(1, $this->management->inspectRules(new RuleCriteria($otherSubject)));
+        self::assertSame(1, $this->countCoordinationRows($otherSubject));
     }
 
     private function replacement(Subject $subject, DesiredRule ...$desiredRules): ReplaceDimensionRulesCommand
