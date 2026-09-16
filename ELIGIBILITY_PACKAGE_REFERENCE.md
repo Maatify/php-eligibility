@@ -1121,13 +1121,11 @@ The Consumer Verification Harness required by the adopted Testing and CI Standar
 
 ## Public Runtime API inventory
 
-This inventory records the public Runtime API currently implemented across B1–B3.
+This inventory records the public Runtime API currently implemented across B1–B4.
 It is an inventory of the code at this branch. B1 owns the model and validation
 types; B2 owns commands, interfaces, results, and semantic exceptions; B3 owns
 the concrete direct-PDO persistence implementation and the canonical-bound
-extensions. The concrete PDO persistence adapter exists in B3. The concrete
-evaluator and application-service runtime remain unimplemented and are owned by
-B4.
+extensions; B4 owns the concrete evaluator and application-service runtime.
 
 ### B1 model and validation types
 
@@ -1158,6 +1156,12 @@ B4.
 - `EligibilityManagementServiceInterface` exposes typed Rule creation, identity inspection, bounded Rule inspection, active-dimension inspection, effect/lifecycle mutations, replacement intent, and Subject cleanup. Its state-setting methods return `void` except `createRule(...): Rule`; `inspectRule(...): Rule` has a typed Rule-not-found contract.
 - `RuleRepositoryInterface` is the replaceable package-owned persistence boundary. It exposes canonical domain-Rule creation without a storage identifier, natural-identity lookup, bounded management reads, active Rule bulk loading for `SubjectCollection`, active-dimension lookup, Rule mutation primitives, and Subject cleanup. B3 provides the direct-PDO `Maatify\Eligibility\Rule\Repository\PdoRuleRepository` implementation. Replacement intent remains above this persistence seam in `ReplaceDimensionRulesCommand` and `EligibilityManagementServiceInterface`; no replacement algorithm or atomicity contract is implemented by B2 or B3.
 
+### B4 concrete runtime services
+
+- `Maatify\Eligibility\Application\Service\EligibilityEvaluationService` implements `EligibilityEvaluationServiceInterface`. It loads active Rules through one repository bulk call for a batch and delegates both single and batch calls to the shared pure `Maatify\Eligibility\Application\Evaluation\EligibilityRuleEvaluator`; `PdoRuleRepository` internally chunks large Subject collections at its configured bound, and the service preserves input order.
+- `Maatify\Eligibility\Application\Service\EligibilityManagementService` implements `EligibilityManagementServiceInterface`. It maps missing identity mutation results to `RuleNotFoundException` and coordinates create, inspect, lifecycle/effect, replacement, and cleanup behavior without SQL.
+- `Maatify\Eligibility\Application\Evaluation\EligibilityRuleEvaluator` is package-internal shared evaluation logic. It groups active Rules by dimension, evaluates every ruled dimension, applies DENY precedence, preserves the complete matching trace, and constructs the existing immutable Decision types in canonical order.
+
 ### B2 semantic exceptions
 
 - `RuleNotFoundException` extends the shared `ResourceNotFoundMaatifyException` hierarchy and identifies the requested `RuleIdentity`.
@@ -1173,8 +1177,10 @@ PDO persistence adapter is listed separately below.
 ### B3 persistence implementation and bounds extensions
 
 - `Maatify\Eligibility\Rule\Repository\PdoRuleRepository` is the concrete direct-PDO implementation of `RuleRepositoryInterface`. It provides the package-owned schema adapter, typed hydration, exact reads, lifecycle/effect mutations, bounded/bulk reads, active-dimension reads, and Subject cleanup described by the B3 persistence contract.
+- `Maatify\Eligibility\Rule\Repository\RuleReplacementRepositoryInterface` is a package-internal extension of the persistence boundary used by B4. It exposes only the transaction, complete Subject + dimension read, Subject coordination-lock, and coordination-cleanup primitives required by atomic replacement and cleanup; it is not an additional Host-facing service method.
+- B4 uses the package-owned `maa_eligibility_subject_locks` table as an explicit coordination row per Subject. Replacement and management cleanup create-or-lock this row inside their transaction before reading or mutating Rules, so an initially empty dimension is serialized without relying on database gap-lock behavior. Cleanup removes the coordination row for the cleaned Subject. The table has no Host foreign key or join.
 - B3 extends `Maatify\Eligibility\Validation\CanonicalString` with the single source of truth for the four canonical byte bounds and routes every semantic B1/B2 boundary through those bounded validators. The B1 validation type remains B1-owned; these bound constants and validators are the B3 contract extension.
-- No concrete evaluator or application service implementation is present yet; `EligibilityEvaluationServiceInterface` and `EligibilityManagementServiceInterface` remain B2 seams for B4 runtime work.
+- B4 supplies the concrete evaluator and application-service implementations listed above; the B2 interfaces remain the public replaceable seams for consumers and persistence adapters.
 
 ## RC1 exclusions
 
