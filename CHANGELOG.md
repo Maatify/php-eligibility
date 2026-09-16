@@ -21,7 +21,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- B6 package presentation rewritten: the README now states that the package is unpublished, documents requirements, installation state, the public API surface, runtime behavior, persistence/schema, exceptions, security, and local/CI testing; the local/CI parity mapping and CI architecture are recorded in `docs/RC1_CI_QUALITY_GATE_MAP.md`, and RC1 readiness evidence is recorded in `docs/RC1_READINESS_AUDIT.md`.
+- B6 package presentation rewritten: the README now states that the package is unpublished, documents requirements, installation state, the public API surface, runtime behavior, persistence/schema, exceptions, security, and local/CI testing.
 
 ### Fixed
 

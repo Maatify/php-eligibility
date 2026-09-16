@@ -39,8 +39,7 @@ composer check:local -- --with-integration   # adds real-MySQL Integration + Har
 docker compose -f docker-compose.integration.yml down
 ```
 
-`composer check:local` mirrors the required CI gates documented in
-[`docs/RC1_CI_QUALITY_GATE_MAP.md`](docs/RC1_CI_QUALITY_GATE_MAP.md): Composer
+`composer check:local` mirrors the required CI gates: Composer
 strict validation, optimized strict PSR-4 autoload, platform requirements,
 PHP syntax lint, PHPStan level max (no baseline, no suppressions), the
 whitespace gate, the Composer security audit, the workflow lint, the Unit
@@ -64,12 +63,9 @@ and the two-run Consumer Verification Harness.
 
 - Work on a descriptive branch and open pull requests with a clear title,
   scope, and verification summary.
-- Keep PRs focused; the RC1 delivery plan
-  ([`docs/RC1_DELIVERY_PLAN.md`](docs/RC1_DELIVERY_PLAN.md)) organizes work in
-  batches and child PRs against `phase/v1.0.0-rc.1`.
+- Keep PRs focused.
 - Merge, tagging, release, and publication require explicit owner approval and
-  are governed by the applicable release controls described in
-  [`docs/RC1_READINESS_AUDIT.md`](docs/RC1_READINESS_AUDIT.md).
+  are governed by the applicable release controls.
 - No `composer.lock` is tracked for this library (it is a library, not an
   application); do not add one. Generated, cache, and fixture artifacts such as
   `vendor/` and PHPUnit/PHPStan caches must not be committed.

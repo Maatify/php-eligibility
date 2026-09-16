@@ -4,7 +4,6 @@
 
 ![Maatify.dev](https://www.maatify.dev/assets/img/img/maatify_logo_white.svg)
 
-[![Status](https://img.shields.io/badge/status-unpublished%20RC1%20preparation-blue)](docs/RC1_READINESS_AUDIT.md)
 [![PHP](https://img.shields.io/badge/php-%5E8.4-8892BF)](composer.json)
 [![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-success)](phpstan.neon)
 [![License](https://img.shields.io/badge/license-proprietary-lightgrey)](LICENSE)
@@ -12,7 +11,6 @@
 [![Changelog](https://img.shields.io/badge/Changelog-View-blue)](CHANGELOG.md)
 [![Package Reference](https://img.shields.io/badge/Reference-Read-blue)](ELIGIBILITY_PACKAGE_REFERENCE.md)
 [![Schema](https://img.shields.io/badge/Schema-Read-blue)](schema/README.md)
-[![CI Gate Map](https://img.shields.io/badge/CI%20Gate%20Map-View-blue)](docs/RC1_CI_QUALITY_GATE_MAP.md)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-blue)](SECURITY.md)
 [![Contributing Guide](https://img.shields.io/badge/Contributing-Guide-blue)](CONTRIBUTING.md)
 
@@ -46,8 +44,7 @@ package is not yet published; see [Installation](#installation).
 - **Release state:** unpublished RC1 preparation. No `1.0.0-rc.1` tag exists
   yet, and there is no Packagist (or any other public Composer) distribution of
   this package.
-- **Quality:** see [Quality Status](#quality-status) and the
-  [RC1 readiness audit](docs/RC1_READINESS_AUDIT.md).
+- **Quality:** see [Quality Status](#quality-status).
 
 ## Key Features
 
@@ -319,10 +316,7 @@ Public surface (see the
 |---|---|
 | [Package Reference](ELIGIBILITY_PACKAGE_REFERENCE.md) | Canonical RC1 contract: identity, Context, Rule, Decision, lifecycle, ordering, persistence, transaction, concurrency, error, batch, and 52-scenario coverage. |
 | [Schema](schema/README.md) | Persistence contract, tables, bounds, applying/reapplying, and the local MySQL fixture. |
-| [CI Gate Map](docs/RC1_CI_QUALITY_GATE_MAP.md) | Local/CI parity mapping and the fail-closed CI architecture. |
-| [RC1 Readiness Audit](docs/RC1_READINESS_AUDIT.md) | Actual RC1 readiness state, evidence, and remaining owner-only actions. |
 | [CHANGELOG](CHANGELOG.md) | B1–B6 change history under `[Unreleased]`. |
-| [Delivery Plan](docs/RC1_DELIVERY_PLAN.md) | Phase/batch/PR roadmap for `phase/v1.0.0-rc.1`. |
 | [Security Policy](SECURITY.md) | Support state, vulnerability reporting, and scope. |
 | [Contributing Guide](CONTRIBUTING.md) | Contribution expectations, local verification, and PR requirements. |
 | [Code of Conduct](CODE_OF_CONDUCT.md) | Community rules and reporting. |
@@ -350,8 +344,7 @@ fixture. The fixture version is **not** a minimum supported product version.
 - Consumer Verification Harness: two clean external-consumer runs using
   production autoload, public contracts, and the real persistence boundary.
 - Fail-closed CI with stable aggregate gates: `ci-quality`, `ci-tests`,
-  `ci-integration`. Full evidence is tracked in the
-  [RC1 readiness audit](docs/RC1_READINESS_AUDIT.md).
+  `ci-integration`.
 
 ## Development and Testing
 
