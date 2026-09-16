@@ -10,6 +10,7 @@ use IteratorAggregate;
 use JsonSerializable;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Ordering\CanonicalOrdering;
+use Maatify\Eligibility\Validation\CanonicalString;
 
 /** @implements IteratorAggregate<int, ContextValue> */
 final readonly class ContextValueCollection implements Countable, IteratorAggregate, JsonSerializable
@@ -54,10 +55,12 @@ final readonly class ContextValueCollection implements Countable, IteratorAggreg
         return new ArrayIterator($this->items);
     }
 
-    public function contains(string $value): bool
+    public function contains(mixed $value): bool
     {
+        $canonicalValue = CanonicalString::validate($value, 'contextValue');
+
         foreach ($this->items as $item) {
-            if ($item->value === $value) {
+            if ($item->value === $canonicalValue) {
                 return true;
             }
         }
