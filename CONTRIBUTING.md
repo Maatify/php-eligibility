@@ -35,7 +35,7 @@ Prerequisites: PHP `^8.4`, Composer, Docker for the real MySQL fixture.
 composer update --no-interaction --prefer-dist --no-progress
 composer check:local                 # non-service gates + Unit + Golden in one pass
 docker compose -f docker-compose.integration.yml up -d --wait
-composer check:local --with-integration   # adds real-MySQL Integration + Harness
+composer check:local -- --with-integration   # adds real-MySQL Integration + Harness
 docker compose -f docker-compose.integration.yml down
 ```
 
