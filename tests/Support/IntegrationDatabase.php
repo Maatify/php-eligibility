@@ -45,6 +45,7 @@ final class IntegrationDatabase
     public static function clearRules(PDO $pdo): void
     {
         $pdo->exec('DELETE FROM `maa_eligibility_rules`');
+        $pdo->exec('DELETE FROM `maa_eligibility_subject_locks`');
     }
 
     private static function environment(string $name, string $default): string

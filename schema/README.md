@@ -1,7 +1,7 @@
 # Eligibility schema
 
-This directory contains the B3 executable schema for the package-owned Rule
-persistence boundary.
+This directory contains the RC1 executable schema for package-owned Rule
+persistence and B4 coordination metadata.
 
 ## Compatibility contract (D2)
 
@@ -24,6 +24,7 @@ not a package minimum version.
 
 - Asset: [`eligibility_rules.sql`](eligibility_rules.sql).
 - Package-owned table: `maa_eligibility_rules`.
+- Package-owned coordination table: `maa_eligibility_subject_locks`.
 - Table prefix: `maa_eligibility_`.
 - Internal `id`: `BIGINT UNSIGNED AUTO_INCREMENT`, used only as an infrastructure
   surrogate key and never exposed through `Rule` or B2 contracts.
@@ -31,6 +32,18 @@ not a package minimum version.
 - Canonical lifecycle values: `active` and `inactive`.
 - No Host foreign key, Host join, audit actor column, timestamp, log, or event log
   is part of this slice.
+- `maa_eligibility_subject_locks` contains one package-owned row per Subject
+  that has participated in replacement or cleanup. A replacement/cleanup
+  transaction creates the row if needed and locks it before reading or
+  mutating Rules. This explicit coordination row protects initially-empty
+  dimensions without relying on gap-lock behavior. It has no Host foreign key
+  and is deleted by the management cleanup operation for that Subject.
+- When a Host transaction is already active, B4 uses the transactional
+  `SAVEPOINT`, `ROLLBACK TO SAVEPOINT`, and `RELEASE SAVEPOINT` capabilities
+  through the internal repository boundary to make each replacement/cleanup
+  operation atomic without taking ownership of the Host transaction. This is
+  a capability requirement of the transactional MySQL-compatible semantics;
+  the package declares no minimum MySQL or MariaDB product version.
 
 Canonical strings are bounded in **bytes**, not characters, by the production
 source of truth `Maatify\Eligibility\Validation\CanonicalString` and validated
@@ -81,13 +94,14 @@ production. The test environment can be overridden with `ELIGIBILITY_TEST_DB_HOS
 `ELIGIBILITY_TEST_DB_PORT`, `ELIGIBILITY_TEST_DB_NAME`,
 `ELIGIBILITY_TEST_DB_USER`, and `ELIGIBILITY_TEST_DB_PASSWORD`.
 
-The Integration suite applies the schema, clears only package-owned Rule rows,
-and verifies fresh application, safe reapplication with valid data, lifecycle
-visibility, exact identity, bounded management reads, bulk active reads,
-cleanup, and repeatable setup. It fails when the required real MySQL service or
-`ext-pdo_mysql` is unavailable; it has no SQLite or mock fallback. Run the suite
-again after the first clean run to prove repeatability. Stopping the fixture
-afterward is explicit local cleanup:
+The Integration suite applies the schema, clears package-owned Rule and
+coordination rows, and verifies fresh application, safe reapplication with
+valid data, lifecycle visibility, exact identity, bounded management reads,
+bulk active reads, cleanup of both package-owned tables, and repeatable setup.
+It fails when the required real MySQL service or `ext-pdo_mysql` is unavailable;
+it has no SQLite or mock fallback. Run the suite again after the first clean run
+to prove repeatability. Stopping the fixture afterward is explicit local
+cleanup:
 
 ```bash
 docker compose -f docker-compose.integration.yml down

@@ -25,9 +25,11 @@ use PDO;
 use PDOException;
 use PDOStatement;
 
-final class PdoRuleRepository implements RuleRepositoryInterface
+final class PdoRuleRepository implements RuleReplacementRepositoryInterface
 {
     private const TABLE = 'maa_eligibility_rules';
+
+    private const SUBJECT_LOCK_TABLE = 'maa_eligibility_subject_locks';
 
     private const BULK_SUBJECT_CHUNK_SIZE = 100;
 
@@ -234,6 +236,90 @@ final class PdoRuleRepository implements RuleRepositoryInterface
         ]);
     }
 
+    public function inTransaction(): bool
+    {
+        return $this->pdo->inTransaction();
+    }
+
+    public function beginTransaction(): void
+    {
+        $this->pdo->beginTransaction();
+    }
+
+    public function commit(): void
+    {
+        $this->pdo->commit();
+    }
+
+    public function rollBack(): void
+    {
+        $this->pdo->rollBack();
+    }
+
+    public function createOperationSavepoint(): string
+    {
+        $savepoint = 'maa_eligibility_sp_' . bin2hex(random_bytes(16));
+        $this->executeSavepointStatement('SAVEPOINT ' . $savepoint);
+
+        return $savepoint;
+    }
+
+    public function rollbackToOperationSavepoint(string $savepoint): void
+    {
+        $this->executeSavepointStatement('ROLLBACK TO SAVEPOINT ' . $this->savepointName($savepoint));
+    }
+
+    public function releaseOperationSavepoint(string $savepoint): void
+    {
+        $this->executeSavepointStatement('RELEASE SAVEPOINT ' . $this->savepointName($savepoint));
+    }
+
+    public function lockSubjectForMutation(Subject $subject): void
+    {
+        $statement = $this->pdo->prepare(
+            'INSERT INTO `' . self::SUBJECT_LOCK_TABLE . '` '
+            . '(`subject_type`, `subject_id`) VALUES (?, ?) '
+            . 'ON DUPLICATE KEY UPDATE `id` = `id`',
+        );
+        $this->bindAndExecute($statement, [
+            CanonicalString::validateSubjectType($subject->subjectType),
+            CanonicalString::validateSubjectId($subject->subjectId),
+        ]);
+    }
+
+    public function findAllForSubjectDimension(Subject $subject, string $dimensionKey): RuleCollection
+    {
+        $rows = $this->fetchRows(
+            'SELECT `subject_type`, `subject_id`, `dimension_key`, `dimension_value`, `effect`, `lifecycle` '
+            . 'FROM `' . self::TABLE . '` '
+            . 'WHERE `subject_type` = ? AND `subject_id` = ? AND `dimension_key` = ? '
+            . 'ORDER BY `dimension_value`',
+            [
+                CanonicalString::validateSubjectType($subject->subjectType),
+                CanonicalString::validateSubjectId($subject->subjectId),
+                CanonicalString::validateDimensionKey($dimensionKey),
+            ],
+        );
+
+        $rules = [];
+        foreach ($rows as $row) {
+            $rules[] = $this->hydrate($row);
+        }
+
+        return new RuleCollection(...$rules);
+    }
+
+    public function deleteSubjectCoordination(Subject $subject): void
+    {
+        $statement = $this->pdo->prepare(
+            'DELETE FROM `' . self::SUBJECT_LOCK_TABLE . '` WHERE `subject_type` = ? AND `subject_id` = ?',
+        );
+        $this->bindAndExecute($statement, [
+            CanonicalString::validateSubjectType($subject->subjectType),
+            CanonicalString::validateSubjectId($subject->subjectId),
+        ]);
+    }
+
     /** @param list<string|int> $parameters */
     private function bindAndExecute(PDOStatement $statement, array $parameters): void
     {
@@ -307,6 +393,20 @@ final class PdoRuleRepository implements RuleRepositoryInterface
         }
 
         return $value;
+    }
+
+    private function executeSavepointStatement(string $sql): void
+    {
+        $this->pdo->exec($sql);
+    }
+
+    private function savepointName(string $savepoint): string
+    {
+        if (preg_match('/\\Amaa_eligibility_sp_[0-9a-f]{32}\\z/D', $savepoint) !== 1) {
+            throw new \InvalidArgumentException('Invalid package operation savepoint name.');
+        }
+
+        return $savepoint;
     }
 
     /** @return list<string> */
