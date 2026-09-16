@@ -68,12 +68,8 @@ $repository = new PdoRuleRepository($pdo);
 $management = new EligibilityManagementService($repository);
 $evaluation = new EligibilityEvaluationService($repository);
 
-if (countRowsForSubject($pdo, 'maa_eligibility_rules', $subject) !== 0) {
-    fail('Rule residue was present before the public workflow started.');
-}
-if (countRowsForSubject($pdo, 'maa_eligibility_subject_locks', $subject) !== 0) {
-    fail('Coordination residue was present before the public workflow started.');
-}
+assertTableEmpty($pdo, 'maa_eligibility_rules', 'Before workflow');
+assertTableEmpty($pdo, 'maa_eligibility_subject_locks', 'Before workflow');
 if ($management->inspectRules(new RuleCriteria($subject))->count() !== 0) {
     fail('Consumer state was not clean before the public workflow started.');
 }
@@ -143,12 +139,8 @@ $management->cleanupSubject(new CleanupSubjectCommand($subject));
 if ($management->inspectRules(new RuleCriteria($subject))->count() !== 0) {
     fail('Public cleanup did not remove all Rules for the consumer Subject.');
 }
-if (countRowsForSubject($pdo, 'maa_eligibility_rules', $subject) !== 0) {
-    fail('Rule residue remained after public cleanup.');
-}
-if (countRowsForSubject($pdo, 'maa_eligibility_subject_locks', $subject) !== 0) {
-    fail('Coordination residue remained after public cleanup.');
-}
+assertTableEmpty($pdo, 'maa_eligibility_rules', 'After workflow');
+assertTableEmpty($pdo, 'maa_eligibility_subject_locks', 'After workflow');
 
 echo "PRODUCTION_AUTOLOAD=PASS\n";
 echo "PUBLIC_WORKFLOW=PASS\n";
@@ -183,18 +175,21 @@ function environment(string $name, string $default): string
 }
 
 /** @phpstan-impure */
-function countRowsForSubject(PDO $pdo, string $table, Subject $subject): int
+function assertTableEmpty(PDO $pdo, string $table, string $phase): void
 {
     if (!in_array($table, ['maa_eligibility_rules', 'maa_eligibility_subject_locks'], true)) {
         fail('Unexpected consumer residue table.');
     }
 
-    $statement = $pdo->prepare(
-        'SELECT COUNT(*) FROM `' . $table . '` WHERE `subject_type` = ? AND `subject_id` = ?',
-    );
-    $statement->execute([$subject->subjectType, $subject->subjectId]);
+    $statement = $pdo->query('SELECT COUNT(*) FROM `' . $table . '`');
+    if ($statement === false) {
+        fail(sprintf('%s residue check could not read %s.', $phase, $table));
+    }
 
-    return (int) $statement->fetchColumn();
+    $count = (int) $statement->fetchColumn();
+    if ($count !== 0) {
+        fail(sprintf('%s %s was not empty: %d rows remained.', $phase, $table, $count));
+    }
 }
 
 function assertSameValue(mixed $expected, mixed $actual, string $label): void

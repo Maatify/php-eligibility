@@ -80,14 +80,12 @@ or Concurrency tests it references.
   cleanup, with the installed package schema asset as the documented setup
   boundary;
 - runs a real MySQL workflow, verifies observable decisions and lifecycle
-  reads through the Management Service, and proves both package-owned Rule and
-  coordination tables are empty for the consumer Subject before and after the
-  public workflow;
+  reads through the Management Service, and proves the complete package-owned
+  Rule and coordination tables are empty before and after the public workflow;
 - removes the exact temporary consumer root and fails if any root remains.
 
 Successful runs emit explicit `REAL_MYSQL_PRE_RESIDUE=PASS` and
-`REAL_MYSQL_POST_RESIDUE=PASS` markers for the two subject-scoped package-owned
-tables.
+`REAL_MYSQL_POST_RESIDUE=PASS` markers for the complete package-owned tables.
 
 Run it with:
 
