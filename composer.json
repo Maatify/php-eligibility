@@ -38,11 +38,13 @@
         "php": "^8.4"
     },
     "require-dev": {
-        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan": "^2.2",
         "phpunit/phpunit": "^12.0"
     },
     "scripts": {
-        "analyse": "phpstan analyse",
+        "analyse": "phpstan analyse --memory-limit=1G",
+        "check:local": "bash tools/check-local.sh",
+        "lint:php": "@php tools/php-lint.php",
         "test": "phpunit",
         "test:golden": "phpunit --testsuite golden",
         "test:harness": "php consumer-harness/run.php",

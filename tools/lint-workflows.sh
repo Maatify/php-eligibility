@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Maintained GitHub Actions workflow lint gate for maatify/php-eligibility.
+#
+# The default (and the only mode allowed in required CI) is deterministic: the
+# `actionlint` release pinned below is downloaded from GitHub Releases and
+# verified against the official SHA-256 checksum file before execution. A
+# binary already present on PATH is never used implicitly, so CI results do
+# not depend on whatever happens to be installed on the runner image.
+#
+# An explicit local override is available through ACTIONLINT_BIN (for example
+# a locally built or brew-installed binary) and ACTIONLINT_VERSION, but only
+# outside CI: in the required CI environment those variables fail closed so the
+# CI contract cannot drift. Nothing else can change the lint input; the pinned
+# download+verify path is the single deterministic default.
+#
+# Version policy: the version below is the immutable CI reference. Upgrade it
+# deliberately with the same release and record the change in CHANGELOG.md.
+
+version="${ACTIONLINT_VERSION:-1.7.12}"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+workflows_dir="$repo_root/.github/workflows"
+
+fail() {
+	echo "error: $1" >&2
+	exit 1
+}
+
+if [[ -n "${CI:-}" ]]; then
+	if [[ -n "${ACTIONLINT_BIN:-}" ]]; then
+		fail "ACTIONLINT_BIN is a local-only override and must not be used in required CI."
+	fi
+	if [[ -n "${ACTIONLINT_VERSION:-}" ]]; then
+		fail "ACTIONLINT_VERSION is a local-only override and must not be used in required CI."
+	fi
+fi
+
+if [[ ! -d "$workflows_dir" ]]; then
+	echo "Workflow lint passed: no .github/workflows directory is present."
+	exit 0
+fi
+
+verify_asset() {
+	local asset="$1"
+	local checksums_dir="$2"
+	local shasum_bin=""
+	if command -v sha256sum >/dev/null 2>&1; then
+		shasum_bin="sha256sum"
+	elif command -v shasum >/dev/null 2>&1; then
+		shasum_bin="shasum -a 256"
+	else
+		fail "no sha256 verification tool available"
+	fi
+	(
+		cd "$checksums_dir"
+		if ! $shasum_bin -c "$asset.sha256" >/dev/null; then
+			fail "actionlint release checksum verification failed for $asset"
+		fi
+	)
+}
+
+if [[ -n "${ACTIONLINT_BIN:-}" ]]; then
+	actionlint_bin="$ACTIONLINT_BIN"
+	echo "Workflow lint using the explicit local ACTIONLINT_BIN override."
+else
+	case "$(uname -s)" in
+		Linux) os="linux" ;;
+		Darwin) os="darwin" ;;
+		*) fail "unsupported operating system for pinned actionlint download: $(uname -s)" ;;
+	esac
+
+	case "$(uname -m)" in
+		x86_64 | amd64) arch="amd64" ;;
+		arm64 | aarch64) arch="arm64" ;;
+		*) fail "unsupported architecture for pinned actionlint download: $(uname -m)" ;;
+	esac
+
+	temp_dir="$(mktemp -d)"
+	# shellcheck disable=SC2064
+	trap 'rm -rf "$temp_dir"' EXIT
+
+	asset="actionlint_${version}_${os}_${arch}.tar.gz"
+	base_url="https://github.com/rhysd/actionlint/releases/download/v${version}"
+
+	curl -fsSL -o "$temp_dir/checksums.txt" "$base_url/actionlint_${version}_checksums.txt"
+	curl -fsSL -o "$temp_dir/$asset" "$base_url/$asset"
+	grep -F "  $asset" "$temp_dir/checksums.txt" > "$temp_dir/$asset.sha256"
+	verify_asset "$asset" "$temp_dir"
+	tar -xzf "$temp_dir/$asset" -C "$temp_dir"
+	actionlint_bin="$temp_dir/actionlint"
+fi
+
+files=()
+while IFS= read -r -d '' file; do
+	files+=("$file")
+done < <(find "$workflows_dir" -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) -print0)
+
+if [[ ${#files[@]} -eq 0 ]]; then
+	echo "Workflow lint passed: no workflow files present."
+	exit 0
+fi
+
+"$actionlint_bin" "${files[@]}"
+echo "Workflow lint passed using actionlint."
