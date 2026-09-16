@@ -43,6 +43,8 @@
     },
     "scripts": {
         "analyse": "phpstan analyse",
+        "check:local": "bash tools/check-local.sh",
+        "lint:php": "@php tools/php-lint.php",
         "test": "phpunit",
         "test:golden": "phpunit --testsuite golden",
         "test:harness": "php consumer-harness/run.php",

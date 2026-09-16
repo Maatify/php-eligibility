@@ -14,6 +14,13 @@ All notable changes to this project will be documented in this file.
 - B3 Eligibility-owned `maa_eligibility_rules` schema and direct-PDO Rule repository foundation, including exact byte-safe persistence, bounded inputs, natural-identity uniqueness, lifecycle/effect primitives, management reads, active-dimension reads, bounded bulk loading, cleanup, and MySQL Integration coverage.
 - D2 database compatibility resolution recorded as capability-based MySQL-compatible database-server semantics through direct PDO; PHP runtime requirements are `ext-pdo` and `ext-pdo_mysql`; `mysql:8.4.11` is documented as a reproducibility fixture only, with no minimum MySQL or MariaDB product version claim.
 - B4 concrete evaluator and management services, shared single/batch evaluation semantics, typed lifecycle orchestration, atomic dimension replacement, package/Host transaction participation with operation-local savepoints, Subject coordination locking, and focused real-MySQL runtime/concurrency coverage.
+- B5 Golden acceptance closure: the executable 52-scenario evidence map, Unit/Golden/Integration/concurrency suites, real-MySQL Integration and repeatability evidence, the Consumer Verification Harness with two clean external-consumer runs, and whole-table residue verification.
+- B6 fail-closed CI and release readiness: the `ci-quality`, `ci-tests`, and `ci-integration` GitHub Actions workflows with stable aggregate gates, the PHP `8.4`/`8.5` matrix, newest and lowest dependency ends, real `mysql:8.4.11` integration with repeatability and Harness runs, immutable full-SHA action pins, least-privilege permissions, and workflows linted with pinned `actionlint` v1.7.12 (SHA-256 verified).
+- B6 maintained local parity tooling: `tools/php-lint.php`, `tools/check-whitespace.sh`, `tools/lint-workflows.sh`, `tools/assert-gate.sh`, `tools/check-local.sh`, and the Composer scripts `check:local` and `lint:php`.
+
+### Changed
+
+- B6 package presentation rewritten: the README now states that the package is unpublished, documents requirements, installation state, the public API surface, runtime behavior, persistence/schema, exceptions, security, and local/CI testing; the local/CI parity mapping and CI architecture are recorded in `docs/RC1_CI_QUALITY_GATE_MAP.md`, and RC1 readiness evidence is recorded in `docs/RC1_READINESS_AUDIT.md`.
 
 ### Fixed
 

@@ -1,0 +1,98 @@
+name: ci-quality
+
+on:
+  pull_request:
+    branches: [main, phase/v1.0.0-rc.1]
+  push:
+    branches: [main, phase/v1.0.0-rc.1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
+
+env:
+  COMPOSER_NO_INTERACTION: '1'
+
+jobs:
+  composer-contract:
+    name: Composer contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          coverage: none
+      - name: Validate composer.json
+        run: composer validate --strict
+      - name: Resolve current compatible dependencies
+        run: composer update --no-interaction --prefer-dist --no-progress
+      - name: Verify platform requirements
+        run: composer check-platform-reqs
+      - name: Validate optimized strict PSR-4 autoload
+        run: composer dump-autoload --optimize --strict-psr
+      - name: Composer security audit
+        run: composer audit --no-interaction --abandoned=fail
+
+  static-analysis:
+    name: Static analysis (PHP 8.4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          coverage: none
+      - name: Resolve current compatible dependencies
+        run: composer update --no-interaction --prefer-dist --no-progress
+      - name: PHP syntax lint
+        run: php tools/php-lint.php
+      - name: PHPStan level max
+        run: composer analyse
+
+  whitespace:
+    name: Whitespace check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+      - name: Check whitespace defects on the diff range
+        run: tools/check-whitespace.sh "$BASE" "$HEAD"
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
+  workflow-lint:
+    name: Workflow lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Lint GitHub Actions workflows
+        run: tools/lint-workflows.sh
+
+  quality-gate:
+    name: Quality aggregate gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [composer-contract, static-analysis, whitespace, workflow-lint]
+    if: always()
+    steps:
+      - name: Verify upstream quality jobs
+        run: tools/assert-gate.sh "$RESULTS"
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
