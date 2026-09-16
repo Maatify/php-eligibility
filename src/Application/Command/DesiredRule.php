@@ -14,7 +14,7 @@ final readonly class DesiredRule implements JsonSerializable
 
     public function __construct(mixed $dimensionValue, public RuleEffectEnum $effect)
     {
-        $this->dimensionValue = CanonicalString::validate($dimensionValue, 'dimensionValue');
+        $this->dimensionValue = CanonicalString::validateDimensionValue($dimensionValue);
     }
 
     /** @return array{dimensionValue: string, effect: string} */

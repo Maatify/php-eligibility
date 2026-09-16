@@ -52,7 +52,7 @@ final readonly class Context implements Countable, IteratorAggregate, JsonSerial
 
     public function getDimension(mixed $dimensionKey): ?ContextDimension
     {
-        $canonicalKey = \Maatify\Eligibility\Validation\CanonicalString::validate($dimensionKey, 'dimensionKey');
+        $canonicalKey = \Maatify\Eligibility\Validation\CanonicalString::validateDimensionKey($dimensionKey);
         foreach ($this->dimensions as $dimension) {
             if ($dimension->dimensionKey === $canonicalKey) {
                 return $dimension;

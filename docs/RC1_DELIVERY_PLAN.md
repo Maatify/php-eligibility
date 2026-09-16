@@ -101,6 +101,19 @@ The following classification is based on the actual baseline above, not on the p
 
 The reconciliation prevents both duplicate work and false completion. The three completed foundation rows remain closed. The two decision gates below are explicit preconditions, not artificial execution batches or PRs; every remaining runtime responsibility enters the dependency graph only after its relevant gate is satisfied.
 
+### Current execution status — D2 resolution recorded by B3
+
+The historical baseline above correctly records D2 as unresolved when the roadmap
+was created. The owner decision is now resolved and locked for the B3 execution
+slice:
+
+| Decision | Current status | Resolution |
+|---|---|---|
+| D2 — supported database engine and compatibility contract | `RESOLVED` | RC1 uses MySQL-compatible database-server semantics through direct PDO. Database compatibility is capability-based, not product-version-based; no minimum MySQL or MariaDB version is declared. The database server must provide the documented transactional InnoDB-style table behavior, binary-safe `VARBINARY` storage/comparison, indexed-key capacity, and uniqueness/index semantics. Separately, the PHP runtime must provide `ext-pdo` and `ext-pdo_mysql`. `mysql:8.4.11` is a reproducibility fixture only, not a minimum supported product version, and no MariaDB verification is claimed without execution. |
+
+This decision is recorded within the B3 child PR. D2 is not a separate PR or
+execution batch and is not reopened by the implementation choices below.
+
 ## 5. Frozen contract versus implementation choices
 
 ### Frozen and not reopenable inside implementation slices

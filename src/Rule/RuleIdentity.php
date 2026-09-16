@@ -23,10 +23,10 @@ final readonly class RuleIdentity implements JsonSerializable
         mixed $dimensionKey,
         mixed $dimensionValue,
     ) {
-        $this->subjectType = CanonicalString::validate($subjectType, 'subjectType');
-        $this->subjectId = CanonicalString::validate($subjectId, 'subjectId');
-        $this->dimensionKey = CanonicalString::validate($dimensionKey, 'dimensionKey');
-        $this->dimensionValue = CanonicalString::validate($dimensionValue, 'dimensionValue');
+        $this->subjectType = CanonicalString::validateSubjectType($subjectType);
+        $this->subjectId = CanonicalString::validateSubjectId($subjectId);
+        $this->dimensionKey = CanonicalString::validateDimensionKey($dimensionKey);
+        $this->dimensionValue = CanonicalString::validateDimensionValue($dimensionValue);
     }
 
     public function equals(self $other): bool

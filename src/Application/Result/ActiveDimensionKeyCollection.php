@@ -21,10 +21,7 @@ final readonly class ActiveDimensionKeyCollection implements Countable, Iterator
     public function __construct(mixed ...$dimensionKeys)
     {
         $items = array_map(
-            static fn (mixed $dimensionKey): string => CanonicalString::validate(
-                $dimensionKey,
-                'dimensionKey',
-            ),
+            static fn (mixed $dimensionKey): string => CanonicalString::validateDimensionKey($dimensionKey),
             $dimensionKeys,
         );
 
@@ -56,7 +53,7 @@ final readonly class ActiveDimensionKeyCollection implements Countable, Iterator
 
     public function contains(mixed $dimensionKey): bool
     {
-        $canonicalKey = CanonicalString::validate($dimensionKey, 'dimensionKey');
+        $canonicalKey = CanonicalString::validateDimensionKey($dimensionKey);
 
         return in_array($canonicalKey, $this->items, true);
     }

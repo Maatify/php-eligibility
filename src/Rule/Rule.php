@@ -21,8 +21,8 @@ final readonly class Rule implements JsonSerializable
         public RuleEffectEnum $effect,
         public RuleLifecycleEnum $lifecycle = RuleLifecycleEnum::ACTIVE,
     ) {
-        $this->dimensionKey = CanonicalString::validate($dimensionKey, 'dimensionKey');
-        $this->dimensionValue = CanonicalString::validate($dimensionValue, 'dimensionValue');
+        $this->dimensionKey = CanonicalString::validateDimensionKey($dimensionKey);
+        $this->dimensionValue = CanonicalString::validateDimensionValue($dimensionValue);
     }
 
     public static function active(

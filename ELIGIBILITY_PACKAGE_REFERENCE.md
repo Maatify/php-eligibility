@@ -72,7 +72,22 @@ Malformed UTF-8, null values, non-string values at typed package boundaries, emp
 
 RC1 does not restrict business values to ASCII. Persistence MUST preserve the exact validated UTF-8 sequence and MUST NOT silently normalize or truncate it.
 
-Exact maximum lengths remain a contracts/schema-slice decision, but bounded limits MUST be explicitly documented and enforced consistently before RC1 release readiness.
+RC1 canonical package bounds are resolved and apply at every semantic package
+boundary, not only at SQL columns. `Maatify\Eligibility\Validation\CanonicalString`
+is the production source of truth and measures bytes with `strlen()` after valid
+UTF-8 validation:
+
+| Canonical component | Maximum bytes |
+|---|---:|
+| `subject_type` | 64 |
+| `subject_id` | 191 |
+| `dimension_key` | 64 |
+| `dimension_value` | 255 |
+
+Every public/raw boundary for these components MUST reject an over-limit value
+with `InvalidEligibilityInputException` before constructing contract state or
+performing persistence work. These are canonical RC1 package bounds, not merely
+SQL column-size choices.
 
 ## Subject
 
@@ -984,6 +999,54 @@ If a future use case genuinely requires tenant identity to participate in the bu
 
 ## Persistence principles for RC1
 
+### D2 — Resolved database compatibility contract
+
+For RC1, Eligibility persistence targets **MySQL-compatible database-server
+semantics through direct PDO**. The database compatibility contract is
+capability-based, not product-version-based.
+
+Accordingly, this package declares no minimum MySQL version and no minimum MariaDB
+version. A compatible database server must provide the capabilities actually used
+by the schema and SQL: transactional InnoDB-style package-owned table behavior,
+binary-safe exact-value storage/comparison, the bounded indexed-key capacity
+documented below, and the required uniqueness/index semantics. A server is not
+supported merely because it describes itself as MySQL-compatible; it must provide
+those capabilities. MariaDB compatibility is not claimed without executed MariaDB
+verification.
+
+Separately, the PHP runtime executing this package MUST provide `ext-pdo` and
+`ext-pdo_mysql`. These are PHP runtime requirements, not capabilities supplied by
+the database server.
+
+The RC1 reproducibility fixture is `mysql:8.4.11`. That fixture version is test
+infrastructure evidence only and is not a minimum supported product version.
+
+The B3 schema bounds canonical UTF-8 inputs by bytes, before persistence:
+
+| Canonical component | Maximum bytes | Storage |
+|---|---:|---|
+| `subject_type` | 64 | `VARBINARY(64)` |
+| `subject_id` | 191 | `VARBINARY(191)` |
+| `dimension_key` | 64 | `VARBINARY(64)` |
+| `dimension_value` | 255 | `VARBINARY(255)` |
+
+The aggregate natural-identity index is 574 bytes, staying within the
+conservative indexed-key capability used by this schema. `VARBINARY` preserves
+the validated UTF-8 byte sequence and avoids collation-based case folding or
+Unicode normalization. PHP validates the byte bounds before SQL; the database
+must not trim, normalize, coerce, or truncate input. Repository results are
+hydrated and then normalized by the existing package collections to canonical
+bytewise ordering.
+
+The concrete B3 adapter is
+`Maatify\Eligibility\Rule\Repository\PdoRuleRepository`. Its internal
+auto-increment `BIGINT UNSIGNED` primary key is infrastructure-only and is not
+part of `Rule`, `RuleIdentity`, `RuleReference`, Decisions, or B2 public
+contracts. B3 converts only MySQL/MariaDB driver error code `1062` to
+`RuleIdentityConflictException` and preserves the original `PDOException` as
+`previous`; unknown storage failures propagate unchanged. No Eligibility table
+has a Host foreign key or Host join.
+
 The final RC1 schema and adapter MUST preserve these principles:
 
 - Eligibility-owned tables only;
@@ -1058,11 +1121,17 @@ The Consumer Verification Harness required by the adopted Testing and CI Standar
 
 ## Public Runtime API inventory
 
-This inventory records the public PHP types currently implemented by B1 and B2. It is an inventory of the code at this branch, not a claim that the B2 service or repository interfaces already have a concrete evaluator or persistence adapter.
+This inventory records the public Runtime API currently implemented across B1–B3.
+It is an inventory of the code at this branch. B1 owns the model and validation
+types; B2 owns commands, interfaces, results, and semantic exceptions; B3 owns
+the concrete direct-PDO persistence implementation and the canonical-bound
+extensions. The concrete PDO persistence adapter exists in B3. The concrete
+evaluator and application-service runtime remain unimplemented and are owned by
+B4.
 
 ### B1 model and validation types
 
-- `Maatify\Eligibility\Validation\CanonicalString::validate(mixed $value, string $field): string` validates a canonical package string without transforming it.
+- `Maatify\Eligibility\Validation\CanonicalString::validate(mixed $value, string $field): string` validates a generic canonical package string without transforming it. Its semantic bounded methods and constants are the single source of truth for the four RC1 canonical component limits; canonical ordering remains intentionally generic and unbounded.
 - `Maatify\Eligibility\Value\Subject` represents `subjectType` and `subjectId`.
 - `Maatify\Eligibility\Value\ContextValue`, `ContextValueCollection`, `ContextDimension`, and `Context` represent the immutable Context shape. `Context` exposes `getDimension(mixed $dimensionKey): ?ContextDimension` and `hasDimension(mixed $dimensionKey): bool`.
 - `Maatify\Eligibility\Rule\Rule`, `RuleIdentity`, `RuleCollection`, `RuleEffectEnum`, and `RuleLifecycleEnum` represent typed Rules, natural identity, effects, lifecycle, and canonical Rule collections. `RuleCollection` exposes active and inactive lifecycle state through each returned `Rule`.
@@ -1087,7 +1156,7 @@ This inventory records the public PHP types currently implemented by B1 and B2. 
 - `SubjectDecisionResult` associates one `Subject` with one `EligibilityDecision`. `SubjectDecisionCollection` rejects duplicate Subject identities, accepts an empty result, and preserves the supplied result order.
 - `EligibilityEvaluationServiceInterface` exposes `decide(Subject $subject, Context $context): EligibilityDecision` and `decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollection`. The interface defines the public evaluation seam; B2 does not implement the evaluator.
 - `EligibilityManagementServiceInterface` exposes typed Rule creation, identity inspection, bounded Rule inspection, active-dimension inspection, effect/lifecycle mutations, replacement intent, and Subject cleanup. Its state-setting methods return `void` except `createRule(...): Rule`; `inspectRule(...): Rule` has a typed Rule-not-found contract.
-- `RuleRepositoryInterface` is the replaceable package-owned persistence boundary. It exposes canonical domain-Rule creation without a storage identifier, natural-identity lookup, bounded management reads, active Rule bulk loading for `SubjectCollection`, active-dimension lookup, Rule mutation primitives, and Subject cleanup. Replacement intent remains above this persistence seam in `ReplaceDimensionRulesCommand` and `EligibilityManagementServiceInterface`; no replacement algorithm or atomicity contract is implemented by B2.
+- `RuleRepositoryInterface` is the replaceable package-owned persistence boundary. It exposes canonical domain-Rule creation without a storage identifier, natural-identity lookup, bounded management reads, active Rule bulk loading for `SubjectCollection`, active-dimension lookup, Rule mutation primitives, and Subject cleanup. B3 provides the direct-PDO `Maatify\Eligibility\Rule\Repository\PdoRuleRepository` implementation. Replacement intent remains above this persistence seam in `ReplaceDimensionRulesCommand` and `EligibilityManagementServiceInterface`; no replacement algorithm or atomicity contract is implemented by B2 or B3.
 
 ### B2 semantic exceptions
 
@@ -1095,7 +1164,17 @@ This inventory records the public PHP types currently implemented by B1 and B2. 
 - `RuleIdentityConflictException` extends the shared `GenericConflictMaatifyException` hierarchy and identifies a conflicting natural identity.
 - `RuleConcurrencyConflictException` extends the shared `GenericConflictMaatifyException` hierarchy for an unresolved Rule uniqueness/concurrency condition.
 
-All three B2 semantic exceptions implement `EligibilityExceptionInterface`. They do not classify PDO or driver failures; known storage conversion and unknown throwable propagation remain later persistence/service behavior. No concrete B2 service, evaluator, or repository adapter is claimed by this inventory.
+All three B2 semantic exceptions implement `EligibilityExceptionInterface`. B3
+classifies only proven MySQL/MariaDB duplicate-key driver code `1062` at the
+repository boundary; other PDO/storage failures propagate unchanged. No concrete
+B2 evaluator or application service is claimed by this inventory; the concrete
+PDO persistence adapter is listed separately below.
+
+### B3 persistence implementation and bounds extensions
+
+- `Maatify\Eligibility\Rule\Repository\PdoRuleRepository` is the concrete direct-PDO implementation of `RuleRepositoryInterface`. It provides the package-owned schema adapter, typed hydration, exact reads, lifecycle/effect mutations, bounded/bulk reads, active-dimension reads, and Subject cleanup described by the B3 persistence contract.
+- B3 extends `Maatify\Eligibility\Validation\CanonicalString` with the single source of truth for the four canonical byte bounds and routes every semantic B1/B2 boundary through those bounded validators. The B1 validation type remains B1-owned; these bound constants and validators are the B3 contract extension.
+- No concrete evaluator or application service implementation is present yet; `EligibilityEvaluationServiceInterface` and `EligibilityManagementServiceInterface` remain B2 seams for B4 runtime work.
 
 ## RC1 exclusions
 

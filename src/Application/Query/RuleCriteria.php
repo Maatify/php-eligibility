@@ -27,7 +27,7 @@ final readonly class RuleCriteria
     ) {
         $this->dimensionKey = $dimensionKey === null
             ? null
-            : CanonicalString::validate($dimensionKey, 'dimensionKey');
+            : CanonicalString::validateDimensionKey($dimensionKey);
 
         if (
             !is_int($maxResults)
