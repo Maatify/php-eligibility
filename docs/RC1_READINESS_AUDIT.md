@@ -31,7 +31,7 @@ a release, or any distribution publication.
 | 5. D2 database compatibility contract resolved and proven | `PROVEN` | `ELIGIBILITY_PACKAGE_REFERENCE.md` D2 record; `schema/README.md`; real MySQL Integration evidence |
 | 6. Complete executable 52-scenario suite + Unit/Integration/concurrency evidence | `PROVEN` | `tests/Golden/`, `tests/Integration/`, `tests/Unit/` |
 | 7. Consumer Verification Harness: two clean repeatable runs | `PROVEN` | `composer test:harness` CI job and local runs |
-| 8. Full applicable CI gate green and fail-closed | `PENDING` — requires actual GitHub Actions results on the B6 HEAD | `ci-quality`, `ci-tests`, `ci-integration` gate jobs |
+| 8. Full applicable CI gate green and fail-closed | `PROVEN` | Three successive-principal runs on the B6 HEAD `3adff5c` (Actions run IDs `35120662701`, `35120662802`, `35120662771`); see the check badge(s) on this PR and the evidence table below |
 | 9. Presentation synchronized, unpublished state distinguished | `IN PROGRESS` — completed by this PR (README, CHANGELOG, gate map) | This PR |
 | 10. Base/head/merge-base, changed files, checks directly reviewed | `PENDING` — owner/lead review of this PR | This PR |
 | 11. No `BLOCKED BY DECISION` item remains | `PROVEN` — D1 and D2 resolved; no other decision gate exists in the roadmap | Delivery plan reconciliation |
@@ -69,17 +69,24 @@ a release, or any distribution publication.
    Composer metadata synchronized with reality.
 4. **Readiness evidence**: this audit and the gate map.
 
-## 5. Actual verification evidence required for B6 acceptance
+## 5. GitHub Actions evidence (captured on the B6 HEAD)
 
-- Local aggregate result: `tools/check-local.sh` (quality + tests) and
-  `tools/check-local.sh --with-integration` (real MySQL + Harness).
-- GitHub Actions evidence on the B6 **HEAD** (not local-only):
-  - `ci-quality`: Composer contract, PHPStan max, syntax, whitespace, audit,
-    workflow lint, `Quality aggregate gate` success.
-  - `ci-tests`: Unit + Golden on PHP `8.4` and `8.5`; lowest-dependency job;
-    `Tests aggregate gate` success.
-  - `ci-integration`: Integration + repeatability run + Harness on PHP `8.4`
-    and `8.5` against real MySQL; `Integration aggregate gate` success.
+Run ID `35120662701` (`ci-quality`): Composer contract, Static analysis
+(PHP 8.4), Whitespace check, Workflow lint, and the Quality aggregate gate all
+concluded `success`.
+
+Run ID `35120662802` (`ci-tests`): Unit + Golden (PHP 8.4 and 8.5), Lowest
+dependencies (PHP 8.4), and the Tests aggregate gate all concluded `success`.
+
+Run ID `35120662771` (`ci-integration`): Real MySQL Integration (PHP 8.4 and
+8.5), Integration aggregate gate all concluded `success`. The Integration run
+includes the repeated Integration suite and the two-run Consumer Verification
+Harness.
+
+These runs are the fail-closed CI gate superset required for closure-gate
+item 8. The initial failing runs of this PR (SC2016 workflow-lint finding,
+aggregate-gate jobs without a checkout, and the lowest-dependency PHPStan
+resolution) were repaired and re-proven; see the PR history.
 
 ## 6. Remaining owner-only actions after this PR (not performed here)
 
