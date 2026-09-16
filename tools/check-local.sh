@@ -22,7 +22,7 @@ set -euo pipefail
 #   tools/check-local.sh --with-integration
 #
 # The local/CI mapping and the exact verification contract of every gate are
-# documented in docs/RC1_CI_QUALITY_GATE_MAP.md.
+# documented.
 
 with_integration=false
 for arg in "$@"; do
