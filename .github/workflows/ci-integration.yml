@@ -60,33 +60,7 @@ jobs:
       - name: Resolve current compatible dependencies
         run: composer update --no-interaction --prefer-dist --no-progress
       - name: Wait for MySQL readiness
-        run: |
-          set -euo pipefail
-          ready=false
-          for _ in $(seq 1 30); do
-            if php -r '
-              try {
-                new PDO(
-                  sprintf("mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4", "127.0.0.1", 13306, "maatify_eligibility_test"),
-                  "eligibility_test",
-                  "eligibility_test",
-                  [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
-                );
-                exit(0);
-              } catch (Throwable $exception) {
-                exit(1);
-              }
-            ' >/dev/null 2>&1; then
-              ready=true
-              break
-            fi
-            sleep 2
-          done
-          if [[ "$ready" != true ]]; then
-            echo "MySQL did not become ready in time." >&2
-            exit 1
-          fi
-          echo "MySQL is ready."
+        run: php tools/mysql-ready.php
       - name: Unit suite
         run: composer test:unit
       - name: Golden suite
@@ -105,6 +79,8 @@ jobs:
     needs: [integration]
     if: always()
     steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Verify upstream integration jobs
         run: tools/assert-gate.sh "$RESULTS"
         env:

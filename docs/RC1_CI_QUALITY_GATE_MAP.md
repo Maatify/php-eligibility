@@ -101,9 +101,11 @@ tools/check-local.sh --with-integration
 docker compose -f docker-compose.integration.yml down
 ```
 
-CI uses the same fixture image and credentials as a pinned service container
-(no secrets), maps host `13306`, and waits for a real PDO readiness check
-before running tests.
+A real PDO readiness check in `tools/mysql-ready.php` (the single maintained
+readiness implementation) runs before the local suites, exactly mirroring the
+`Wait for MySQL readiness` step of ci-integration. CI uses the same fixture
+image and credentials as a pinned service container (no secrets), maps host
+`13306`, and the readiness exit code decides the result of the step.
 
 ## 3. PHP compatibility matrix policy
 
@@ -129,7 +131,10 @@ constraint are never added merely to widen the matrix.
 - **Lowest-supported**: `composer update --prefer-lowest --prefer-stable` runs
   on PHP 8.4 (minimum supported) and is followed by Unit, Golden, and
   PHPStan max. A failure to support the declared lower bounds must be fixed by
-  correcting the constraint, never by hiding the job.
+  correcting the constraint, never by hiding the job. PHPStan's declared
+  minimum resolution is therefore `^2.2` (a dev-only analysis version; 2.1's
+  inference of the concurrency worker/process fixtures is too imprecise to
+  analyze this code correctly).
 
 ## 5. PHPStan configuration
 

@@ -15,7 +15,8 @@ set -euo pipefail
 #   composer update --no-interaction --prefer-dist --no-progress
 #
 # To also run the real-service gates locally, start the MySQL fixture first
-# and pass --with-integration:
+# and pass --with-integration. A real PDO readiness check
+# (tools/mysql-ready.php) runs before the suites, mirroring ci-integration:
 #
 #   docker compose -f docker-compose.integration.yml up -d --wait
 #   tools/check-local.sh --with-integration
@@ -61,6 +62,7 @@ run_step "Unit suite" composer test:unit
 run_step "Golden suite" composer test:golden
 
 if [[ "$with_integration" == true ]]; then
+	run_step "MySQL fixture readiness" php tools/mysql-ready.php
 	run_step "Integration suite" composer test:integration
 	run_step "Integration suite repeatability run" composer test:integration
 	run_step "Consumer Verification Harness" composer test:harness
