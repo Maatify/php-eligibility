@@ -44,6 +44,8 @@
     "scripts": {
         "analyse": "phpstan analyse",
         "test": "phpunit",
+        "test:golden": "phpunit --testsuite golden",
+        "test:harness": "php consumer-harness/run.php",
         "test:integration": "phpunit --testsuite integration",
         "test:unit": "phpunit --testsuite unit"
     },

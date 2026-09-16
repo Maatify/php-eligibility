@@ -1,0 +1,25 @@
+{
+    "name": "maatify/php-eligibility-consumer-harness",
+    "description": "External Composer consumer fixture for maatify/php-eligibility.",
+    "type": "project",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "..",
+            "options": {
+                "symlink": false,
+                "versions": {
+                    "maatify/php-eligibility": "1.0.0-rc.1"
+                }
+            }
+        }
+    ],
+    "require": {
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "maatify/php-eligibility": "1.0.0-rc.1",
+        "php": "^8.4"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
