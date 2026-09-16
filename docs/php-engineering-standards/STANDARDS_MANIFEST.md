@@ -11,7 +11,7 @@
 ## Upstream Source
 
 - **Upstream Repository:** `Maatify/php-engineering-standards`
-- **Adoption Commit:** `2fc57f9320f8a7f7147fb20abbcfa311fdf40c28`
+- **Adoption Commit:** `44c8827095ab4007c355aa21c56b853f3b49d795`
 - **Floating References:** none
 - **Mixed-Commit Adoption:** no
 
@@ -54,7 +54,7 @@ Only the final applicable Standards are listed here. Candidate references that a
 | Local Path | Standard ID | Standard Version | Applicable Activation / Scope |
 |---|---|---:|---|
 | `docs/php-engineering-standards/standards/packages/PACKAGE_BUILDING_STANDARD.md` | `std-package-building` | `1.3.0` | `composer-package` `/` |
-| `docs/php-engineering-standards/standards/packages/COMPOSER_PACKAGE_STANDARD.md` | `std-composer-package` | `1.2.0` | `composer-package` `/` |
+| `docs/php-engineering-standards/standards/packages/COMPOSER_PACKAGE_STANDARD.md` | `std-composer-package` | `2.0.0` | `composer-package` `/` |
 | `docs/php-engineering-standards/standards/packages/CI_WORKFLOW_STANDARD.md` | `std-ci-workflow` | `1.1.0` | `composer-package` `/` |
 | `docs/php-engineering-standards/standards/packages/LIBRARY_PRESENTATION_STANDARD.md` | `std-library-presentation` | `1.0.1` | `composer-package` `/` |
 | `docs/php-engineering-standards/standards/testing/TESTING_STANDARD.md` | `std-testing` | `1.1.0` | `composer-package` `/` |
