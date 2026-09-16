@@ -5,13 +5,17 @@ persistence boundary.
 
 ## Compatibility contract (D2)
 
-RC1 uses **MySQL-compatible persistence semantics via PDO**. The contract is
-capability-based, not product-version-based: no minimum MySQL version and no
-minimum MariaDB version is declared. A server must provide transactional tables,
-binary-safe exact-value storage and comparison, the indexed key capacity needed
-by this schema, and the PDO MySQL driver. Being labelled MySQL-compatible is not
-enough to establish support. MariaDB verification is not claimed unless it has
-actually been executed.
+RC1 uses **MySQL-compatible database-server semantics through direct PDO**. The
+database compatibility contract is capability-based, not product-version-based:
+no minimum MySQL version and no minimum MariaDB version is declared. A compatible
+database server must provide transactional InnoDB-style package-owned table
+behavior, binary-safe exact-value storage/comparison, the indexed-key capacity
+needed by this schema, and the uniqueness/index semantics used by it. Being
+labelled MySQL-compatible is not enough to establish support. MariaDB verification
+is not claimed unless it has actually been executed.
+
+Separately, the PHP runtime must provide `ext-pdo` and `ext-pdo_mysql`. These are
+PHP runtime requirements and are not supplied by the database server.
 
 The local reproducibility fixture is `mysql:8.4.11`. It is a fixture version,
 not a package minimum version.

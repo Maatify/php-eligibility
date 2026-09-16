@@ -1001,16 +1001,22 @@ If a future use case genuinely requires tenant identity to participate in the bu
 
 ### D2 — Resolved database compatibility contract
 
-For RC1, Eligibility persistence uses **MySQL-compatible persistence semantics via PDO**.
-The compatibility contract is capability-based, not product-version-based.
+For RC1, Eligibility persistence targets **MySQL-compatible database-server
+semantics through direct PDO**. The database compatibility contract is
+capability-based, not product-version-based.
 
 Accordingly, this package declares no minimum MySQL version and no minimum MariaDB
-version. A compatible server must provide the capabilities actually used by the
-schema and SQL: transactional package-owned tables, binary-safe exact-value
-storage/comparison, the bounded indexed key lengths documented below, and the
-PDO MySQL driver. A server is not supported merely because it describes itself as
-MySQL-compatible; it must provide those capabilities. MariaDB compatibility is not
-claimed without executed MariaDB verification.
+version. A compatible database server must provide the capabilities actually used
+by the schema and SQL: transactional InnoDB-style package-owned table behavior,
+binary-safe exact-value storage/comparison, the bounded indexed-key capacity
+documented below, and the required uniqueness/index semantics. A server is not
+supported merely because it describes itself as MySQL-compatible; it must provide
+those capabilities. MariaDB compatibility is not claimed without executed MariaDB
+verification.
+
+Separately, the PHP runtime executing this package MUST provide `ext-pdo` and
+`ext-pdo_mysql`. These are PHP runtime requirements, not capabilities supplied by
+the database server.
 
 The RC1 reproducibility fixture is `mysql:8.4.11`. That fixture version is test
 infrastructure evidence only and is not a minimum supported product version.
@@ -1115,7 +1121,13 @@ The Consumer Verification Harness required by the adopted Testing and CI Standar
 
 ## Public Runtime API inventory
 
-This inventory records the public PHP types currently implemented by B1 and B2. It is an inventory of the code at this branch, not a claim that the B2 service or repository interfaces already have a concrete evaluator or persistence adapter.
+This inventory records the public Runtime API currently implemented across B1–B3.
+It is an inventory of the code at this branch. B1 owns the model and validation
+types; B2 owns commands, interfaces, results, and semantic exceptions; B3 owns
+the concrete direct-PDO persistence implementation and the canonical-bound
+extensions. The concrete PDO persistence adapter exists in B3. The concrete
+evaluator and application-service runtime remain unimplemented and are owned by
+B4.
 
 ### B1 model and validation types
 
@@ -1152,7 +1164,17 @@ This inventory records the public PHP types currently implemented by B1 and B2. 
 - `RuleIdentityConflictException` extends the shared `GenericConflictMaatifyException` hierarchy and identifies a conflicting natural identity.
 - `RuleConcurrencyConflictException` extends the shared `GenericConflictMaatifyException` hierarchy for an unresolved Rule uniqueness/concurrency condition.
 
-All three B2 semantic exceptions implement `EligibilityExceptionInterface`. B3 classifies only proven MySQL/MariaDB duplicate-key driver code `1062` at the repository boundary; other PDO/storage failures propagate unchanged. No concrete B2 service or evaluator is claimed by this inventory.
+All three B2 semantic exceptions implement `EligibilityExceptionInterface`. B3
+classifies only proven MySQL/MariaDB duplicate-key driver code `1062` at the
+repository boundary; other PDO/storage failures propagate unchanged. No concrete
+B2 evaluator or application service is claimed by this inventory; the concrete
+PDO persistence adapter is listed separately below.
+
+### B3 persistence implementation and bounds extensions
+
+- `Maatify\Eligibility\Rule\Repository\PdoRuleRepository` is the concrete direct-PDO implementation of `RuleRepositoryInterface`. It provides the package-owned schema adapter, typed hydration, exact reads, lifecycle/effect mutations, bounded/bulk reads, active-dimension reads, and Subject cleanup described by the B3 persistence contract.
+- B3 extends `Maatify\Eligibility\Validation\CanonicalString` with the single source of truth for the four canonical byte bounds and routes every semantic B1/B2 boundary through those bounded validators. The B1 validation type remains B1-owned; these bound constants and validators are the B3 contract extension.
+- No concrete evaluator or application service implementation is present yet; `EligibilityEvaluationServiceInterface` and `EligibilityManagementServiceInterface` remain B2 seams for B4 runtime work.
 
 ## RC1 exclusions
 

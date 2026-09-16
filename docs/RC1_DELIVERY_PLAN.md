@@ -109,7 +109,7 @@ slice:
 
 | Decision | Current status | Resolution |
 |---|---|---|
-| D2 — supported database engine and compatibility contract | `RESOLVED` | RC1 uses MySQL-compatible persistence semantics via PDO. The contract is capability-based, not product-version-based; no minimum MySQL or MariaDB version is declared. The schema and SQL must provide the documented transactional, binary-safe, indexed-key, and PDO MySQL capabilities. `mysql:8.4.11` is a reproducibility fixture only, not a minimum supported product version, and no MariaDB verification is claimed without execution. |
+| D2 — supported database engine and compatibility contract | `RESOLVED` | RC1 uses MySQL-compatible database-server semantics through direct PDO. Database compatibility is capability-based, not product-version-based; no minimum MySQL or MariaDB version is declared. The database server must provide the documented transactional InnoDB-style table behavior, binary-safe `VARBINARY` storage/comparison, indexed-key capacity, and uniqueness/index semantics. Separately, the PHP runtime must provide `ext-pdo` and `ext-pdo_mysql`. `mysql:8.4.11` is a reproducibility fixture only, not a minimum supported product version, and no MariaDB verification is claimed without execution. |
 
 This decision is recorded within the B3 child PR. D2 is not a separate PR or
 execution batch and is not reopened by the implementation choices below.
