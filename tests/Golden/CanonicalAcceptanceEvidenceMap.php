@@ -7,13 +7,11 @@ namespace Maatify\Eligibility\Tests\Golden;
 use Maatify\Eligibility\Tests\Integration\EligibilityConcurrencyIntegrationTest;
 use Maatify\Eligibility\Tests\Integration\EligibilityRuntimeIntegrationTest;
 use Maatify\Eligibility\Tests\Integration\PdoRuleRepositoryIntegrationTest;
-use Maatify\Eligibility\Tests\Unit\CanonicalScalarBoundaryTest;
 use Maatify\Eligibility\Tests\Unit\CanonicalStringTest;
 use Maatify\Eligibility\Tests\Unit\ContextTest;
 use Maatify\Eligibility\Tests\Unit\DecisionModelTest;
 use Maatify\Eligibility\Tests\Unit\HostBoundaryContractTest;
 use Maatify\Eligibility\Tests\Unit\PublicContractTest;
-use Maatify\Eligibility\Tests\Unit\RuleModelTest;
 use Maatify\Eligibility\Tests\Unit\RuntimeEvaluationServiceTest;
 use Maatify\Eligibility\Tests\Unit\RuntimeManagementServiceTest;
 

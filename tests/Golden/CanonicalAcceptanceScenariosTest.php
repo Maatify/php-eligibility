@@ -7,7 +7,6 @@ namespace Maatify\Eligibility\Tests\Golden;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
-use ReflectionMethod;
 use ReflectionNamedType;
 
 final class CanonicalAcceptanceScenariosTest extends TestCase
