@@ -32,6 +32,8 @@
     },
     "require": {
         "ext-pcre": "*",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
         "maatify/exceptions": "^1.0",
         "php": "^8.4"
     },
@@ -42,6 +44,7 @@
     "scripts": {
         "analyse": "phpstan analyse",
         "test": "phpunit",
+        "test:integration": "phpunit --testsuite integration",
         "test:unit": "phpunit --testsuite unit"
     },
     "config": {

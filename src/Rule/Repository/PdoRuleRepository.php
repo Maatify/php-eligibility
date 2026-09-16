@@ -1,0 +1,446 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Maatify\Eligibility\Rule\Repository;
+
+use Maatify\Eligibility\Application\Command\CleanupSubjectCommand;
+use Maatify\Eligibility\Application\Command\CreateRuleCommand;
+use Maatify\Eligibility\Application\Command\DeactivateRuleCommand;
+use Maatify\Eligibility\Application\Command\ReactivateRuleCommand;
+use Maatify\Eligibility\Application\Command\UpdateRuleEffectCommand;
+use Maatify\Eligibility\Application\Query\ActiveDimensionKeysQuery;
+use Maatify\Eligibility\Application\Query\RuleCriteria;
+use Maatify\Eligibility\Application\Result\ActiveDimensionKeyCollection;
+use Maatify\Eligibility\Exception\RuleIdentityConflictException;
+use Maatify\Eligibility\Rule\Rule;
+use Maatify\Eligibility\Rule\RuleCollection;
+use Maatify\Eligibility\Rule\RuleEffectEnum;
+use Maatify\Eligibility\Rule\RuleIdentity;
+use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Eligibility\Value\Subject;
+use Maatify\Eligibility\Value\SubjectCollection;
+use PDO;
+use PDOException;
+use PDOStatement;
+
+final class PdoRuleRepository implements RuleRepositoryInterface
+{
+    private const TABLE = 'maa_eligibility_rules';
+
+    private const SUBJECT_TYPE_MAX_BYTES = 64;
+
+    private const SUBJECT_ID_MAX_BYTES = 191;
+
+    private const DIMENSION_KEY_MAX_BYTES = 64;
+
+    private const DIMENSION_VALUE_MAX_BYTES = 255;
+
+    private const BULK_SUBJECT_CHUNK_SIZE = 100;
+
+    public function __construct(private readonly PDO $pdo)
+    {
+    }
+
+    public function create(CreateRuleCommand $command): Rule
+    {
+        $subjectType = $this->boundedString(
+            $command->subject->subjectType,
+            'subjectType',
+            self::SUBJECT_TYPE_MAX_BYTES,
+        );
+        $subjectId = $this->boundedString(
+            $command->subject->subjectId,
+            'subjectId',
+            self::SUBJECT_ID_MAX_BYTES,
+        );
+        $dimensionKey = $this->boundedString(
+            $command->dimensionKey,
+            'dimensionKey',
+            self::DIMENSION_KEY_MAX_BYTES,
+        );
+        $dimensionValue = $this->boundedString(
+            $command->dimensionValue,
+            'dimensionValue',
+            self::DIMENSION_VALUE_MAX_BYTES,
+        );
+
+        $statement = $this->pdo->prepare(
+            'INSERT INTO `' . self::TABLE . '` '
+            . '(`subject_type`, `subject_id`, `dimension_key`, `dimension_value`, `effect`, `lifecycle`) '
+            . 'VALUES (?, ?, ?, ?, ?, ?)',
+        );
+
+        try {
+            $this->bindAndExecute($statement, [
+                $subjectType,
+                $subjectId,
+                $dimensionKey,
+                $dimensionValue,
+                $command->effect->value,
+                RuleLifecycleEnum::ACTIVE->value,
+            ]);
+        } catch (PDOException $exception) {
+            if (MySqlDuplicateKeyClassifier::isDuplicate($exception)) {
+                throw new RuleIdentityConflictException(
+                    new RuleIdentity($subjectType, $subjectId, $dimensionKey, $dimensionValue),
+                    $exception,
+                );
+            }
+
+            throw $exception;
+        }
+
+        return Rule::active(
+            $command->subject,
+            $dimensionKey,
+            $dimensionValue,
+            $command->effect,
+        );
+    }
+
+    public function findByIdentity(RuleIdentity $identity): ?Rule
+    {
+        $parameters = $this->identityParameters($identity);
+        $rows = $this->fetchRows(
+            'SELECT `subject_type`, `subject_id`, `dimension_key`, `dimension_value`, `effect`, `lifecycle` '
+            . 'FROM `' . self::TABLE . '` '
+            . 'WHERE `subject_type` = ? AND `subject_id` = ? AND `dimension_key` = ? AND `dimension_value` = ? '
+            . 'LIMIT 1',
+            $parameters,
+        );
+
+        $row = $rows[0] ?? null;
+
+        return $row === null ? null : $this->hydrate($row);
+    }
+
+    public function findByCriteria(RuleCriteria $criteria): RuleCollection
+    {
+        $conditions = [
+            '`subject_type` = ?',
+            '`subject_id` = ?',
+        ];
+        $parameters = [
+            $this->boundedString(
+                $criteria->subject->subjectType,
+                'subjectType',
+                self::SUBJECT_TYPE_MAX_BYTES,
+            ),
+            $this->boundedString(
+                $criteria->subject->subjectId,
+                'subjectId',
+                self::SUBJECT_ID_MAX_BYTES,
+            ),
+        ];
+
+        if ($criteria->dimensionKey !== null) {
+            $conditions[] = '`dimension_key` = ?';
+            $parameters[] = $this->boundedString(
+                $criteria->dimensionKey,
+                'dimensionKey',
+                self::DIMENSION_KEY_MAX_BYTES,
+            );
+        }
+
+        if ($criteria->lifecycle !== null) {
+            $conditions[] = '`lifecycle` = ?';
+            $parameters[] = $criteria->lifecycle->value;
+        }
+
+        $parameters[] = $criteria->maxResults;
+        $rows = $this->fetchRows(
+            'SELECT `subject_type`, `subject_id`, `dimension_key`, `dimension_value`, `effect`, `lifecycle` '
+            . 'FROM `' . self::TABLE . '` WHERE ' . implode(' AND ', $conditions) . ' '
+            . 'ORDER BY `subject_type`, `subject_id`, `dimension_key`, `dimension_value` LIMIT ?',
+            $parameters,
+        );
+
+        $rules = [];
+        foreach ($rows as $row) {
+            $rules[] = $this->hydrate($row);
+        }
+
+        return new RuleCollection(...$rules);
+    }
+
+    public function findActiveForSubjects(SubjectCollection $subjects): RuleCollection
+    {
+        $subjectItems = $subjects->items();
+        if ($subjectItems === []) {
+            return new RuleCollection();
+        }
+
+        $rules = [];
+        $subjectCount = count($subjectItems);
+        for ($offset = 0; $offset < $subjectCount; $offset += self::BULK_SUBJECT_CHUNK_SIZE) {
+            $chunk = array_slice($subjectItems, $offset, self::BULK_SUBJECT_CHUNK_SIZE);
+            $subjectConditions = [];
+            $parameters = [RuleLifecycleEnum::ACTIVE->value];
+
+            foreach ($chunk as $subject) {
+                $subjectConditions[] = '(`subject_type` = ? AND `subject_id` = ?)';
+                $parameters[] = $this->boundedString(
+                    $subject->subjectType,
+                    'subjectType',
+                    self::SUBJECT_TYPE_MAX_BYTES,
+                );
+                $parameters[] = $this->boundedString(
+                    $subject->subjectId,
+                    'subjectId',
+                    self::SUBJECT_ID_MAX_BYTES,
+                );
+            }
+
+            $rows = $this->fetchRows(
+                'SELECT `subject_type`, `subject_id`, `dimension_key`, `dimension_value`, `effect`, `lifecycle` '
+                . 'FROM `' . self::TABLE . '` WHERE `lifecycle` = ? AND ('
+                . implode(' OR ', $subjectConditions) . ') '
+                . 'ORDER BY `subject_type`, `subject_id`, `dimension_key`, `dimension_value`',
+                $parameters,
+            );
+
+            foreach ($rows as $row) {
+                $rules[] = $this->hydrate($row);
+            }
+        }
+
+        return new RuleCollection(...$rules);
+    }
+
+    public function findActiveDimensionKeys(ActiveDimensionKeysQuery $query): ActiveDimensionKeyCollection
+    {
+        $rows = $this->fetchRows(
+            'SELECT DISTINCT `dimension_key` FROM `' . self::TABLE . '` '
+            . 'WHERE `subject_type` = ? AND `subject_id` = ? AND `lifecycle` = ?',
+            [
+                $this->boundedString(
+                    $query->subject->subjectType,
+                    'subjectType',
+                    self::SUBJECT_TYPE_MAX_BYTES,
+                ),
+                $this->boundedString(
+                    $query->subject->subjectId,
+                    'subjectId',
+                    self::SUBJECT_ID_MAX_BYTES,
+                ),
+                RuleLifecycleEnum::ACTIVE->value,
+            ],
+        );
+
+        $dimensionKeys = [];
+        foreach ($rows as $row) {
+            $dimensionKeys[] = $this->boundedString(
+                $this->rowString($row, 'dimension_key'),
+                'dimensionKey',
+                self::DIMENSION_KEY_MAX_BYTES,
+            );
+        }
+
+        return new ActiveDimensionKeyCollection(...$dimensionKeys);
+    }
+
+    public function updateEffect(UpdateRuleEffectCommand $command): bool
+    {
+        $identity = $this->boundedIdentity($command->identity);
+
+        return $this->updateAndCheckIdentity(
+            'UPDATE `' . self::TABLE . '` SET `effect` = ? '
+            . 'WHERE `subject_type` = ? AND `subject_id` = ? AND `dimension_key` = ? AND `dimension_value` = ?',
+            [$command->effect->value, ...$this->identityParameters($identity)],
+            $identity,
+        );
+    }
+
+    public function deactivate(DeactivateRuleCommand $command): bool
+    {
+        $identity = $this->boundedIdentity($command->identity);
+
+        return $this->updateAndCheckIdentity(
+            'UPDATE `' . self::TABLE . '` SET `lifecycle` = ? '
+            . 'WHERE `subject_type` = ? AND `subject_id` = ? AND `dimension_key` = ? AND `dimension_value` = ?',
+            [RuleLifecycleEnum::INACTIVE->value, ...$this->identityParameters($identity)],
+            $identity,
+        );
+    }
+
+    public function reactivate(ReactivateRuleCommand $command): bool
+    {
+        $identity = $this->boundedIdentity($command->identity);
+
+        return $this->updateAndCheckIdentity(
+            'UPDATE `' . self::TABLE . '` SET `lifecycle` = ? '
+            . 'WHERE `subject_type` = ? AND `subject_id` = ? AND `dimension_key` = ? AND `dimension_value` = ?',
+            [RuleLifecycleEnum::ACTIVE->value, ...$this->identityParameters($identity)],
+            $identity,
+        );
+    }
+
+    public function cleanupSubject(CleanupSubjectCommand $command): void
+    {
+        $statement = $this->pdo->prepare(
+            'DELETE FROM `' . self::TABLE . '` WHERE `subject_type` = ? AND `subject_id` = ?',
+        );
+        $this->bindAndExecute($statement, [
+            $this->boundedString(
+                $command->subject->subjectType,
+                'subjectType',
+                self::SUBJECT_TYPE_MAX_BYTES,
+            ),
+            $this->boundedString(
+                $command->subject->subjectId,
+                'subjectId',
+                self::SUBJECT_ID_MAX_BYTES,
+            ),
+        ]);
+    }
+
+    /** @param list<string|int> $parameters */
+    private function bindAndExecute(PDOStatement $statement, array $parameters): void
+    {
+        foreach ($parameters as $index => $parameter) {
+            $statement->bindValue(
+                $index + 1,
+                $parameter,
+                is_int($parameter) ? PDO::PARAM_INT : PDO::PARAM_STR,
+            );
+        }
+
+        $statement->execute();
+    }
+
+    /**
+     * @param list<string|int> $parameters
+     * @return list<array<string, mixed>>
+     */
+    private function fetchRows(string $sql, array $parameters): array
+    {
+        $statement = $this->pdo->prepare($sql);
+        $this->bindAndExecute($statement, $parameters);
+
+        /** @var array<int, mixed> $rawRows */
+        $rawRows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        /** @var list<array<string, mixed>> $rows */
+        $rows = [];
+        foreach ($rawRows as $rawRow) {
+            if (!is_array($rawRow)) {
+                throw new \UnexpectedValueException('Expected an array row from PDO.');
+            }
+
+            $row = [];
+            foreach ($rawRow as $column => $value) {
+                if (!is_string($column)) {
+                    throw new \UnexpectedValueException('Expected string column names from PDO.');
+                }
+
+                $row[$column] = $value;
+            }
+
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    /** @param array<string, mixed> $row */
+    private function hydrate(array $row): Rule
+    {
+        $subjectType = $this->boundedString(
+            $this->rowString($row, 'subject_type'),
+            'subjectType',
+            self::SUBJECT_TYPE_MAX_BYTES,
+        );
+        $subjectId = $this->boundedString(
+            $this->rowString($row, 'subject_id'),
+            'subjectId',
+            self::SUBJECT_ID_MAX_BYTES,
+        );
+        $dimensionKey = $this->boundedString(
+            $this->rowString($row, 'dimension_key'),
+            'dimensionKey',
+            self::DIMENSION_KEY_MAX_BYTES,
+        );
+        $dimensionValue = $this->boundedString(
+            $this->rowString($row, 'dimension_value'),
+            'dimensionValue',
+            self::DIMENSION_VALUE_MAX_BYTES,
+        );
+
+        return new Rule(
+            new Subject($subjectType, $subjectId),
+            $dimensionKey,
+            $dimensionValue,
+            RuleEffectEnum::from($this->rowString($row, 'effect')),
+            RuleLifecycleEnum::from($this->rowString($row, 'lifecycle')),
+        );
+    }
+
+    /** @param array<string, mixed> $row */
+    private function rowString(array $row, string $column): string
+    {
+        $value = $row[$column] ?? null;
+        if (!is_string($value)) {
+            throw new \UnexpectedValueException(sprintf('Expected string column %s.', $column));
+        }
+
+        return $value;
+    }
+
+    private function boundedString(mixed $value, string $field, int $maxBytes): string
+    {
+        $canonical = \Maatify\Eligibility\Validation\CanonicalString::validate($value, $field);
+        if (strlen($canonical) > $maxBytes) {
+            throw new \Maatify\Eligibility\Exception\InvalidEligibilityInputException(
+                sprintf('%s must not exceed %d bytes.', $field, $maxBytes),
+            );
+        }
+
+        return $canonical;
+    }
+
+    /** @return list<string> */
+    private function identityParameters(RuleIdentity $identity): array
+    {
+        return [
+            $identity->subjectType,
+            $identity->subjectId,
+            $identity->dimensionKey,
+            $identity->dimensionValue,
+        ];
+    }
+
+    private function boundedIdentity(RuleIdentity $identity): RuleIdentity
+    {
+        return new RuleIdentity(
+            $this->boundedString($identity->subjectType, 'subjectType', self::SUBJECT_TYPE_MAX_BYTES),
+            $this->boundedString($identity->subjectId, 'subjectId', self::SUBJECT_ID_MAX_BYTES),
+            $this->boundedString($identity->dimensionKey, 'dimensionKey', self::DIMENSION_KEY_MAX_BYTES),
+            $this->boundedString($identity->dimensionValue, 'dimensionValue', self::DIMENSION_VALUE_MAX_BYTES),
+        );
+    }
+
+    /** @param list<string|int> $parameters */
+    private function updateAndCheckIdentity(string $sql, array $parameters, RuleIdentity $identity): bool
+    {
+        $statement = $this->pdo->prepare($sql);
+        $this->bindAndExecute($statement, $parameters);
+
+        if ($statement->rowCount() > 0) {
+            return true;
+        }
+
+        return $this->exists($identity);
+    }
+
+    private function exists(RuleIdentity $identity): bool
+    {
+        $rows = $this->fetchRows(
+            'SELECT 1 AS `found` FROM `' . self::TABLE . '` '
+            . 'WHERE `subject_type` = ? AND `subject_id` = ? AND `dimension_key` = ? AND `dimension_value` = ? '
+            . 'LIMIT 1',
+            $this->identityParameters($identity),
+        );
+
+        return $rows !== [];
+    }
+}
