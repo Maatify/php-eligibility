@@ -1,7 +1,7 @@
 # Eligibility schema
 
-This directory contains the B3 executable schema for the package-owned Rule
-persistence boundary.
+This directory contains the RC1 executable schema for package-owned Rule
+persistence and B4 coordination metadata.
 
 ## Compatibility contract (D2)
 
@@ -94,13 +94,14 @@ production. The test environment can be overridden with `ELIGIBILITY_TEST_DB_HOS
 `ELIGIBILITY_TEST_DB_PORT`, `ELIGIBILITY_TEST_DB_NAME`,
 `ELIGIBILITY_TEST_DB_USER`, and `ELIGIBILITY_TEST_DB_PASSWORD`.
 
-The Integration suite applies the schema, clears only package-owned Rule rows,
-and verifies fresh application, safe reapplication with valid data, lifecycle
-visibility, exact identity, bounded management reads, bulk active reads,
-cleanup, and repeatable setup. It fails when the required real MySQL service or
-`ext-pdo_mysql` is unavailable; it has no SQLite or mock fallback. Run the suite
-again after the first clean run to prove repeatability. Stopping the fixture
-afterward is explicit local cleanup:
+The Integration suite applies the schema, clears package-owned Rule and
+coordination rows, and verifies fresh application, safe reapplication with
+valid data, lifecycle visibility, exact identity, bounded management reads,
+bulk active reads, cleanup of both package-owned tables, and repeatable setup.
+It fails when the required real MySQL service or `ext-pdo_mysql` is unavailable;
+it has no SQLite or mock fallback. Run the suite again after the first clean run
+to prove repeatability. Stopping the fixture afterward is explicit local
+cleanup:
 
 ```bash
 docker compose -f docker-compose.integration.yml down

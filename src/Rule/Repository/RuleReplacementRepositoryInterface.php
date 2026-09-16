@@ -8,7 +8,7 @@ use Maatify\Eligibility\Rule\RuleCollection;
 use Maatify\Eligibility\Value\Subject;
 
 /**
- * @internal Persistence capabilities required only by the replacement service.
+ * @internal Persistence capabilities used by atomic replacement and cleanup orchestration.
  */
 interface RuleReplacementRepositoryInterface extends RuleRepositoryInterface
 {

@@ -77,6 +77,43 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
     }
 
     #[Test]
+    public function workerSignalWaitFailsBoundedWithDiagnosticAndNonZeroExit(): void
+    {
+        $worker = null;
+        $primaryFailure = null;
+        try {
+            $worker = $this->startWorker(['await-signal']);
+            $status = $this->waitForWorker($worker['process'], ConcurrencyTimeout::observationDeadline());
+
+            self::assertFalse($status['running']);
+            self::assertNotSame(0, $status['exitcode']);
+            self::assertSame(
+                'ERROR:RuntimeException:Concurrency worker timed out waiting for its signal after 2 seconds.',
+                $this->readLine($worker, 'worker signal timeout diagnostic'),
+            );
+        } catch (\Throwable $exception) {
+            $primaryFailure = $exception;
+            throw $exception;
+        } finally {
+            $this->closeWorkers($worker, null, $primaryFailure !== null, true);
+        }
+    }
+
+    #[Test]
+    public function longLivedWorkerCleanupIsBounded(): void
+    {
+        $worker = $this->startWorker(['silent']);
+        $startedAt = hrtime(true);
+
+        $this->closeWorkers($worker, null);
+
+        self::assertLessThan(
+            (ConcurrencyTimeout::SECONDS * 2 + 1) * 1_000_000_000,
+            hrtime(true) - $startedAt,
+        );
+    }
+
+    #[Test]
     public function concurrentCreateHasOneWinnerAndTypedDuplicateOutcome(): void
     {
         $workerA = null;
@@ -429,7 +466,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
     /**
      * @param array{process: resource, stdin: resource, stdout: resource, stderr: resource}|null $worker
      */
-    private function closeWorker(?array $worker): void
+    private function closeWorker(?array $worker, bool $allowNonZeroExit = false): void
     {
         if ($worker === null) {
             return;
@@ -459,7 +496,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             fclose($worker['stdout']);
             fclose($worker['stderr']);
             $exitCode = proc_close($worker['process']);
-            if (!$terminated) {
+            if (!$terminated && !$allowNonZeroExit) {
                 self::assertSame(0, $exitCode);
             }
         } finally {
@@ -477,12 +514,17 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
      * @param array{process: resource, stdin: resource, stdout: resource, stderr: resource}|null $workerA
      * @param array{process: resource, stdin: resource, stdout: resource, stderr: resource}|null $workerB
      */
-    private function closeWorkers(?array $workerA, ?array $workerB, bool $preserveOriginalFailure = false): void
+    private function closeWorkers(
+        ?array $workerA,
+        ?array $workerB,
+        bool $preserveOriginalFailure = false,
+        bool $allowNonZeroExit = false,
+    ): void
     {
         $cleanupFailure = null;
         foreach ([$workerA, $workerB] as $worker) {
             try {
-                $this->closeWorker($worker);
+                $this->closeWorker($worker, $allowNonZeroExit);
             } catch (\Throwable $exception) {
                 $cleanupFailure ??= $exception;
             }

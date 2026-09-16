@@ -66,7 +66,6 @@ final class EligibilityRuleEvaluator
     ): DimensionOutcome {
         $contextDimension = $context->getDimension($dimensionKey);
         $hasAllowRule = false;
-        $hasDenyRule = false;
         $matchingAllowCount = 0;
         $matchingDenyCount = 0;
         $matchingReferences = [];
@@ -74,8 +73,6 @@ final class EligibilityRuleEvaluator
         foreach ($rules as $rule) {
             if ($rule->effect === RuleEffectEnum::ALLOW) {
                 $hasAllowRule = true;
-            } else {
-                $hasDenyRule = true;
             }
 
             if (

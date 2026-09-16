@@ -38,6 +38,12 @@ try {
         exit(0);
     }
 
+    if ($mode === 'await-signal') {
+        awaitSignal();
+        writeLine('RECEIVED');
+        exit(0);
+    }
+
     $pdo = IntegrationDatabase::connect();
     $repository = new PdoRuleRepository($pdo);
 
@@ -279,7 +285,7 @@ function writeLine(string $message): void
 
 function silentWorker(): void
 {
-    $deadline = ConcurrencyTimeout::deadline();
+    $deadline = ConcurrencyTimeout::silentWorkerDeadline();
     while (!ConcurrencyTimeout::expired($deadline)) {
         usleep(10_000);
     }
