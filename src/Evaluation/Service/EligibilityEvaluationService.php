@@ -11,7 +11,7 @@ use Maatify\Eligibility\Evaluation\Result\SubjectDecisionResult;
 use Maatify\Eligibility\Evaluation\Decision\EligibilityDecision;
 use Maatify\Eligibility\Rule\Repository\RuleRepositoryInterface;
 use Maatify\Eligibility\Rule\RuleCollection;
-use Maatify\Eligibility\Common\Value\Context;
+use Maatify\Eligibility\Evaluation\Value\Context;
 use Maatify\Eligibility\Common\Value\Subject;
 use Maatify\Eligibility\Common\Value\SubjectCollection;
 

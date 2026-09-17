@@ -6,7 +6,7 @@ namespace Maatify\Eligibility\Tests\Unit;
 
 use Maatify\Eligibility\Evaluation\Contract\EligibilityEvaluationServiceInterface;
 use Maatify\Eligibility\Evaluation\Result\SubjectDecisionCollection;
-use Maatify\Eligibility\Common\Value\Context;
+use Maatify\Eligibility\Evaluation\Value\Context;
 use Maatify\Eligibility\Common\Value\SubjectCollection;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;

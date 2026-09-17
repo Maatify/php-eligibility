@@ -16,8 +16,8 @@ use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
-use Maatify\Eligibility\Common\Value\Context;
-use Maatify\Eligibility\Common\Value\ContextDimension;
+use Maatify\Eligibility\Evaluation\Value\Context;
+use Maatify\Eligibility\Evaluation\Value\ContextDimension;
 use Maatify\Eligibility\Common\Value\Subject;
 
 $consumerRoot = dirname(__DIR__);

@@ -6,7 +6,7 @@ namespace Maatify\Eligibility\Evaluation\Contract;
 
 use Maatify\Eligibility\Evaluation\Result\SubjectDecisionCollection;
 use Maatify\Eligibility\Evaluation\Decision\EligibilityDecision;
-use Maatify\Eligibility\Common\Value\Context;
+use Maatify\Eligibility\Evaluation\Value\Context;
 use Maatify\Eligibility\Common\Value\Subject;
 use Maatify\Eligibility\Common\Value\SubjectCollection;
 

@@ -6,7 +6,7 @@ use Maatify\Eligibility\Management\Command\CreateRuleCommand;
 use Maatify\Eligibility\Management\Query\RuleCriteria;
 use Maatify\Eligibility\Common\Ordering\CanonicalOrdering;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Common\Value\ContextValueCollection;
+use Maatify\Eligibility\Evaluation\Value\ContextValueCollection;
 use Maatify\Eligibility\Common\Value\Subject;
 
 final class NonStrictConsumer

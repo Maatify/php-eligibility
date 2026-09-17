@@ -12,8 +12,8 @@ use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\InMemoryRuleRepository;
-use Maatify\Eligibility\Common\Value\Context;
-use Maatify\Eligibility\Common\Value\ContextDimension;
+use Maatify\Eligibility\Evaluation\Value\Context;
+use Maatify\Eligibility\Evaluation\Value\ContextDimension;
 use Maatify\Eligibility\Common\Value\Subject;
 use Maatify\Eligibility\Common\Value\SubjectCollection;
 use PHPUnit\Framework\Attributes\Test;
@@ -242,7 +242,7 @@ final class RuntimeEvaluationServiceTest extends TestCase
         ));
     }
 
-    private function evaluate(\Maatify\Eligibility\Common\Value\Context $context, Rule ...$rules): \Maatify\Eligibility\Evaluation\Decision\EligibilityDecision
+    private function evaluate(\Maatify\Eligibility\Evaluation\Value\Context $context, Rule ...$rules): \Maatify\Eligibility\Evaluation\Decision\EligibilityDecision
     {
         $repository = new InMemoryRuleRepository();
         $repository->seed(...$rules);

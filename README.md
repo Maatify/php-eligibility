@@ -134,8 +134,8 @@ use Maatify\Eligibility\Management\Service\EligibilityManagementService;
 use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
 use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Common\Value\Context;
-use Maatify\Eligibility\Common\Value\ContextDimension;
+use Maatify\Eligibility\Evaluation\Value\Context;
+use Maatify\Eligibility\Evaluation\Value\ContextDimension;
 use Maatify\Eligibility\Common\Value\Subject;
 
 $pdo = new PDO('mysql:host=127.0.0.1;dbname=app;charset=utf8mb4', 'app', 'secret', [

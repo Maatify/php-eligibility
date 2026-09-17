@@ -14,7 +14,7 @@ use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleCollection;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
-use Maatify\Eligibility\Common\Value\Context;
+use Maatify\Eligibility\Evaluation\Value\Context;
 use Maatify\Eligibility\Common\Value\Subject;
 
 /**

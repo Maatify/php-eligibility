@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Maatify\Eligibility\Common\Value;
+namespace Maatify\Eligibility\Evaluation\Value;
 
 use ArrayIterator;
 use Countable;
