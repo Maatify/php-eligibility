@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Integration;
 
-use Maatify\Eligibility\Application\Command\CleanupSubjectCommand;
-use Maatify\Eligibility\Application\Command\CreateRuleCommand;
-use Maatify\Eligibility\Application\Command\DeactivateRuleCommand;
-use Maatify\Eligibility\Application\Command\DesiredRule;
-use Maatify\Eligibility\Application\Command\DesiredRuleCollection;
-use Maatify\Eligibility\Application\Command\ReplaceDimensionRulesCommand;
-use Maatify\Eligibility\Application\Query\RuleCriteria;
-use Maatify\Eligibility\Application\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Application\Service\EligibilityManagementService;
-use Maatify\Eligibility\Decision\DecisionReasonEnum;
+use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
+use Maatify\Eligibility\Management\Command\CreateRuleCommand;
+use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
+use Maatify\Eligibility\Management\Command\DesiredRule;
+use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
+use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
+use Maatify\Eligibility\Management\Service\EligibilityManagementService;
+use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
 use Maatify\Eligibility\Exception\RuleNotFoundException;
 use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
 use Maatify\Eligibility\Rule\Rule;
@@ -22,9 +22,9 @@ use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\FaultingRuleReplacementRepository;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
-use Maatify\Eligibility\Value\Context;
-use Maatify\Eligibility\Value\ContextDimension;
-use Maatify\Eligibility\Value\Subject;
+use Maatify\Eligibility\Common\Value\Context;
+use Maatify\Eligibility\Common\Value\ContextDimension;
+use Maatify\Eligibility\Common\Value\Subject;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use PDO;
@@ -83,11 +83,11 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
 
         self::assertSame(DecisionReasonEnum::ELIGIBLE, $decision->reasonCode);
         self::assertSame(['country', 'customer_type'], array_map(
-            static fn (\Maatify\Eligibility\Decision\DimensionOutcome $outcome): string => $outcome->dimensionKey,
+            static fn (\Maatify\Eligibility\Evaluation\Decision\DimensionOutcome $outcome): string => $outcome->dimensionKey,
             $decision->dimensionOutcomes->items(),
         ));
 
-        $this->management->deactivateRule(new \Maatify\Eligibility\Application\Command\DeactivateRuleCommand(
+        $this->management->deactivateRule(new \Maatify\Eligibility\Management\Command\DeactivateRuleCommand(
             new RuleIdentity('product', '150', 'country', 'EG'),
         ));
         self::assertCount(2, $this->management->inspectRules(new RuleCriteria($subject)));

@@ -73,7 +73,7 @@ Malformed UTF-8, null values, non-string values at typed package boundaries, emp
 RC1 does not restrict business values to ASCII. Persistence MUST preserve the exact validated UTF-8 sequence and MUST NOT silently normalize or truncate it.
 
 RC1 canonical package bounds are resolved and apply at every semantic package
-boundary, not only at SQL columns. `Maatify\Eligibility\Validation\CanonicalString`
+boundary, not only at SQL columns. `Maatify\Eligibility\Common\Validation\CanonicalString`
 is the production source of truth and measures bytes with `strlen()` after valid
 UTF-8 validation:
 
@@ -1129,16 +1129,16 @@ extensions; B4 owns the concrete evaluator and application-service runtime.
 
 ### B1 model and validation types
 
-- `Maatify\Eligibility\Validation\CanonicalString::validate(mixed $value, string $field): string` validates a generic canonical package string without transforming it. Its semantic bounded methods and constants are the single source of truth for the four RC1 canonical component limits; canonical ordering remains intentionally generic and unbounded.
-- `Maatify\Eligibility\Value\Subject` represents `subjectType` and `subjectId`.
-- `Maatify\Eligibility\Value\ContextValue`, `ContextValueCollection`, `ContextDimension`, and `Context` represent the immutable Context shape. `Context` exposes `getDimension(mixed $dimensionKey): ?ContextDimension` and `hasDimension(mixed $dimensionKey): bool`.
+- `Maatify\Eligibility\Common\Validation\CanonicalString::validate(mixed $value, string $field): string` validates a generic canonical package string without transforming it. Its semantic bounded methods and constants are the single source of truth for the four RC1 canonical component limits; canonical ordering remains intentionally generic and unbounded.
+- `Maatify\Eligibility\Common\Value\Subject` represents `subjectType` and `subjectId`.
+- `Maatify\Eligibility\Common\Value\ContextValue`, `ContextValueCollection`, `ContextDimension`, and `Context` represent the immutable Context shape. `Context` exposes `getDimension(mixed $dimensionKey): ?ContextDimension` and `hasDimension(mixed $dimensionKey): bool`.
 - `Maatify\Eligibility\Rule\Rule`, `RuleIdentity`, `RuleCollection`, `RuleEffectEnum`, and `RuleLifecycleEnum` represent typed Rules, natural identity, effects, lifecycle, and canonical Rule collections. `RuleCollection` exposes active and inactive lifecycle state through each returned `Rule`.
-- `Maatify\Eligibility\Decision\EligibilityDecision`, `DimensionOutcome`, `DimensionOutcomeCollection`, `RuleReference`, `RuleReferenceCollection`, `DecisionReasonEnum`, and `DimensionReasonEnum` represent immutable typed Decisions and complete matched-Rule traces.
+- `Maatify\Eligibility\Evaluation\Decision\EligibilityDecision`, `DimensionOutcome`, `DimensionOutcomeCollection`, `RuleReference`, `RuleReferenceCollection`, `DecisionReasonEnum`, and `DimensionReasonEnum` represent immutable typed Decisions and complete matched-Rule traces.
 - `Maatify\Eligibility\Exception\EligibilityExceptionInterface` is the single package marker. `InvalidEligibilityInputException` is the B1 typed validation error and uses the shared `maatify/exceptions` hierarchy.
 
 ### B2 commands and query contracts
 
-- `Maatify\Eligibility\Value\SubjectCollection` is the ordered, duplicate-free B2 batch value. It accepts an empty batch and exposes `count()`, iteration, `items(): list<Subject>`, and JSON serialization.
+- `Maatify\Eligibility\Common\Value\SubjectCollection` is the ordered, duplicate-free B2 batch value. It accepts an empty batch and exposes `count()`, iteration, `items(): list<Subject>`, and JSON serialization.
 - `CreateRuleCommand(Subject $subject, mixed $dimensionKey, mixed $dimensionValue, RuleEffectEnum $effect)` represents creation of a new active Rule. It has no initial lifecycle input.
 - `UpdateRuleEffectCommand(RuleIdentity $identity, RuleEffectEnum $effect)` represents an effect mutation.
 - `DeactivateRuleCommand(RuleIdentity $identity)` and `ReactivateRuleCommand(RuleIdentity $identity)` represent explicit lifecycle mutations.
@@ -1158,9 +1158,9 @@ extensions; B4 owns the concrete evaluator and application-service runtime.
 
 ### B4 concrete runtime services
 
-- `Maatify\Eligibility\Application\Service\EligibilityEvaluationService` implements `EligibilityEvaluationServiceInterface`. It loads active Rules through one repository bulk call for a batch and delegates both single and batch calls to the shared pure `Maatify\Eligibility\Application\Evaluation\EligibilityRuleEvaluator`; `PdoRuleRepository` internally chunks large Subject collections at its configured bound, and the service preserves input order.
-- `Maatify\Eligibility\Application\Service\EligibilityManagementService` implements `EligibilityManagementServiceInterface`. It maps missing identity mutation results to `RuleNotFoundException` and coordinates create, inspect, lifecycle/effect, replacement, and cleanup behavior without SQL.
-- `Maatify\Eligibility\Application\Evaluation\EligibilityRuleEvaluator` is package-internal shared evaluation logic. It groups active Rules by dimension, evaluates every ruled dimension, applies DENY precedence, preserves the complete matching trace, and constructs the existing immutable Decision types in canonical order.
+- `Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService` implements `EligibilityEvaluationServiceInterface`. It loads active Rules through one repository bulk call for a batch and delegates both single and batch calls to the shared pure `Maatify\Eligibility\Evaluation\Engine\EligibilityRuleEvaluator`; `PdoRuleRepository` internally chunks large Subject collections at its configured bound, and the service preserves input order.
+- `Maatify\Eligibility\Management\Service\EligibilityManagementService` implements `EligibilityManagementServiceInterface`. It maps missing identity mutation results to `RuleNotFoundException` and coordinates create, inspect, lifecycle/effect, replacement, and cleanup behavior without SQL.
+- `Maatify\Eligibility\Evaluation\Engine\EligibilityRuleEvaluator` is package-internal shared evaluation logic. It groups active Rules by dimension, evaluates every ruled dimension, applies DENY precedence, preserves the complete matching trace, and constructs the existing immutable Decision types in canonical order.
 
 ### B2 semantic exceptions
 
@@ -1180,7 +1180,7 @@ PDO persistence adapter is listed separately below.
 - `Maatify\Eligibility\Rule\Repository\RuleReplacementRepositoryInterface` is a package-internal extension of the persistence boundary used by B4. It exposes only transaction ownership, operation-local savepoint, complete Subject + dimension read, Subject coordination-lock, and coordination-cleanup primitives required by atomic replacement and cleanup; it is not an additional Host-facing service method.
 - B4 uses the package-owned `maa_eligibility_subject_locks` table as an explicit coordination row per Subject. Replacement and management cleanup create-or-lock this row inside their transaction before reading or mutating Rules, so an initially empty dimension is serialized without relying on database gap-lock behavior. Cleanup removes the coordination row for the cleaned Subject. The table has no Host foreign key or join.
 - When the Host already owns a transaction, B4 creates a unique package-prefixed operation savepoint through the repository, releases it on success, and rolls back to it on failure while leaving the Host transaction active. Savepoint cleanup is best-effort and never replaces the original operation Throwable. This uses transactional MySQL-compatible savepoint capability without declaring a minimum database product version.
-- B3 extends `Maatify\Eligibility\Validation\CanonicalString` with the single source of truth for the four canonical byte bounds and routes every semantic B1/B2 boundary through those bounded validators. The B1 validation type remains B1-owned; these bound constants and validators are the B3 contract extension.
+- B3 extends `Maatify\Eligibility\Common\Validation\CanonicalString` with the single source of truth for the four canonical byte bounds and routes every semantic B1/B2 boundary through those bounded validators. The B1 validation type remains B1-owned; these bound constants and validators are the B3 contract extension.
 - B4 supplies the concrete evaluator and application-service implementations listed above; the B2 interfaces remain the public replaceable seams for consumers and persistence adapters.
 
 ## RC1 exclusions

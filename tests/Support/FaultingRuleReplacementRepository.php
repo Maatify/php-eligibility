@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Support;
 
-use Maatify\Eligibility\Application\Command\CleanupSubjectCommand;
-use Maatify\Eligibility\Application\Command\CreateRuleCommand;
-use Maatify\Eligibility\Application\Command\DeactivateRuleCommand;
-use Maatify\Eligibility\Application\Command\ReactivateRuleCommand;
-use Maatify\Eligibility\Application\Command\UpdateRuleEffectCommand;
-use Maatify\Eligibility\Application\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Application\Query\RuleCriteria;
-use Maatify\Eligibility\Application\Result\ActiveDimensionKeyCollection;
+use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
+use Maatify\Eligibility\Management\Command\CreateRuleCommand;
+use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
+use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
+use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
+use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
+use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Management\Result\ActiveDimensionKeyCollection;
 use Maatify\Eligibility\Rule\Repository\RuleReplacementRepositoryInterface;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleCollection;
 use Maatify\Eligibility\Rule\RuleIdentity;
-use Maatify\Eligibility\Value\Subject;
-use Maatify\Eligibility\Value\SubjectCollection;
+use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Common\Value\SubjectCollection;
 
 /**
  * Real-boundary decorator used only to inject a deterministic post-write fault.

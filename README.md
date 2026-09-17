@@ -128,15 +128,15 @@ not a migration run at install time.
 ### Evaluation
 
 ```php
-use Maatify\Eligibility\Application\Query\RuleCriteria;
-use Maatify\Eligibility\Application\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Application\Service\EligibilityManagementService;
-use Maatify\Eligibility\Decision\DecisionReasonEnum;
+use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
+use Maatify\Eligibility\Management\Service\EligibilityManagementService;
+use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
 use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Value\Context;
-use Maatify\Eligibility\Value\ContextDimension;
-use Maatify\Eligibility\Value\Subject;
+use Maatify\Eligibility\Common\Value\Context;
+use Maatify\Eligibility\Common\Value\ContextDimension;
+use Maatify\Eligibility\Common\Value\Subject;
 
 $pdo = new PDO('mysql:host=127.0.0.1;dbname=app;charset=utf8mb4', 'app', 'secret', [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -149,13 +149,13 @@ $management = new EligibilityManagementService($repository);
 $evaluation = new EligibilityEvaluationService($repository);
 
 $subject = new Subject('product', '150');
-$management->createRule(new \Maatify\Eligibility\Application\Command\CreateRuleCommand(
+$management->createRule(new \Maatify\Eligibility\Management\Command\CreateRuleCommand(
     $subject,
     'country',
     'EG',
     RuleEffectEnum::ALLOW,
 ));
-$management->createRule(new \Maatify\Eligibility\Application\Command\CreateRuleCommand(
+$management->createRule(new \Maatify\Eligibility\Management\Command\CreateRuleCommand(
     $subject,
     'customer_type',
     'blocked',
@@ -175,7 +175,7 @@ if ($decision->eligible) {
 ### Ordered batch evaluation
 
 ```php
-use Maatify\Eligibility\Value\SubjectCollection;
+use Maatify\Eligibility\Common\Value\SubjectCollection;
 
 $decisions = $evaluation->decideMany(
     new SubjectCollection(
@@ -190,9 +190,9 @@ $decisions = $evaluation->decideMany(
 ### Management lifecycle
 
 ```php
-use Maatify\Eligibility\Application\Command\ReplaceDimensionRulesCommand;
-use Maatify\Eligibility\Application\Command\DesiredRule;
-use Maatify\Eligibility\Application\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
+use Maatify\Eligibility\Management\Command\DesiredRule;
+use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
 
 // Atomic replacement of the complete active set for one Subject dimension.
 $management->replaceDimensionRules(new ReplaceDimensionRulesCommand(

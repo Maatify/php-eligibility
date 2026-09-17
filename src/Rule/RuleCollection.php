@@ -9,7 +9,7 @@ use Countable;
 use IteratorAggregate;
 use JsonSerializable;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
-use Maatify\Eligibility\Ordering\CanonicalOrdering;
+use Maatify\Eligibility\Common\Ordering\CanonicalOrdering;
 
 /** @implements IteratorAggregate<int, Rule> */
 final readonly class RuleCollection implements Countable, IteratorAggregate, JsonSerializable

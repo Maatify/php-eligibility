@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Maatify\Eligibility\Tests\Unit;
 
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
-use Maatify\Eligibility\Value\Context;
-use Maatify\Eligibility\Value\ContextDimension;
-use Maatify\Eligibility\Value\ContextValue;
-use Maatify\Eligibility\Value\ContextValueCollection;
+use Maatify\Eligibility\Common\Value\Context;
+use Maatify\Eligibility\Common\Value\ContextDimension;
+use Maatify\Eligibility\Common\Value\ContextValue;
+use Maatify\Eligibility\Common\Value\ContextValueCollection;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 

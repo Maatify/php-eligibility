@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Integration;
 
-use Maatify\Eligibility\Application\Command\CleanupSubjectCommand;
-use Maatify\Eligibility\Application\Command\CreateRuleCommand;
-use Maatify\Eligibility\Application\Command\DeactivateRuleCommand;
-use Maatify\Eligibility\Application\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Application\Query\RuleCriteria;
-use Maatify\Eligibility\Application\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Decision\DecisionReasonEnum;
+use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
+use Maatify\Eligibility\Management\Command\CreateRuleCommand;
+use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
+use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
+use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
+use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
 use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
@@ -19,10 +19,10 @@ use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
-use Maatify\Eligibility\Value\Context;
-use Maatify\Eligibility\Value\ContextDimension;
-use Maatify\Eligibility\Value\Subject;
-use Maatify\Eligibility\Value\SubjectCollection;
+use Maatify\Eligibility\Common\Value\Context;
+use Maatify\Eligibility\Common\Value\ContextDimension;
+use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Common\Value\SubjectCollection;
 use PDO;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -165,7 +165,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         $identity = $created->naturalIdentity();
 
         self::assertTrue($this->repository->updateEffect(
-            new \Maatify\Eligibility\Application\Command\UpdateRuleEffectCommand(
+            new \Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand(
                 $identity,
                 RuleEffectEnum::ALLOW,
             ),
@@ -179,7 +179,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         self::assertSame(RuleLifecycleEnum::INACTIVE, $inactive->lifecycle);
 
         self::assertTrue($this->repository->updateEffect(
-            new \Maatify\Eligibility\Application\Command\UpdateRuleEffectCommand(
+            new \Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand(
                 $identity,
                 RuleEffectEnum::DENY,
             ),
@@ -190,10 +190,10 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         self::assertSame(RuleLifecycleEnum::INACTIVE, $inactiveAfterEffectUpdate->lifecycle);
 
         self::assertTrue($this->repository->reactivate(
-            new \Maatify\Eligibility\Application\Command\ReactivateRuleCommand($identity),
+            new \Maatify\Eligibility\Management\Command\ReactivateRuleCommand($identity),
         ));
         self::assertTrue($this->repository->reactivate(
-            new \Maatify\Eligibility\Application\Command\ReactivateRuleCommand($identity),
+            new \Maatify\Eligibility\Management\Command\ReactivateRuleCommand($identity),
         ));
         $active = $this->repository->findByIdentity($identity);
         self::assertNotNull($active);
@@ -207,14 +207,14 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         $identity = new RuleIdentity('product', 'missing', 'country', 'EG');
 
         self::assertFalse($this->repository->updateEffect(
-            new \Maatify\Eligibility\Application\Command\UpdateRuleEffectCommand(
+            new \Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand(
                 $identity,
                 RuleEffectEnum::ALLOW,
             ),
         ));
         self::assertFalse($this->repository->deactivate(new DeactivateRuleCommand($identity)));
         self::assertFalse($this->repository->reactivate(
-            new \Maatify\Eligibility\Application\Command\ReactivateRuleCommand($identity),
+            new \Maatify\Eligibility\Management\Command\ReactivateRuleCommand($identity),
         ));
     }
 

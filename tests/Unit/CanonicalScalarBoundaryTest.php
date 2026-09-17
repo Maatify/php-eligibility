@@ -6,8 +6,8 @@ namespace Maatify\Eligibility\Tests\Unit;
 
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Tests\Support\NonStrictConsumer;
-use Maatify\Eligibility\Value\ContextValue;
-use Maatify\Eligibility\Value\ContextValueCollection;
+use Maatify\Eligibility\Common\Value\ContextValue;
+use Maatify\Eligibility\Common\Value\ContextValueCollection;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 

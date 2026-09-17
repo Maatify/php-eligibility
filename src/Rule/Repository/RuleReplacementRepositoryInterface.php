@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Maatify\Eligibility\Rule\Repository;
 
 use Maatify\Eligibility\Rule\RuleCollection;
-use Maatify\Eligibility\Value\Subject;
+use Maatify\Eligibility\Common\Value\Subject;
 
 /**
  * @internal Persistence capabilities used by atomic replacement and cleanup orchestration.
