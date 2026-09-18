@@ -40,10 +40,12 @@ not a package minimum version.
   and is deleted by the management cleanup operation for that Subject.
 - When a Host transaction is already active, B4 uses the transactional
   `SAVEPOINT`, `ROLLBACK TO SAVEPOINT`, and `RELEASE SAVEPOINT` capabilities
-  through the internal repository boundary to make each replacement/cleanup
-  operation atomic without taking ownership of the Host transaction. This is
-  a capability requirement of the transactional MySQL-compatible semantics;
-  the package declares no minimum MySQL or MariaDB product version.
+  through `maatify/persistence`'s `PdoSavepointTransactionRunner` to make each
+  replacement/cleanup operation atomic without taking ownership of the Host
+  transaction. The runner and Eligibility Rule adapters MUST use the same PDO
+  connection. This is a capability requirement of the transactional
+  MySQL-compatible semantics; the package declares no minimum MySQL or MariaDB
+  product version.
 
 Canonical strings are bounded in **bytes**, not characters, by the production
 source of truth `Maatify\Eligibility\Validation\CanonicalString` and validated

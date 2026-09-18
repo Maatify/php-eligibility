@@ -62,8 +62,9 @@ package is not yet published; see [Installation](#installation).
   active-dimension introspection, effect and lifecycle mutations, atomic
   `replaceDimensionRules()`, and idempotent Subject cleanup.
 - Direct-PDO MySQL-compatible persistence with separate command, management
-  query, and evaluation-read adapters, plus package-owned transaction and
-  concurrency guarantees; no Host foreign keys or joins.
+  query, and evaluation-read adapters, plus shared Persistence transaction
+  ownership/savepoint mechanics and Eligibility-owned coordination locking;
+  no Host foreign keys or joins.
 - Typed package exceptions on the shared `maatify/exceptions` hierarchy, with
   unknown external throwables propagated unchanged.
 
@@ -77,10 +78,10 @@ package is not yet published; see [Installation](#installation).
 | Database | MySQL-compatible database-server semantics through direct PDO (capability-based; no minimum product version is declared — see [Persistence and Schema](#persistence-and-schema)) |
 
 `maatify/persistence ^1.4` is an explicit runtime dependency. `v1.4.0` is the
-minimum stable line required for the savepoint-capable transaction API used by
-the upcoming shared transaction migration. WU5 only resolves and verifies that
-released API; Eligibility still uses its local transitional transaction boundary.
-Actual runtime adoption of `PdoSavepointTransactionRunner` belongs to WU6.
+minimum stable line required for the released
+`SavepointTransactionRunnerInterface` and `PdoSavepointTransactionRunner`.
+Eligibility delegates transaction ownership, operation-local savepoints,
+cleanup, and original-`Throwable` preservation to that shared API.
 
 The database contract requires transactional InnoDB-style package-owned table
 behavior, binary-safe exact-value storage/comparison, the bounded indexed-key
@@ -143,6 +144,7 @@ use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
 use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
 use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
+use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use Maatify\Eligibility\Evaluation\Value\Context;
 use Maatify\Eligibility\Evaluation\Value\ContextDimension;
 use Maatify\Eligibility\Common\Value\Subject;
@@ -156,13 +158,12 @@ $pdo->exec(file_get_contents(__DIR__ . '/vendor/maatify/php-eligibility/schema/e
 $commandRepository = new PdoRuleCommandRepository($pdo);
 $managementQuery = new PdoRuleManagementQuery($pdo);
 $activeRuleReader = new PdoActiveRuleReader($pdo);
-// The command adapter also supplies the internal mutation-support and
-// transitional transaction/savepoint contracts over this same PDO connection.
+$transactionRunner = new PdoSavepointTransactionRunner($pdo);
 $management = new EligibilityManagementService(
     $commandRepository,
     $managementQuery,
     $commandRepository,
-    $commandRepository,
+    $transactionRunner,
 );
 $evaluation = new EligibilityEvaluationService($activeRuleReader);
 
@@ -251,13 +252,13 @@ Public surface (see the
   `ActiveRuleReaderInterface` owns active bulk reads for evaluation. The
   internal `RuleMutationSupportInterface` owns only the coordination lock,
   complete Subject + dimension mutation read, and coordination cleanup needed
-  by atomic replacement/cleanup. The transitional
-  `RuleReplacementRepositoryInterface` owns only transaction/savepoint
-  operations pending the later shared Persistence migration.
-- **PDO adapters:** `PdoRuleCommandRepository`, `PdoRuleManagementQuery`, and
-  `PdoActiveRuleReader` are constructed from the same PDO connection. The
-  command adapter may implement the internal mutation-support and transitional
-  transaction contracts as additional narrow interfaces; callers wire each
+  by atomic replacement/cleanup. Generic transaction/savepoint mechanics are
+  owned by `maatify/persistence`; `EligibilityManagementService` receives
+  its `SavepointTransactionRunnerInterface` separately.
+- **PDO adapters:** `PdoRuleCommandRepository`, `PdoRuleManagementQuery`,
+  `PdoActiveRuleReader`, and `PdoSavepointTransactionRunner` are constructed
+  from the same PDO connection. The command adapter implements only the
+  Eligibility command and mutation-support contracts; callers wire each
   responsibility explicitly to the corresponding service dependency.
 - **Commands / queries / results:** `CreateRuleCommand`,
   `UpdateRuleEffectCommand`, `DeactivateRuleCommand`, `ReactivateRuleCommand`,
@@ -367,14 +368,13 @@ fixture. The fixture version is **not** a minimum supported product version.
 
 The runtime composition keeps command, management-query, evaluation-read, and
 internal mutation-support responsibilities explicit. A Host constructs the
-three PDO adapters from the same connection, passes the command adapter,
-management query, mutation-support capability, and transitional
-transaction/savepoint boundary separately to `EligibilityManagementService`,
-and passes the active-rule reader to `EligibilityEvaluationService`.
-`RuleReplacementRepositoryInterface` is intentionally limited to the existing
-transaction/savepoint methods and remains transitional pending the later shared
-Persistence migration; it does not inherit command methods or expose
-Eligibility mutation-support operations.
+three PDO adapters and `PdoSavepointTransactionRunner` from the same PDO
+connection, passes the command adapter, management query, mutation-support
+capability, and shared transaction runner separately to
+`EligibilityManagementService`, and passes the active-rule reader to
+`EligibilityEvaluationService`. Generic transaction/savepoint mechanics belong
+to `maatify/persistence`; per-Subject coordination locking remains
+Eligibility-owned.
 
 ## Quality Status
 

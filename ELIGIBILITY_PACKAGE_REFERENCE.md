@@ -720,14 +720,14 @@ The operation MUST be atomic from the caller's perspective and preserve Rule nat
 
 This prevents every Host from implementing its own unsafe `delete all then insert` synchronization routine while preserving the canonical reversible lifecycle.
 
-The package MUST coordinate correctly with an existing Host transaction when the Host composes Eligibility mutation with a larger domain operation. The transaction participation contract is:
+The package MUST coordinate correctly with an existing Host transaction when the Host composes Eligibility mutation with a larger domain operation. Eligibility delegates generic transaction/savepoint mechanics to the released `maatify/persistence` API through `SavepointTransactionRunnerInterface`; the command/mutation adapters and runner MUST use the same PDO connection. The transaction participation contract is:
 
-- when no transaction is active on the package persistence boundary, the package owns the transaction for this multi-step operation: it begins the transaction, commits only after the complete replacement succeeds, and rolls back only while that package-owned transaction remains active;
-- when an outer Host transaction is already active on the same persistence boundary, the package joins that transaction and MUST NOT begin, commit, or roll it back; the Host owns the outer commit/rollback;
-- a failure in either mode MUST be propagated. For a package-owned transaction, rollback is attempted only while that transaction remains active, and the original `Throwable` is rethrown unless an explicitly documented semantic conversion applies. When semantic wrapping occurs, the original throwable MUST be preserved as `previous` where supported;
+- when no transaction is active on the shared runner's PDO boundary, `PdoSavepointTransactionRunner` owns the transaction for this multi-step operation: it begins the transaction, commits only after the complete replacement succeeds, and rolls back only while that transaction remains active;
+- when an outer Host transaction is already active on the same PDO boundary, the shared runner uses an operation-local savepoint and MUST NOT commit or fully roll back the Host transaction; the Host owns the outer commit/rollback;
+- a failure in either mode MUST be propagated. For a shared-runner-owned transaction, rollback is attempted only while that transaction remains active, and the original `Throwable` is rethrown unless an explicitly documented semantic conversion applies. When semantic wrapping occurs, the original throwable MUST be preserved as `previous` where supported;
 - the operation MUST NOT expose a partially applied replacement. Under an outer transaction, the replacement is atomic as part of the Host's larger transaction and becomes durable only when that outer transaction commits.
 
-This contract applies to any later Eligibility-owned multi-step mutation that opens a transaction. It does not prescribe a concrete transaction abstraction, SQL shape, isolation level, or lock syntax.
+This contract applies to `replaceDimensionRules()` and `cleanupSubject()`. The shared Persistence package owns transaction ownership, savepoint naming, cleanup, and original-`Throwable` preservation; Eligibility owns only its mutation orchestration and Subject coordination locking.
 
 ### Transaction and concurrency boundaries
 
@@ -1044,8 +1044,10 @@ The concrete B3 adapters are
 `Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader`. They are
 constructed from the same PDO connection while keeping mutation, management
 query, evaluation-read, and internal mutation-support responsibilities
-separate. The command adapter may implement the internal mutation-support and
-transitional transaction/savepoint contracts over that same PDO connection.
+separate. `PdoSavepointTransactionRunner` is also constructed from that same
+PDO connection and is wired as the service's transaction dependency. The
+command adapter implements only `RuleCommandRepositoryInterface` and
+`RuleMutationSupportInterface`.
 The command adapter's internal auto-increment `BIGINT UNSIGNED` primary key is infrastructure-only
 and is not part of `Rule`, `RuleIdentity`, `RuleReference`, Decisions, or B2
 public contracts. B3 converts only MySQL/MariaDB driver error code `1062` to
@@ -1101,16 +1103,13 @@ The Host owns:
 - tenant/storage isolation where the Host is multi-tenant;
 - cleaning Eligibility Rules when an external Subject is permanently deleted.
 
-## Persistence dependency and transaction migration status
+## Persistence dependency and transaction ownership
 
 Eligibility declares `maatify/persistence ^1.4` as an explicit runtime
 dependency. `v1.4.0` is the minimum stable line required for the released
-savepoint-capable transaction API used by the upcoming shared transaction
-migration.
-
-WU5 adopts and verifies that released API only. Eligibility has not yet
-migrated its local transitional transaction boundary, and production runtime
-adoption of `PdoSavepointTransactionRunner` belongs to WU6.
+`SavepointTransactionRunnerInterface` and `PdoSavepointTransactionRunner`.
+Eligibility uses that shared runner for replacement and cleanup; it does not
+implement a local generic transaction or savepoint engine.
 
 ## Consumer workflow and integration boundary
 
@@ -1129,7 +1128,7 @@ This workflow is normative at the responsibility and observable-behavior level. 
 1. The Host validates the external Subject and resolves its business Context. It constructs the canonical typed Subject and immutable Context using the exact string rules and Context shape defined in this reference. Host-owned semantic normalization, such as choosing an uppercase country code, occurs before the package boundary.
 2. The Host calls the public Eligibility API for one Subject or an ordered batch of Subjects. The public operation is conceptually `decide(Subject, Context)` or `decideMany(Subjects, Context)`; these labels describe the frozen capability and do not freeze concrete PHP names.
 3. The package-owned Domain Service orchestrates evaluation. It applies the canonical rule semantics, requests active Rules only through `ActiveRuleReaderInterface`, and uses bounded bulk loading for the batch path. It does not query or join Host-owned Subject, Product, Category, Payment, Shipping, Customer, or geography tables.
-4. The Integration Boundary consists of the package-owned command, management-query, evaluation-read, internal mutation-support, and transitional transaction/savepoint contracts backed by the direct-PDO RC1 adapters. The Host constructs `PdoRuleCommandRepository`, `PdoRuleManagementQuery`, and `PdoActiveRuleReader` from the same PDO connection and wires each required capability explicitly to `EligibilityManagementService` or `EligibilityEvaluationService`. Together they preserve exact validated strings, active/inactive lifecycle state, natural-identity uniqueness, canonical ordering, transaction participation, and the concurrency guarantees above. Repository/interface substitution MUST NOT be used to introduce a non-PDO RC1 persistence implementation.
+4. The Integration Boundary consists of the package-owned command, management-query, evaluation-read, and internal mutation-support contracts backed by the direct-PDO RC1 adapters, plus the released Persistence transaction runner. The Host constructs `PdoRuleCommandRepository`, `PdoRuleManagementQuery`, `PdoActiveRuleReader`, and `PdoSavepointTransactionRunner` from the same PDO connection and wires each required capability explicitly to `EligibilityManagementService` or `EligibilityEvaluationService`. Together they preserve exact validated strings, active/inactive lifecycle state, natural-identity uniqueness, canonical ordering, transaction participation, and the concurrency guarantees above. Repository/interface substitution MUST NOT be used to introduce a non-PDO RC1 persistence implementation.
 5. The Host receives a typed immutable `EligibilityDecision` (or an ordered collection of typed Subject Decisions for batch evaluation), including its machine-readable reason and complete dimension/matched-Rule traces. The Host then combines that Decision with its own domain lifecycle and visibility rules where applicable, for example `intrinsically visible AND eligible`; `eligible=true` MUST NOT be interpreted as Product, Category, Payment Method, Shipping Method, or other Host-domain publication/availability.
 
 Rule management follows the same boundary: the Host submits typed management commands/criteria through the public package contracts, the Domain Service coordinates the mutation or read, and the package-owned persistence boundary produces the typed management result or documented typed failure. Application/domain code MUST NOT require direct SQL access.
@@ -1175,12 +1174,11 @@ extensions; B4 owns the concrete evaluator and application-service runtime.
 - `RuleManagementQueryInterface` is the replaceable management-query persistence contract. It exposes natural-identity lookup, bounded management reads, and active-dimension lookup, including inactive Rules where criteria allow them.
 - `ActiveRuleReaderInterface` is the replaceable evaluation-read persistence contract. It exposes only bounded bulk loading of active Rules for a supplied `SubjectCollection`.
 - `RuleMutationSupportInterface` is a package-internal Eligibility-specific persistence contract. It owns only the coordination lock, complete Subject + dimension mutation read, and coordination cleanup required by atomic replacement and cleanup; it is not a Management Query or Evaluation Read contract.
-- `RuleReplacementRepositoryInterface` is a package-internal transitional transaction/savepoint boundary. It owns only transaction ownership and operation-local savepoint methods pending the later shared Persistence migration; it does not inherit `RuleCommandRepositoryInterface` and does not expose mutation-support methods.
 
 ### B4 concrete runtime services
 
 - `Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService` implements `EligibilityEvaluationServiceInterface` and depends only on `ActiveRuleReaderInterface`. It loads active Rules through one reader bulk call for a batch and delegates both single and batch calls to the shared pure `Maatify\Eligibility\Evaluation\Engine\EligibilityRuleEvaluator`; `PdoActiveRuleReader` internally chunks large Subject collections at its configured bound, and the service preserves input order.
-- `Maatify\Eligibility\Management\Service\EligibilityManagementService` implements `EligibilityManagementServiceInterface`. It maps missing identity mutation results to `RuleNotFoundException` and coordinates create, inspect, lifecycle/effect, replacement, and cleanup behavior without SQL. Its dependencies are explicit: `RuleCommandRepositoryInterface` for command mutations, `RuleManagementQueryInterface` for management reads, `RuleMutationSupportInterface` for atomic replacement/cleanup support, and the transitional `RuleReplacementRepositoryInterface` for transaction/savepoint operations.
+- `Maatify\Eligibility\Management\Service\EligibilityManagementService` implements `EligibilityManagementServiceInterface`. It maps missing identity mutation results to `RuleNotFoundException` and coordinates create, inspect, lifecycle/effect, replacement, and cleanup behavior without SQL. Its dependencies are explicit: `RuleCommandRepositoryInterface` for command mutations, `RuleManagementQueryInterface` for management reads, `RuleMutationSupportInterface` for atomic replacement/cleanup support, and `Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface` for shared transaction/savepoint execution.
 - `Maatify\Eligibility\Evaluation\Engine\EligibilityRuleEvaluator` is package-internal shared evaluation logic. It groups active Rules by dimension, evaluates every ruled dimension, applies DENY precedence, preserves the complete matching trace, and constructs the existing immutable Decision types in canonical order.
 
 ### B2 semantic exceptions
@@ -1197,14 +1195,13 @@ PDO persistence adapter is listed separately below.
 
 ### B3 persistence implementation and bounds extensions
 
-- `Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository` is the concrete direct-PDO implementation of `RuleCommandRepositoryInterface`, `RuleMutationSupportInterface`, and the transitional `RuleReplacementRepositoryInterface`. It provides all three narrow capabilities over the same PDO connection without merging their caller contracts.
+- `Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository` is the concrete direct-PDO implementation of `RuleCommandRepositoryInterface` and `RuleMutationSupportInterface`. It provides both Eligibility-specific capabilities over the same PDO connection without owning generic transaction/savepoint mechanics.
 - `Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery` is the concrete direct-PDO implementation of `RuleManagementQueryInterface`. It provides exact identity reads, bounded management reads, lifecycle visibility, and active-dimension reads.
 - `Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader` is the concrete direct-PDO implementation of `ActiveRuleReaderInterface`. It provides the active-only bounded bulk read used by evaluation.
 - `PdoRuleHydrationTrait` is an internal implementation helper for shared PDO row binding and Rule hydration; it is not a public contract or business-service abstraction.
 - `Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface` is a package-internal mutation-support contract used by B4 for the complete Subject + dimension read, Subject coordination lock, and coordination cleanup; it is not an additional Host-facing service method.
-- `Maatify\Eligibility\Rule\Repository\RuleReplacementRepositoryInterface` is a package-internal transitional transaction/savepoint boundary used by B4. It exposes only transaction ownership and operation-local savepoint primitives and is scheduled for replacement during the later shared Persistence transaction migration.
 - B4 uses the package-owned `maa_eligibility_subject_locks` table as an explicit coordination row per Subject. Replacement and management cleanup create-or-lock this row inside their transaction before reading or mutating Rules, so an initially empty dimension is serialized without relying on database gap-lock behavior. Cleanup removes the coordination row for the cleaned Subject. The table has no Host foreign key or join.
-- When the Host already owns a transaction, B4 creates a unique package-prefixed operation savepoint through the repository, releases it on success, and rolls back to it on failure while leaving the Host transaction active. Savepoint cleanup is best-effort and never replaces the original operation Throwable. This uses transactional MySQL-compatible savepoint capability without declaring a minimum database product version.
+- When the Host already owns a transaction, the shared `PdoSavepointTransactionRunner` creates an operation-local savepoint, releases it on success, and rolls back to it on failure while leaving the Host transaction active. Savepoint cleanup is best-effort and never replaces the original operation Throwable. This uses transactional MySQL-compatible savepoint capability without declaring a minimum database product version.
 - B3 extends `Maatify\Eligibility\Common\Validation\CanonicalString` with the single source of truth for the four canonical byte bounds and routes every semantic B1/B2 boundary through those bounded validators. The B1 validation type remains B1-owned; these bound constants and validators are the B3 contract extension.
 - B4 supplies the concrete evaluator and application-service implementations listed above; the B2 interfaces remain the public replaceable seams for consumers and persistence adapters.
 

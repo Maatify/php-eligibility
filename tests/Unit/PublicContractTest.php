@@ -28,10 +28,10 @@ use Maatify\Eligibility\Exception\RuleConcurrencyConflictException;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
 use Maatify\Eligibility\Exception\RuleNotFoundException;
 use Maatify\Eligibility\Rule\Repository\ActiveRuleReaderInterface;
+use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
 use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
 use Maatify\Eligibility\Rule\Repository\RuleManagementQueryInterface;
 use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
-use Maatify\Eligibility\Rule\Repository\RuleReplacementRepositoryInterface;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleCollection;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
@@ -272,7 +272,7 @@ final class PublicContractTest extends TestCase
         $managementQuery = new ReflectionClass(RuleManagementQueryInterface::class);
         $activeRuleReader = new ReflectionClass(ActiveRuleReaderInterface::class);
         $mutationSupport = new ReflectionClass(RuleMutationSupportInterface::class);
-        $replacementRepository = new ReflectionClass(RuleReplacementRepositoryInterface::class);
+        $commandRepositoryImplementation = new ReflectionClass(PdoRuleCommandRepository::class);
         $evaluationService = new ReflectionClass(EligibilityEvaluationServiceInterface::class);
         $managementService = new ReflectionClass(EligibilityManagementServiceInterface::class);
         $evaluationServiceImplementation = new ReflectionClass(EligibilityEvaluationService::class);
@@ -282,9 +282,11 @@ final class PublicContractTest extends TestCase
         self::assertTrue($managementQuery->isInterface());
         self::assertTrue($activeRuleReader->isInterface());
         self::assertTrue($mutationSupport->isInterface());
-        self::assertTrue($replacementRepository->isInterface());
         self::assertTrue($evaluationService->isInterface());
         self::assertTrue($managementService->isInterface());
+        self::assertTrue($commandRepositoryImplementation->implementsInterface(RuleCommandRepositoryInterface::class));
+        self::assertTrue($commandRepositoryImplementation->implementsInterface(RuleMutationSupportInterface::class));
+        self::assertFalse($commandRepositoryImplementation->implementsInterface(SavepointTransactionRunnerInterface::class));
 
         $commandMethods = [
             'create' => Rule::class,
@@ -324,14 +326,12 @@ final class PublicContractTest extends TestCase
         }
 
         self::assertFalse($commandRepository->hasMethod('replaceDimensionRules'));
-        self::assertFalse($replacementRepository->isSubclassOf(RuleCommandRepositoryInterface::class));
-        self::assertFalse($replacementRepository->hasMethod('findByIdentity'));
-        self::assertFalse($replacementRepository->hasMethod('findByCriteria'));
-        self::assertFalse($replacementRepository->hasMethod('findActiveForSubjects'));
-        self::assertFalse($replacementRepository->hasMethod('findActiveDimensionKeys'));
-        self::assertFalse($replacementRepository->hasMethod('lockSubjectForMutation'));
-        self::assertFalse($replacementRepository->hasMethod('findAllForSubjectDimension'));
-        self::assertFalse($replacementRepository->hasMethod('deleteSubjectCoordination'));
+        foreach (
+            ['inTransaction', 'beginTransaction', 'commit', 'rollBack', 'createOperationSavepoint',
+                'rollbackToOperationSavepoint', 'releaseOperationSavepoint'] as $methodName
+        ) {
+            self::assertFalse($commandRepositoryImplementation->hasMethod($methodName));
+        }
         self::assertTrue($managementService->hasMethod('replaceDimensionRules'));
         self::assertSame(
             Rule::class,
@@ -362,7 +362,7 @@ final class PublicContractTest extends TestCase
             self::parameterTypeName($managementConstructor->getParameters()[2]),
         );
         self::assertSame(
-            RuleReplacementRepositoryInterface::class,
+            SavepointTransactionRunnerInterface::class,
             self::parameterTypeName($managementConstructor->getParameters()[3]),
         );
 
