@@ -4,25 +4,25 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Unit;
 
-use Maatify\Eligibility\Application\Command\CleanupSubjectCommand;
-use Maatify\Eligibility\Application\Command\CreateRuleCommand;
-use Maatify\Eligibility\Application\Command\DeactivateRuleCommand;
-use Maatify\Eligibility\Application\Command\DesiredRule;
-use Maatify\Eligibility\Application\Command\DesiredRuleCollection;
-use Maatify\Eligibility\Application\Command\ReactivateRuleCommand;
-use Maatify\Eligibility\Application\Command\ReplaceDimensionRulesCommand;
-use Maatify\Eligibility\Application\Command\UpdateRuleEffectCommand;
-use Maatify\Eligibility\Application\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Application\Query\RuleCriteria;
-use Maatify\Eligibility\Application\Service\EligibilityManagementService;
+use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
+use Maatify\Eligibility\Management\Command\CreateRuleCommand;
+use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
+use Maatify\Eligibility\Management\Command\DesiredRule;
+use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
+use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
+use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
+use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
+use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Management\Service\EligibilityManagementService;
 use Maatify\Eligibility\Exception\RuleNotFoundException;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
-use Maatify\Eligibility\Tests\Support\FaultingRuleReplacementRepository;
 use Maatify\Eligibility\Tests\Support\InMemoryRuleRepository;
-use Maatify\Eligibility\Value\Subject;
+use Maatify\Eligibility\Tests\Support\SynchronousTransactionRunner;
+use Maatify\Eligibility\Common\Value\Subject;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -32,7 +32,7 @@ final class RuntimeManagementServiceTest extends TestCase
     public function createInspectReadsAndActiveDimensionKeysDelegateTypedResults(): void
     {
         $repository = new InMemoryRuleRepository();
-        $service = new EligibilityManagementService($repository);
+        $service = $this->service($repository);
         $command = new CreateRuleCommand(new Subject('product', '150'), 'country', 'EG', RuleEffectEnum::ALLOW);
 
         $created = $service->createRule($command);
@@ -49,7 +49,7 @@ final class RuntimeManagementServiceTest extends TestCase
     public function inspectMissingAndMissingMutationsProduceTypedNotFound(): void
     {
         $repository = new InMemoryRuleRepository();
-        $service = new EligibilityManagementService($repository);
+        $service = $this->service($repository);
         $identity = new RuleIdentity('product', 'missing', 'country', 'EG');
 
         try {
@@ -88,7 +88,7 @@ final class RuntimeManagementServiceTest extends TestCase
             $this->rule('EG', RuleEffectEnum::ALLOW),
             $this->rule('SA', RuleEffectEnum::DENY)->withLifecycle(RuleLifecycleEnum::INACTIVE),
         );
-        $service = new EligibilityManagementService($repository);
+        $service = $this->service($repository);
 
         self::assertCount(2, $service->inspectRules(new RuleCriteria($subject)));
         self::assertCount(1, $service->inspectRules(new RuleCriteria(
@@ -101,7 +101,7 @@ final class RuntimeManagementServiceTest extends TestCase
     public function lifecycleAndEffectCommandsAreOrthogonalAndIdempotent(): void
     {
         $repository = new InMemoryRuleRepository();
-        $service = new EligibilityManagementService($repository);
+        $service = $this->service($repository);
         $rule = $service->createRule(new CreateRuleCommand(
             new Subject('product', '150'),
             'country',
@@ -136,7 +136,7 @@ final class RuntimeManagementServiceTest extends TestCase
             $this->rule('retail', RuleEffectEnum::DENY, 'customer_type'),
             $this->rule('EG', RuleEffectEnum::DENY, 'country', 'product', '151'),
         );
-        $service = new EligibilityManagementService($repository);
+        $service = $this->service($repository);
 
         $replacement = new ReplaceDimensionRulesCommand(
             $subject,
@@ -180,7 +180,7 @@ final class RuntimeManagementServiceTest extends TestCase
             $this->rule('EG', RuleEffectEnum::ALLOW),
             $this->rule('SA', RuleEffectEnum::DENY)->withLifecycle(RuleLifecycleEnum::INACTIVE),
         );
-        $service = new EligibilityManagementService($repository);
+        $service = $this->service($repository);
 
         $service->replaceDimensionRules(new ReplaceDimensionRulesCommand(
             $subject,
@@ -197,11 +197,12 @@ final class RuntimeManagementServiceTest extends TestCase
     }
 
     #[Test]
-    public function replacementOwnsTransactionOnlyWhenNoOuterTransactionExists(): void
+    public function replacementAndCleanupDelegateToTheSharedTransactionRunner(): void
     {
         $subject = new Subject('product', '150');
         $repository = new InMemoryRuleRepository();
-        $service = new EligibilityManagementService($repository);
+        $runner = new SynchronousTransactionRunner();
+        $service = new EligibilityManagementService($repository, $repository, $repository, $runner);
         $command = new ReplaceDimensionRulesCommand(
             $subject,
             'country',
@@ -209,114 +210,9 @@ final class RuntimeManagementServiceTest extends TestCase
         );
 
         $service->replaceDimensionRules($command);
-        self::assertSame(1, $repository->beginCount);
-        self::assertSame(1, $repository->commitCount);
+        $service->cleanupSubject(new CleanupSubjectCommand($subject));
 
-        $repository->beginTransaction();
-        $service->replaceDimensionRules($command);
-        self::assertTrue($repository->inTransaction());
-        self::assertSame(2, $repository->beginCount);
-        self::assertSame(1, $repository->commitCount);
-        self::assertSame(0, $repository->rollbackCount);
-        self::assertSame(1, $repository->savepointCreateCount);
-        self::assertSame(1, $repository->savepointReleaseCount);
-        $repository->commit();
-    }
-
-    #[Test]
-    public function packageOwnedReplacementRollsBackAndRethrowsOriginalFailure(): void
-    {
-        $subject = new Subject('product', '150');
-        $repository = new InMemoryRuleRepository();
-        $repository->seed($this->rule('EG', RuleEffectEnum::ALLOW));
-        $service = new EligibilityManagementService($repository);
-        $failure = new \RuntimeException('injected replacement failure');
-        $repository->failure = $failure;
-
-        try {
-            $service->replaceDimensionRules(new ReplaceDimensionRulesCommand(
-                $subject,
-                'country',
-                new DesiredRuleCollection(new DesiredRule('EG', RuleEffectEnum::DENY)),
-            ));
-            self::fail('Expected the injected Throwable.');
-        } catch (\RuntimeException $exception) {
-            self::assertSame($failure, $exception);
-        }
-
-        self::assertSame(RuleEffectEnum::ALLOW, $service->inspectRule(
-            new RuleIdentity('product', '150', 'country', 'EG'),
-        )->effect);
-        self::assertSame(1, $repository->rollbackCount);
-    }
-
-    #[Test]
-    public function outerTransactionFailureRollsBackOnlyOperationSavepoint(): void
-    {
-        $subject = new Subject('product', '150');
-        $repository = new InMemoryRuleRepository();
-        $repository->seed($this->rule('EG', RuleEffectEnum::ALLOW));
-        $failure = new \RuntimeException('injected outer replacement failure');
-        $service = new EligibilityManagementService(new FaultingRuleReplacementRepository(
-            $repository,
-            $failure,
-        ));
-        $repository->beginTransaction();
-
-        try {
-            $service->replaceDimensionRules(new ReplaceDimensionRulesCommand(
-                $subject,
-                'country',
-                new DesiredRuleCollection(
-                    new DesiredRule('EG', RuleEffectEnum::DENY),
-                    new DesiredRule('SA', RuleEffectEnum::ALLOW),
-                ),
-            ));
-            self::fail('Expected the injected outer transaction Throwable.');
-        } catch (\RuntimeException $exception) {
-            self::assertSame($failure, $exception);
-        }
-
-        self::assertTrue($repository->inTransaction());
-        self::assertSame(RuleEffectEnum::ALLOW, $service->inspectRule(
-            new RuleIdentity('product', '150', 'country', 'EG'),
-        )->effect);
-        self::assertCount(1, $service->inspectRules(new RuleCriteria(
-            $subject,
-            dimensionKey: 'country',
-        )));
-        self::assertSame(1, $repository->savepointCreateCount);
-        self::assertSame(1, $repository->savepointRollbackCount);
-        self::assertSame(1, $repository->savepointReleaseCount);
-        $repository->commit();
-    }
-
-    #[Test]
-    public function savepointRollbackFailureDoesNotReplaceOriginalThrowable(): void
-    {
-        $subject = new Subject('product', '150');
-        $repository = new InMemoryRuleRepository();
-        $repository->seed($this->rule('EG', RuleEffectEnum::ALLOW));
-        $failure = new \RuntimeException('original outer operation failure');
-        $repository->failure = $failure;
-        $repository->savepointRollbackFailure = new \RuntimeException('savepoint rollback failure');
-        $service = new EligibilityManagementService($repository);
-        $repository->beginTransaction();
-
-        try {
-            $service->replaceDimensionRules(new ReplaceDimensionRulesCommand(
-                $subject,
-                'country',
-                new DesiredRuleCollection(new DesiredRule('EG', RuleEffectEnum::DENY)),
-            ));
-            self::fail('Expected the original outer operation Throwable.');
-        } catch (\RuntimeException $exception) {
-            self::assertSame($failure, $exception);
-        }
-
-        self::assertTrue($repository->inTransaction());
-        self::assertSame(0, $repository->savepointRollbackCount);
-        $repository->commit();
+        self::assertSame(2, $runner->runCount);
     }
 
     #[Test]
@@ -330,7 +226,7 @@ final class RuntimeManagementServiceTest extends TestCase
             $this->rule('SA', RuleEffectEnum::DENY)->withLifecycle(RuleLifecycleEnum::INACTIVE),
             $this->rule('EG', RuleEffectEnum::ALLOW, 'country', 'product', '151'),
         );
-        $service = new EligibilityManagementService($repository);
+        $service = $this->service($repository);
 
         $service->cleanupSubject(new CleanupSubjectCommand($subject));
         $service->cleanupSubject(new CleanupSubjectCommand($subject));
@@ -347,6 +243,16 @@ final class RuntimeManagementServiceTest extends TestCase
         string $subjectId = '150',
     ): Rule {
         return Rule::active(new Subject($subjectType, $subjectId), $dimension, $value, $effect);
+    }
+
+    private function service(InMemoryRuleRepository $repository): EligibilityManagementService
+    {
+        return new EligibilityManagementService(
+            $repository,
+            $repository,
+            $repository,
+            new SynchronousTransactionRunner(),
+        );
     }
 
     /** @param callable(): void $mutation */

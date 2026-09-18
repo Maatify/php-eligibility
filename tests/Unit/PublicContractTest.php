@@ -4,39 +4,49 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Unit;
 
-use Maatify\Eligibility\Application\Command\CleanupSubjectCommand;
-use Maatify\Eligibility\Application\Command\CreateRuleCommand;
-use Maatify\Eligibility\Application\Command\DeactivateRuleCommand;
-use Maatify\Eligibility\Application\Command\DesiredRule;
-use Maatify\Eligibility\Application\Command\DesiredRuleCollection;
-use Maatify\Eligibility\Application\Command\ReactivateRuleCommand;
-use Maatify\Eligibility\Application\Command\ReplaceDimensionRulesCommand;
-use Maatify\Eligibility\Application\Command\UpdateRuleEffectCommand;
-use Maatify\Eligibility\Application\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Application\Query\RuleCriteria;
-use Maatify\Eligibility\Application\Result\ActiveDimensionKeyCollection;
-use Maatify\Eligibility\Application\Result\SubjectDecisionCollection;
-use Maatify\Eligibility\Application\Result\SubjectDecisionResult;
-use Maatify\Eligibility\Application\Service\EligibilityEvaluationServiceInterface;
-use Maatify\Eligibility\Application\Service\EligibilityManagementServiceInterface;
-use Maatify\Eligibility\Decision\EligibilityDecision;
+use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
+use Maatify\Eligibility\Management\Command\CreateRuleCommand;
+use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
+use Maatify\Eligibility\Management\Command\DesiredRule;
+use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
+use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
+use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
+use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
+use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Management\Result\ActiveDimensionKeyCollection;
+use Maatify\Eligibility\Evaluation\Result\SubjectDecisionCollection;
+use Maatify\Eligibility\Evaluation\Result\SubjectDecisionResult;
+use Maatify\Eligibility\Evaluation\Contract\EligibilityEvaluationServiceInterface;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
+use Maatify\Eligibility\Management\Contract\EligibilityManagementServiceInterface;
+use Maatify\Eligibility\Management\Service\EligibilityManagementService;
+use Maatify\Eligibility\Evaluation\Decision\EligibilityDecision;
 use Maatify\Eligibility\Exception\EligibilityExceptionInterface;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Exception\RuleConcurrencyConflictException;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
 use Maatify\Eligibility\Exception\RuleNotFoundException;
-use Maatify\Eligibility\Rule\Repository\RuleRepositoryInterface;
+use Maatify\Eligibility\Rule\Repository\ActiveRuleReaderInterface;
+use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
+use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
+use Maatify\Eligibility\Rule\Repository\RuleManagementQueryInterface;
+use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleCollection;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\NonStrictConsumer;
-use Maatify\Eligibility\Value\Subject;
-use Maatify\Eligibility\Value\SubjectCollection;
+use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Common\Value\SubjectCollection;
 use Maatify\Exceptions\Contracts\ApiAwareExceptionInterface;
 use Maatify\Exceptions\Exception\Conflict\ConflictMaatifyException;
 use Maatify\Exceptions\Exception\NotFound\NotFoundMaatifyException;
+use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
+use Maatify\Persistence\Pdo\Transaction\PdoTransactionRunner;
+use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
+use Maatify\Persistence\Pdo\Transaction\TransactionRunnerInterface;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -258,34 +268,70 @@ final class PublicContractTest extends TestCase
     #[Test]
     public function repositoryAndServicesExposeSeparatedTypedBoundaries(): void
     {
-        $repository = new ReflectionClass(RuleRepositoryInterface::class);
+        $commandRepository = new ReflectionClass(RuleCommandRepositoryInterface::class);
+        $managementQuery = new ReflectionClass(RuleManagementQueryInterface::class);
+        $activeRuleReader = new ReflectionClass(ActiveRuleReaderInterface::class);
+        $mutationSupport = new ReflectionClass(RuleMutationSupportInterface::class);
+        $commandRepositoryImplementation = new ReflectionClass(PdoRuleCommandRepository::class);
         $evaluationService = new ReflectionClass(EligibilityEvaluationServiceInterface::class);
         $managementService = new ReflectionClass(EligibilityManagementServiceInterface::class);
+        $evaluationServiceImplementation = new ReflectionClass(EligibilityEvaluationService::class);
+        $managementServiceImplementation = new ReflectionClass(EligibilityManagementService::class);
 
-        self::assertTrue($repository->isInterface());
+        self::assertTrue($commandRepository->isInterface());
+        self::assertTrue($managementQuery->isInterface());
+        self::assertTrue($activeRuleReader->isInterface());
+        self::assertTrue($mutationSupport->isInterface());
         self::assertTrue($evaluationService->isInterface());
         self::assertTrue($managementService->isInterface());
+        self::assertTrue($commandRepositoryImplementation->implementsInterface(RuleCommandRepositoryInterface::class));
+        self::assertTrue($commandRepositoryImplementation->implementsInterface(RuleMutationSupportInterface::class));
+        self::assertFalse($commandRepositoryImplementation->implementsInterface(SavepointTransactionRunnerInterface::class));
 
-        $repositoryMethods = [
+        $commandMethods = [
             'create' => Rule::class,
-            'findByIdentity' => Rule::class,
-            'findByCriteria' => RuleCollection::class,
-            'findActiveForSubjects' => RuleCollection::class,
-            'findActiveDimensionKeys' => ActiveDimensionKeyCollection::class,
             'updateEffect' => 'bool',
             'deactivate' => 'bool',
             'reactivate' => 'bool',
             'cleanupSubject' => 'void',
         ];
 
-        foreach ($repositoryMethods as $methodName => $returnType) {
+        foreach ($commandMethods as $methodName => $returnType) {
             self::assertSame(
                 $returnType,
-                self::namedReturnTypeName($repository->getMethod($methodName)),
+                self::namedReturnTypeName($commandRepository->getMethod($methodName)),
             );
         }
 
-        self::assertFalse($repository->hasMethod('replaceDimensionRules'));
+        foreach (
+            [
+                'findByIdentity' => Rule::class,
+                'findByCriteria' => RuleCollection::class,
+                'findActiveDimensionKeys' => ActiveDimensionKeyCollection::class,
+            ] as $methodName => $returnType
+        ) {
+            self::assertSame(
+                $returnType,
+                self::namedReturnTypeName($managementQuery->getMethod($methodName)),
+            );
+        }
+
+        self::assertSame(
+            RuleCollection::class,
+            self::namedReturnTypeName($activeRuleReader->getMethod('findActiveForSubjects')),
+        );
+
+        foreach (['lockSubjectForMutation', 'findAllForSubjectDimension', 'deleteSubjectCoordination'] as $methodName) {
+            self::assertTrue($mutationSupport->hasMethod($methodName));
+        }
+
+        self::assertFalse($commandRepository->hasMethod('replaceDimensionRules'));
+        foreach (
+            ['inTransaction', 'beginTransaction', 'commit', 'rollBack', 'createOperationSavepoint',
+                'rollbackToOperationSavepoint', 'releaseOperationSavepoint'] as $methodName
+        ) {
+            self::assertFalse($commandRepositoryImplementation->hasMethod($methodName));
+        }
         self::assertTrue($managementService->hasMethod('replaceDimensionRules'));
         self::assertSame(
             Rule::class,
@@ -299,6 +345,58 @@ final class PublicContractTest extends TestCase
             SubjectDecisionCollection::class,
             self::namedReturnTypeName($evaluationService->getMethod('decideMany')),
         );
+
+        $managementConstructor = $managementServiceImplementation->getConstructor();
+        self::assertNotNull($managementConstructor);
+        self::assertSame(4, count($managementConstructor->getParameters()));
+        self::assertSame(
+            RuleCommandRepositoryInterface::class,
+            self::parameterTypeName($managementConstructor->getParameters()[0]),
+        );
+        self::assertSame(
+            RuleManagementQueryInterface::class,
+            self::parameterTypeName($managementConstructor->getParameters()[1]),
+        );
+        self::assertSame(
+            RuleMutationSupportInterface::class,
+            self::parameterTypeName($managementConstructor->getParameters()[2]),
+        );
+        self::assertSame(
+            SavepointTransactionRunnerInterface::class,
+            self::parameterTypeName($managementConstructor->getParameters()[3]),
+        );
+
+        $evaluationConstructor = $evaluationServiceImplementation->getConstructor();
+        self::assertNotNull($evaluationConstructor);
+        self::assertSame(1, count($evaluationConstructor->getParameters()));
+        self::assertSame(
+            ActiveRuleReaderInterface::class,
+            self::parameterTypeName($evaluationConstructor->getParameters()[0]),
+        );
+    }
+
+    #[Test]
+    public function persistenceSavepointApiMatchesReleasedContract(): void
+    {
+        self::assertTrue(interface_exists(TransactionRunnerInterface::class));
+        self::assertTrue(interface_exists(SavepointTransactionRunnerInterface::class));
+        self::assertTrue(class_exists(PdoTransactionRunner::class));
+        self::assertTrue(class_exists(PdoSavepointTransactionRunner::class));
+
+        $transactionRunnerInterface = new ReflectionClass(TransactionRunnerInterface::class);
+        $savepointRunnerInterface = new ReflectionClass(SavepointTransactionRunnerInterface::class);
+
+        self::assertTrue($transactionRunnerInterface->isInterface());
+        self::assertTrue($savepointRunnerInterface->isInterface());
+        self::assertTrue(
+            $savepointRunnerInterface->implementsInterface(TransactionRunnerInterface::class),
+        );
+
+        $run = $transactionRunnerInterface->getMethod('run');
+
+        self::assertSame('mixed', self::namedReturnTypeName($run));
+        self::assertCount(1, $run->getParameters());
+        self::assertSame('callable', self::parameterTypeName($run->getParameters()[0]));
     }
 
     #[Test]
@@ -335,6 +433,14 @@ final class PublicContractTest extends TestCase
         self::assertInstanceOf(ReflectionNamedType::class, $returnType);
 
         return $returnType->getName();
+    }
+
+    private static function parameterTypeName(\ReflectionParameter $parameter): string
+    {
+        $parameterType = $parameter->getType();
+        self::assertInstanceOf(ReflectionNamedType::class, $parameterType);
+
+        return $parameterType->getName();
     }
 
     #[Test]

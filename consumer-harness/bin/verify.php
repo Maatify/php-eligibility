@@ -3,22 +3,25 @@
 declare(strict_types=1);
 
 use Composer\InstalledVersions;
-use Maatify\Eligibility\Application\Command\CleanupSubjectCommand;
-use Maatify\Eligibility\Application\Command\CreateRuleCommand;
-use Maatify\Eligibility\Application\Command\DesiredRule;
-use Maatify\Eligibility\Application\Command\DesiredRuleCollection;
-use Maatify\Eligibility\Application\Command\ReplaceDimensionRulesCommand;
-use Maatify\Eligibility\Application\Query\RuleCriteria;
-use Maatify\Eligibility\Application\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Application\Service\EligibilityManagementService;
-use Maatify\Eligibility\Decision\DecisionReasonEnum;
-use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
+use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
+use Maatify\Eligibility\Management\Command\CreateRuleCommand;
+use Maatify\Eligibility\Management\Command\DesiredRule;
+use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
+use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
+use Maatify\Eligibility\Management\Service\EligibilityManagementService;
+use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
+use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
+use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
+use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
-use Maatify\Eligibility\Value\Context;
-use Maatify\Eligibility\Value\ContextDimension;
-use Maatify\Eligibility\Value\Subject;
+use Maatify\Eligibility\Evaluation\Value\Context;
+use Maatify\Eligibility\Evaluation\Value\ContextDimension;
+use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 
 $consumerRoot = dirname(__DIR__);
 $autoloadPath = $consumerRoot . '/vendor/autoload.php';
@@ -64,9 +67,17 @@ $pdo->exec($schema);
 
 $runId = environment('ELIGIBILITY_HARNESS_RUN_ID', 'manual');
 $subject = new Subject('consumer_harness', $runId);
-$repository = new PdoRuleRepository($pdo);
-$management = new EligibilityManagementService($repository);
-$evaluation = new EligibilityEvaluationService($repository);
+$commandRepository = new PdoRuleCommandRepository($pdo);
+$managementQuery = new PdoRuleManagementQuery($pdo);
+$activeRuleReader = new PdoActiveRuleReader($pdo);
+$transactionRunner = new PdoSavepointTransactionRunner($pdo);
+$management = new EligibilityManagementService(
+    $commandRepository,
+    $managementQuery,
+    $commandRepository,
+    $transactionRunner,
+);
+$evaluation = new EligibilityEvaluationService($activeRuleReader);
 
 assertTableEmpty($pdo, 'maa_eligibility_rules', 'Before workflow');
 assertTableEmpty($pdo, 'maa_eligibility_subject_locks', 'Before workflow');

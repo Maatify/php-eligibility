@@ -4,15 +4,23 @@
 
 ![Maatify.dev](https://www.maatify.dev/assets/img/img/maatify_logo_white.svg)
 
-[![PHP](https://img.shields.io/badge/php-%5E8.4-8892BF)](composer.json)
+**Package status:**<br>
+[![Release state](https://img.shields.io/badge/Release-Pre--Stable%20RC1%20Preparation-orange)](#status)
+[![PHP](https://img.shields.io/badge/PHP-%5E8.4-8892BF)](composer.json)
 [![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-success)](phpstan.neon)
-[![License](https://img.shields.io/badge/license-proprietary-lightgrey)](LICENSE)
+[![License](https://img.shields.io/badge/License-proprietary-lightgrey)](LICENSE)
 
+**Documentation:**<br>
 [![Changelog](https://img.shields.io/badge/Changelog-View-blue)](CHANGELOG.md)
-[![Package Reference](https://img.shields.io/badge/Reference-Read-blue)](ELIGIBILITY_PACKAGE_REFERENCE.md)
+[![Package Reference](https://img.shields.io/badge/Package%20Reference-Read-blue)](ELIGIBILITY_PACKAGE_REFERENCE.md)
+[![Usage Guide](https://img.shields.io/badge/Usage%20Guide-Read-blue)](docs/guides/USAGE_GUIDE.md)
+[![Examples](https://img.shields.io/badge/Examples-Run-blue)](examples/)
 [![Schema](https://img.shields.io/badge/Schema-Read-blue)](schema/README.md)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-blue)](SECURITY.md)
 [![Contributing Guide](https://img.shields.io/badge/Contributing-Guide-blue)](CONTRIBUTING.md)
+
+**Ecosystem and usage:**<br>
+[![Maatify Ecosystem](https://img.shields.io/badge/Maatify-Ecosystem-blueviolet)](https://github.com/Maatify)
 
 Framework-neutral eligibility rules and typed decisions that answer one
 reusable business question about an external Subject in a supplied Context.
@@ -61,8 +69,10 @@ package is not yet published; see [Installation](#installation).
 - Management lifecycle: create, inspect/list (including inactive Rules),
   active-dimension introspection, effect and lifecycle mutations, atomic
   `replaceDimensionRules()`, and idempotent Subject cleanup.
-- Direct-PDO MySQL-compatible persistence with package-owned transaction and
-  concurrency guarantees, and no Host foreign keys or joins.
+- Direct-PDO MySQL-compatible persistence with separate command, management
+  query, and evaluation-read adapters, plus shared Persistence transaction
+  ownership/savepoint mechanics and Eligibility-owned coordination locking;
+  no Host foreign keys or joins.
 - Typed package exceptions on the shared `maatify/exceptions` hierarchy, with
   unknown external throwables propagated unchanged.
 
@@ -72,8 +82,14 @@ package is not yet published; see [Installation](#installation).
 |---|---|
 | PHP | `^8.4` |
 | PHP extensions | `ext-pdo`, `ext-pdo_mysql`, `ext-pcre` |
-| Runtime package | `maatify/exceptions` (`^1.0`) |
+| Runtime packages | `maatify/exceptions` (`^1.0`), `maatify/persistence` (`^1.4`) |
 | Database | MySQL-compatible database-server semantics through direct PDO (capability-based; no minimum product version is declared — see [Persistence and Schema](#persistence-and-schema)) |
+
+`maatify/persistence ^1.4` is an explicit runtime dependency. `v1.4.0` is the
+minimum stable line required for the released
+`SavepointTransactionRunnerInterface` and `PdoSavepointTransactionRunner`.
+Eligibility delegates transaction ownership, operation-local savepoints,
+cleanup, and original-`Throwable` preservation to that shared API.
 
 The database contract requires transactional InnoDB-style package-owned table
 behavior, binary-safe exact-value storage/comparison, the bounded indexed-key
@@ -128,15 +144,18 @@ not a migration run at install time.
 ### Evaluation
 
 ```php
-use Maatify\Eligibility\Application\Query\RuleCriteria;
-use Maatify\Eligibility\Application\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Application\Service\EligibilityManagementService;
-use Maatify\Eligibility\Decision\DecisionReasonEnum;
-use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
+use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
+use Maatify\Eligibility\Management\Service\EligibilityManagementService;
+use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
+use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
+use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
+use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Value\Context;
-use Maatify\Eligibility\Value\ContextDimension;
-use Maatify\Eligibility\Value\Subject;
+use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
+use Maatify\Eligibility\Evaluation\Value\Context;
+use Maatify\Eligibility\Evaluation\Value\ContextDimension;
+use Maatify\Eligibility\Common\Value\Subject;
 
 $pdo = new PDO('mysql:host=127.0.0.1;dbname=app;charset=utf8mb4', 'app', 'secret', [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -144,18 +163,26 @@ $pdo = new PDO('mysql:host=127.0.0.1;dbname=app;charset=utf8mb4', 'app', 'secret
 ]);
 $pdo->exec(file_get_contents(__DIR__ . '/vendor/maatify/php-eligibility/schema/eligibility_rules.sql'));
 
-$repository = new PdoRuleRepository($pdo);
-$management = new EligibilityManagementService($repository);
-$evaluation = new EligibilityEvaluationService($repository);
+$commandRepository = new PdoRuleCommandRepository($pdo);
+$managementQuery = new PdoRuleManagementQuery($pdo);
+$activeRuleReader = new PdoActiveRuleReader($pdo);
+$transactionRunner = new PdoSavepointTransactionRunner($pdo);
+$management = new EligibilityManagementService(
+    $commandRepository,
+    $managementQuery,
+    $commandRepository,
+    $transactionRunner,
+);
+$evaluation = new EligibilityEvaluationService($activeRuleReader);
 
 $subject = new Subject('product', '150');
-$management->createRule(new \Maatify\Eligibility\Application\Command\CreateRuleCommand(
+$management->createRule(new \Maatify\Eligibility\Management\Command\CreateRuleCommand(
     $subject,
     'country',
     'EG',
     RuleEffectEnum::ALLOW,
 ));
-$management->createRule(new \Maatify\Eligibility\Application\Command\CreateRuleCommand(
+$management->createRule(new \Maatify\Eligibility\Management\Command\CreateRuleCommand(
     $subject,
     'customer_type',
     'blocked',
@@ -175,7 +202,7 @@ if ($decision->eligible) {
 ### Ordered batch evaluation
 
 ```php
-use Maatify\Eligibility\Value\SubjectCollection;
+use Maatify\Eligibility\Common\Value\SubjectCollection;
 
 $decisions = $evaluation->decideMany(
     new SubjectCollection(
@@ -190,9 +217,9 @@ $decisions = $evaluation->decideMany(
 ### Management lifecycle
 
 ```php
-use Maatify\Eligibility\Application\Command\ReplaceDimensionRulesCommand;
-use Maatify\Eligibility\Application\Command\DesiredRule;
-use Maatify\Eligibility\Application\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
+use Maatify\Eligibility\Management\Command\DesiredRule;
+use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
 
 // Atomic replacement of the complete active set for one Subject dimension.
 $management->replaceDimensionRules(new ReplaceDimensionRulesCommand(
@@ -228,6 +255,19 @@ Public surface (see the
   `inspectRules()`, `inspectActiveDimensionKeys()`, `updateRuleEffect()`,
   `deactivateRule()`, `reactivateRule()`, `replaceDimensionRules()`,
   `cleanupSubject()`.
+- **Persistence contracts:** `RuleCommandRepositoryInterface` owns command
+  mutations, `RuleManagementQueryInterface` owns bounded management reads, and
+  `ActiveRuleReaderInterface` owns active bulk reads for evaluation. The
+  internal `RuleMutationSupportInterface` owns only the coordination lock,
+  complete Subject + dimension mutation read, and coordination cleanup needed
+  by atomic replacement/cleanup. Generic transaction/savepoint mechanics are
+  owned by `maatify/persistence`; `EligibilityManagementService` receives
+  its `SavepointTransactionRunnerInterface` separately.
+- **PDO adapters:** `PdoRuleCommandRepository`, `PdoRuleManagementQuery`,
+  `PdoActiveRuleReader`, and `PdoSavepointTransactionRunner` are constructed
+  from the same PDO connection. The command adapter implements only the
+  Eligibility command and mutation-support contracts; callers wire each
+  responsibility explicitly to the corresponding service dependency.
 - **Commands / queries / results:** `CreateRuleCommand`,
   `UpdateRuleEffectCommand`, `DeactivateRuleCommand`, `ReactivateRuleCommand`,
   `DesiredRule`, `DesiredRuleCollection`, `ReplaceDimensionRulesCommand`,
@@ -280,9 +320,13 @@ Public surface (see the
 - **Framework neutrality:** direct PDO persistence only; no ORM, no external
   query builder, no framework runtime requirement, and no Host foreign keys or
   joins. The Host validates external identities; the package trusts them.
-- **Transaction ownership:** with no outer transaction the package owns its
-  transaction; inside a Host-owned outer transaction the package participates
-  without committing or rolling it back.
+- **Transaction ownership:** `PdoSavepointTransactionRunner` from
+  `maatify/persistence` owns the transaction lifecycle when no outer
+  transaction is active. Inside a Host-owned outer transaction it creates an
+  operation-local savepoint, releases it on success, and rolls back to it on
+  failure without committing or fully rolling back the Host transaction.
+  Eligibility still owns mutation coordination, and the runner plus all
+  Eligibility PDO adapters MUST use the same PDO connection.
 - **Concurrency:** parallel creates cannot duplicate a natural identity;
   parallel replacements cannot produce partial or mixed dimension state; reads
   observe coherent committed states.
@@ -312,11 +356,17 @@ Public surface (see the
 
 ## Documentation
 
+The [Usage Guide](docs/guides/USAGE_GUIDE.md) contains the capability decision
+map and helps a consumer choose the smallest suitable public API surface before
+installing or trying the package.
+
 | Document | Purpose |
 |---|---|
 | [Package Reference](ELIGIBILITY_PACKAGE_REFERENCE.md) | Canonical RC1 contract: identity, Context, Rule, Decision, lifecycle, ordering, persistence, transaction, concurrency, error, batch, and 52-scenario coverage. |
+| [Usage Guide](docs/guides/USAGE_GUIDE.md) | Consumer-facing API guide, capability decision map, input/output types, transaction notes, and links to runnable examples. |
+| [Runnable Examples](examples/) | Standalone public-API examples for evaluation, batch evaluation, management, replacement, PDO wiring, and typed exception handling. |
 | [Schema](schema/README.md) | Persistence contract, tables, bounds, applying/reapplying, and the local MySQL fixture. |
-| [CHANGELOG](CHANGELOG.md) | B1–B6 change history under `[Unreleased]`. |
+| [CHANGELOG](CHANGELOG.md) | RC1 change history under `[Unreleased]`. |
 | [Security Policy](SECURITY.md) | Support state, vulnerability reporting, and scope. |
 | [Contributing Guide](CONTRIBUTING.md) | Contribution expectations, local verification, and PR requirements. |
 | [Code of Conduct](CODE_OF_CONDUCT.md) | Community rules and reporting. |
@@ -333,6 +383,16 @@ The package owns two tables with the `maa_eligibility_` prefix:
 See [schema/README.md](schema/README.md) for bounds, storage guarantees,
 transaction/savepoint behavior, and the local `mysql:8.4.11` reproducibility
 fixture. The fixture version is **not** a minimum supported product version.
+
+The runtime composition keeps command, management-query, evaluation-read, and
+internal mutation-support responsibilities explicit. A Host constructs the
+three PDO adapters and `PdoSavepointTransactionRunner` from the same PDO
+connection, passes the command adapter, management query, mutation-support
+capability, and shared transaction runner separately to
+`EligibilityManagementService`, and passes the active-rule reader to
+`EligibilityEvaluationService`. Generic transaction/savepoint mechanics belong
+to `maatify/persistence`; per-Subject coordination locking remains
+Eligibility-owned.
 
 ## Quality Status
 

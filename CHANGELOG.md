@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Comprehensive consumer Usage Guide and capability decision map, runnable public API examples, and README documentation/presentation alignment.
 - B1 package foundation for `maatify/php-eligibility`, including the PHP 8.4 Composer contract, production autoload, development tooling, and proprietary Maatify license metadata.
 - Immutable typed Subject, Context, Rule, and Decision model primitives with canonical UTF-8 validation, bytewise ordering, lifecycle/effect separation, and construction-time invariants.
 - Focused B1 unit coverage for canonical input validation, Context shape, Rule identity, ordering, Decision states, and the Eligibility exception marker.
@@ -22,6 +23,9 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - B6 package presentation rewritten: the README now states that the package is unpublished, documents requirements, installation state, the public API surface, runtime behavior, persistence/schema, exceptions, security, and local/CI testing.
+- Final capability-first source organization is documented, with separate Command, Management Query, Evaluation Read, and internal Mutation Support persistence responsibilities.
+- `maatify/persistence ^1.4` is the explicit runtime transaction dependency, and Eligibility now uses its shared `PdoSavepointTransactionRunner` instead of package-local generic transaction/savepoint mechanics.
+- Atomic replacement and Subject cleanup, Host-owned outer transaction participation, and Eligibility-owned Subject coordination locking remain preserved under the shared transaction composition.
 
 ### Fixed
 

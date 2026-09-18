@@ -35,6 +35,7 @@
         "ext-pdo": "*",
         "ext-pdo_mysql": "*",
         "maatify/exceptions": "^1.0",
+        "maatify/persistence": "^1.4",
         "php": "^8.4"
     },
     "require-dev": {

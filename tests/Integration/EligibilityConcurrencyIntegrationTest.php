@@ -4,32 +4,39 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Integration;
 
-use Maatify\Eligibility\Application\Command\CreateRuleCommand;
-use Maatify\Eligibility\Application\Command\DesiredRule;
-use Maatify\Eligibility\Application\Command\DesiredRuleCollection;
-use Maatify\Eligibility\Application\Command\ReplaceDimensionRulesCommand;
-use Maatify\Eligibility\Application\Query\RuleCriteria;
-use Maatify\Eligibility\Application\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Application\Service\EligibilityManagementService;
-use Maatify\Eligibility\Decision\DecisionReasonEnum;
-use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
+use Maatify\Eligibility\Management\Command\CreateRuleCommand;
+use Maatify\Eligibility\Management\Command\DesiredRule;
+use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
+use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
+use Maatify\Eligibility\Management\Service\EligibilityManagementService;
+use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
+use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
+use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
+use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\ConcurrencyTimeout;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
-use Maatify\Eligibility\Value\Context;
-use Maatify\Eligibility\Value\ContextDimension;
-use Maatify\Eligibility\Value\Subject;
+use Maatify\Eligibility\Evaluation\Value\Context;
+use Maatify\Eligibility\Evaluation\Value\ContextDimension;
+use Maatify\Eligibility\Common\Value\Subject;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use PDO;
 
 final class EligibilityConcurrencyIntegrationTest extends TestCase
 {
     private PDO $pdo;
 
-    private PdoRuleRepository $repository;
+    private PdoRuleCommandRepository $repository;
+
+    private PdoRuleManagementQuery $managementQuery;
+
+    private PdoSavepointTransactionRunner $transactionRunner;
 
     private EligibilityManagementService $management;
 
@@ -41,8 +48,15 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         $this->pdo = IntegrationDatabase::connect();
         IntegrationDatabase::applySchema($this->pdo);
         IntegrationDatabase::clearRules($this->pdo);
-        $this->repository = new PdoRuleRepository($this->pdo);
-        $this->management = new EligibilityManagementService($this->repository);
+        $this->repository = new PdoRuleCommandRepository($this->pdo);
+        $this->managementQuery = new PdoRuleManagementQuery($this->pdo);
+        $this->transactionRunner = new PdoSavepointTransactionRunner($this->pdo);
+        $this->management = new EligibilityManagementService(
+            $this->repository,
+            $this->managementQuery,
+            $this->repository,
+            $this->transactionRunner,
+        );
     }
 
     protected function tearDown(): void
@@ -156,7 +170,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         }
 
         self::assertSame(1, $this->countAllRules());
-        self::assertSame(RuleEffectEnum::ALLOW, $this->repository->findByIdentity(
+        self::assertSame(RuleEffectEnum::ALLOW, $this->managementQuery->findByIdentity(
             new \Maatify\Eligibility\Rule\RuleIdentity('product', '150', 'country', 'EG'),
         )?->effect);
     }
@@ -197,8 +211,8 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             $this->signal($workerA, 'REPLACE');
             self::assertSame('REPLACED', $this->readLine($workerA, 'worker A replacement result'));
 
-            $observerRepository = new PdoRuleRepository($observer);
-            self::assertCount(0, $observerRepository->findByCriteria(new RuleCriteria($subject)));
+            $observerQuery = new PdoRuleManagementQuery($observer);
+            self::assertCount(0, $observerQuery->findByCriteria(new RuleCriteria($subject)));
 
             $this->signal($workerA, 'COMMIT');
             self::assertSame('DONE', $this->readLine($workerA, 'worker A commit result'));
@@ -216,7 +230,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             }
         }
 
-        $rules = $this->repository->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Rule\RuleLifecycleEnum::ACTIVE));
+        $rules = $this->managementQuery->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Rule\RuleLifecycleEnum::ACTIVE));
         self::assertSame(
             [
                 ['KW', RuleEffectEnum::ALLOW],
@@ -271,9 +285,17 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             $this->signal($workerA, 'REPLACE');
             self::assertSame('REPLACED', $this->readLine($workerA, 'worker A replacement result'));
 
-            $observerRepository = new PdoRuleRepository($observer);
-            $observerManagement = new EligibilityManagementService($observerRepository);
-            $observerEvaluation = new EligibilityEvaluationService($observerRepository);
+            $observerCommand = new PdoRuleCommandRepository($observer);
+            $observerQuery = new PdoRuleManagementQuery($observer);
+            $observerReader = new PdoActiveRuleReader($observer);
+            $observerTransactionRunner = new PdoSavepointTransactionRunner($observer);
+            $observerManagement = new EligibilityManagementService(
+                $observerCommand,
+                $observerQuery,
+                $observerCommand,
+                $observerTransactionRunner,
+            );
+            $observerEvaluation = new EligibilityEvaluationService($observerReader);
             $committedBefore = $observerManagement->inspectRules(new RuleCriteria(
                 $subject,
                 'country',
@@ -341,7 +363,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             }
         }
 
-        $rules = $this->repository->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Rule\RuleLifecycleEnum::ACTIVE));
+        $rules = $this->managementQuery->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Rule\RuleLifecycleEnum::ACTIVE));
         self::assertSame(['B', 'B2'], array_map(
             static fn (\Maatify\Eligibility\Rule\Rule $rule): string => $rule->dimensionValue,
             $rules->items(),

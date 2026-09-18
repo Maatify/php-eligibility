@@ -4,25 +4,27 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Integration;
 
-use Maatify\Eligibility\Application\Command\CleanupSubjectCommand;
-use Maatify\Eligibility\Application\Command\CreateRuleCommand;
-use Maatify\Eligibility\Application\Command\DeactivateRuleCommand;
-use Maatify\Eligibility\Application\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Application\Query\RuleCriteria;
-use Maatify\Eligibility\Application\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Decision\DecisionReasonEnum;
+use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
+use Maatify\Eligibility\Management\Command\CreateRuleCommand;
+use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
+use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
+use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
+use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
-use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
+use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
+use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
+use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
-use Maatify\Eligibility\Value\Context;
-use Maatify\Eligibility\Value\ContextDimension;
-use Maatify\Eligibility\Value\Subject;
-use Maatify\Eligibility\Value\SubjectCollection;
+use Maatify\Eligibility\Evaluation\Value\Context;
+use Maatify\Eligibility\Evaluation\Value\ContextDimension;
+use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Common\Value\SubjectCollection;
 use PDO;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -35,14 +37,20 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
 {
     private PDO $pdo;
 
-    private PdoRuleRepository $repository;
+    private PdoRuleCommandRepository $repository;
+
+    private PdoRuleManagementQuery $managementQuery;
+
+    private PdoActiveRuleReader $activeRuleReader;
 
     protected function setUp(): void
     {
         $this->pdo = IntegrationDatabase::connect();
         IntegrationDatabase::applySchema($this->pdo);
         IntegrationDatabase::clearRules($this->pdo);
-        $this->repository = new PdoRuleRepository($this->pdo);
+        $this->repository = new PdoRuleCommandRepository($this->pdo);
+        $this->managementQuery = new PdoRuleManagementQuery($this->pdo);
+        $this->activeRuleReader = new PdoActiveRuleReader($this->pdo);
     }
 
     protected function tearDown(): void
@@ -64,7 +72,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         $created = $this->repository->create($this->command('product', '150', 'country', 'EG'));
         IntegrationDatabase::applySchema($this->pdo);
 
-        $found = $this->repository->findByIdentity($created->naturalIdentity());
+        $found = $this->managementQuery->findByIdentity($created->naturalIdentity());
         self::assertNotNull($found);
         self::assertSame('EG', $found->dimensionValue);
         self::assertSame(RuleLifecycleEnum::ACTIVE, $found->lifecycle);
@@ -142,7 +150,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         self::assertSame(RuleEffectEnum::DENY, $created->effect);
         self::assertSame(RuleLifecycleEnum::ACTIVE, $created->lifecycle);
 
-        $found = $this->repository->findByIdentity($created->naturalIdentity());
+        $found = $this->managementQuery->findByIdentity($created->naturalIdentity());
         self::assertNotNull($found);
         self::assertEquals($created->jsonSerialize(), $found->jsonSerialize());
     }
@@ -165,7 +173,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         $identity = $created->naturalIdentity();
 
         self::assertTrue($this->repository->updateEffect(
-            new \Maatify\Eligibility\Application\Command\UpdateRuleEffectCommand(
+            new \Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand(
                 $identity,
                 RuleEffectEnum::ALLOW,
             ),
@@ -173,29 +181,29 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         self::assertTrue($this->repository->deactivate(new DeactivateRuleCommand($identity)));
         self::assertTrue($this->repository->deactivate(new DeactivateRuleCommand($identity)));
 
-        $inactive = $this->repository->findByIdentity($identity);
+        $inactive = $this->managementQuery->findByIdentity($identity);
         self::assertNotNull($inactive);
         self::assertSame(RuleEffectEnum::ALLOW, $inactive->effect);
         self::assertSame(RuleLifecycleEnum::INACTIVE, $inactive->lifecycle);
 
         self::assertTrue($this->repository->updateEffect(
-            new \Maatify\Eligibility\Application\Command\UpdateRuleEffectCommand(
+            new \Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand(
                 $identity,
                 RuleEffectEnum::DENY,
             ),
         ));
-        $inactiveAfterEffectUpdate = $this->repository->findByIdentity($identity);
+        $inactiveAfterEffectUpdate = $this->managementQuery->findByIdentity($identity);
         self::assertNotNull($inactiveAfterEffectUpdate);
         self::assertSame(RuleEffectEnum::DENY, $inactiveAfterEffectUpdate->effect);
         self::assertSame(RuleLifecycleEnum::INACTIVE, $inactiveAfterEffectUpdate->lifecycle);
 
         self::assertTrue($this->repository->reactivate(
-            new \Maatify\Eligibility\Application\Command\ReactivateRuleCommand($identity),
+            new \Maatify\Eligibility\Management\Command\ReactivateRuleCommand($identity),
         ));
         self::assertTrue($this->repository->reactivate(
-            new \Maatify\Eligibility\Application\Command\ReactivateRuleCommand($identity),
+            new \Maatify\Eligibility\Management\Command\ReactivateRuleCommand($identity),
         ));
-        $active = $this->repository->findByIdentity($identity);
+        $active = $this->managementQuery->findByIdentity($identity);
         self::assertNotNull($active);
         self::assertSame(RuleEffectEnum::DENY, $active->effect);
         self::assertSame(RuleLifecycleEnum::ACTIVE, $active->lifecycle);
@@ -207,14 +215,14 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         $identity = new RuleIdentity('product', 'missing', 'country', 'EG');
 
         self::assertFalse($this->repository->updateEffect(
-            new \Maatify\Eligibility\Application\Command\UpdateRuleEffectCommand(
+            new \Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand(
                 $identity,
                 RuleEffectEnum::ALLOW,
             ),
         ));
         self::assertFalse($this->repository->deactivate(new DeactivateRuleCommand($identity)));
         self::assertFalse($this->repository->reactivate(
-            new \Maatify\Eligibility\Application\Command\ReactivateRuleCommand($identity),
+            new \Maatify\Eligibility\Management\Command\ReactivateRuleCommand($identity),
         ));
     }
 
@@ -230,7 +238,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
             new RuleIdentity('product', '150', 'country', 'SA'),
         )));
 
-        $all = $this->repository->findByCriteria(new RuleCriteria($subject));
+        $all = $this->managementQuery->findByCriteria(new RuleCriteria($subject));
         self::assertCount(4, $all);
         self::assertSame(['country', 'country', 'customer_type', 'customer_type'], array_map(
             static fn (Rule $rule): string => $rule->dimensionKey,
@@ -241,14 +249,14 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
             $all->items(),
         ));
 
-        self::assertCount(3, $this->repository->findByCriteria(
+        self::assertCount(3, $this->managementQuery->findByCriteria(
             new RuleCriteria($subject, lifecycle: RuleLifecycleEnum::ACTIVE),
         ));
-        self::assertCount(1, $this->repository->findByCriteria(
+        self::assertCount(1, $this->managementQuery->findByCriteria(
             new RuleCriteria($subject, lifecycle: RuleLifecycleEnum::INACTIVE),
         ));
-        self::assertCount(2, $this->repository->findByCriteria(new RuleCriteria($subject, 'country')));
-        self::assertCount(2, $this->repository->findByCriteria(new RuleCriteria($subject, maxResults: 2)));
+        self::assertCount(2, $this->managementQuery->findByCriteria(new RuleCriteria($subject, 'country')));
+        self::assertCount(2, $this->managementQuery->findByCriteria(new RuleCriteria($subject, maxResults: 2)));
     }
 
     #[Test]
@@ -266,7 +274,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
             new RuleIdentity('product', '150', 'country', 'SA'),
         )));
 
-        $keys = $this->repository->findActiveDimensionKeys(new ActiveDimensionKeysQuery($subject));
+        $keys = $this->managementQuery->findActiveDimensionKeys(new ActiveDimensionKeysQuery($subject));
 
         self::assertSame(['country', 'customer_type'], $keys->items());
     }
@@ -274,7 +282,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
     #[Test]
     public function activeRulesForSubjectsUseBulkLoadingAndExcludeInactiveRules(): void
     {
-        self::assertCount(0, $this->repository->findActiveForSubjects(new SubjectCollection()));
+        self::assertCount(0, $this->activeRuleReader->findActiveForSubjects(new SubjectCollection()));
 
         $subjects = [
             new Subject('product', '2'),
@@ -286,7 +294,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         $productOne = $this->repository->create($this->command('product', '1', 'country', 'EG'));
         self::assertTrue($this->repository->deactivate(new DeactivateRuleCommand($productOne->naturalIdentity())));
 
-        $active = $this->repository->findActiveForSubjects(new SubjectCollection(...$subjects));
+        $active = $this->activeRuleReader->findActiveForSubjects(new SubjectCollection(...$subjects));
         self::assertCount(2, $active);
         self::assertSame(['category', 'product'], array_map(
             static fn (Rule $rule): string => $rule->subject->subjectType,
@@ -304,7 +312,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
             $this->repository->create($this->command('bulk', $subject->subjectId, 'country', 'EG'));
         }
 
-        $manyRules = $this->repository->findActiveForSubjects(new SubjectCollection(...$manySubjects));
+        $manyRules = $this->activeRuleReader->findActiveForSubjects(new SubjectCollection(...$manySubjects));
         self::assertCount(205, $manyRules);
         self::assertSame('000', $manyRules->items()[0]->subject->subjectId);
         self::assertSame('204', $manyRules->items()[204]->subject->subjectId);
@@ -325,17 +333,17 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         }
 
         foreach ($values as $value => $effect) {
-            $found = $this->repository->findByIdentity(new RuleIdentity('product', '150', 'country', $value));
+            $found = $this->managementQuery->findByIdentity(new RuleIdentity('product', '150', 'country', $value));
             self::assertNotNull($found);
             self::assertSame($value, $found->dimensionValue);
             self::assertSame($effect, $found->effect);
         }
 
-        self::assertCount(count($values), $this->repository->findByCriteria(new RuleCriteria(
+        self::assertCount(count($values), $this->managementQuery->findByCriteria(new RuleCriteria(
             new Subject('product', '150'),
         )));
 
-        $evaluation = new EligibilityEvaluationService($this->repository);
+        $evaluation = new EligibilityEvaluationService($this->activeRuleReader);
         foreach ($values as $value => $effect) {
             $decision = $evaluation->decide(
                 new Subject('product', '150'),
@@ -361,7 +369,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
             str_repeat('v', 255),
             RuleEffectEnum::ALLOW,
         ));
-        $found = $this->repository->findByIdentity($boundary->naturalIdentity());
+        $found = $this->managementQuery->findByIdentity($boundary->naturalIdentity());
         self::assertNotNull($found);
         self::assertSame(str_repeat('v', 255), $found->dimensionValue);
 
@@ -390,7 +398,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
             RuleEffectEnum::ALLOW,
         ));
 
-        self::assertCount(1, $this->repository->findByCriteria(new RuleCriteria(
+        self::assertCount(1, $this->managementQuery->findByCriteria(new RuleCriteria(
             new Subject(str_repeat('s', 64), str_repeat('i', 191)),
         )));
     }
@@ -470,8 +478,8 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         $this->repository->cleanupSubject(new CleanupSubjectCommand($subject));
         $this->repository->cleanupSubject(new CleanupSubjectCommand($subject));
 
-        self::assertCount(0, $this->repository->findByCriteria(new RuleCriteria($subject)));
-        self::assertCount(1, $this->repository->findByCriteria(new RuleCriteria($otherSubject)));
+        self::assertCount(0, $this->managementQuery->findByCriteria(new RuleCriteria($subject)));
+        self::assertCount(1, $this->managementQuery->findByCriteria(new RuleCriteria($otherSubject)));
     }
 
     private function command(

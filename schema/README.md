@@ -1,7 +1,7 @@
 # Eligibility schema
 
 This directory contains the RC1 executable schema for package-owned Rule
-persistence and B4 coordination metadata.
+persistence and Subject-specific coordination metadata.
 
 ## Compatibility contract (D2)
 
@@ -27,7 +27,7 @@ not a package minimum version.
 - Package-owned coordination table: `maa_eligibility_subject_locks`.
 - Table prefix: `maa_eligibility_`.
 - Internal `id`: `BIGINT UNSIGNED AUTO_INCREMENT`, used only as an infrastructure
-  surrogate key and never exposed through `Rule` or B2 contracts.
+  surrogate key and never exposed through `Rule` or public package contracts.
 - Canonical effect values: `allow` and `deny`.
 - Canonical lifecycle values: `active` and `inactive`.
 - No Host foreign key, Host join, audit actor column, timestamp, log, or event log
@@ -38,16 +38,18 @@ not a package minimum version.
   mutating Rules. This explicit coordination row protects initially-empty
   dimensions without relying on gap-lock behavior. It has no Host foreign key
   and is deleted by the management cleanup operation for that Subject.
-- When a Host transaction is already active, B4 uses the transactional
+- When a Host transaction is already active, the management service uses the transactional
   `SAVEPOINT`, `ROLLBACK TO SAVEPOINT`, and `RELEASE SAVEPOINT` capabilities
-  through the internal repository boundary to make each replacement/cleanup
-  operation atomic without taking ownership of the Host transaction. This is
-  a capability requirement of the transactional MySQL-compatible semantics;
-  the package declares no minimum MySQL or MariaDB product version.
+  through `maatify/persistence`'s `PdoSavepointTransactionRunner` to make each
+  replacement/cleanup operation atomic without taking ownership of the Host
+  transaction. The runner and Eligibility Rule adapters MUST use the same PDO
+  connection. This is a capability requirement of the transactional
+  MySQL-compatible semantics; the package declares no minimum MySQL or MariaDB
+  product version.
 
 Canonical strings are bounded in **bytes**, not characters, by the production
-source of truth `Maatify\Eligibility\Validation\CanonicalString` and validated
-there before SQL:
+source of truth `Maatify\Eligibility\Common\Validation\CanonicalString` and
+validated there before SQL:
 
 | Field | Maximum | SQL type |
 |---|---:|---|
@@ -69,7 +71,7 @@ preserves validated UTF-8 bytes exactly, including case and composed/decomposed
 Unicode forms. No trim, case conversion, normalization, transliteration,
 coercion, or truncation is performed.
 
-Repository reads are hydrated into B1 `Rule` values and passed through the
+Repository reads are hydrated into package `Rule` values and passed through the
 existing package collections, which provide canonical bytewise ordering. The
 schema's binary ordering is only an efficient bounded read order; it is not the
 public ordering contract.

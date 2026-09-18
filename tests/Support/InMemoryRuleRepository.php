@@ -4,56 +4,41 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Support;
 
-use Maatify\Eligibility\Application\Command\CleanupSubjectCommand;
-use Maatify\Eligibility\Application\Command\CreateRuleCommand;
-use Maatify\Eligibility\Application\Command\DeactivateRuleCommand;
-use Maatify\Eligibility\Application\Command\ReactivateRuleCommand;
-use Maatify\Eligibility\Application\Command\UpdateRuleEffectCommand;
-use Maatify\Eligibility\Application\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Application\Query\RuleCriteria;
-use Maatify\Eligibility\Application\Result\ActiveDimensionKeyCollection;
+use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
+use Maatify\Eligibility\Management\Command\CreateRuleCommand;
+use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
+use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
+use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
+use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
+use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Management\Result\ActiveDimensionKeyCollection;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
-use Maatify\Eligibility\Rule\Repository\RuleReplacementRepositoryInterface;
+use Maatify\Eligibility\Rule\Repository\ActiveRuleReaderInterface;
+use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
+use Maatify\Eligibility\Rule\Repository\RuleManagementQueryInterface;
+use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleCollection;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
-use Maatify\Eligibility\Value\Subject;
-use Maatify\Eligibility\Value\SubjectCollection;
+use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Common\Value\SubjectCollection;
 
 /**
- * Deterministic test double for the replaceable persistence boundary.
+ * Deterministic test double for the shared in-memory persistence state.
  */
-final class InMemoryRuleRepository implements RuleReplacementRepositoryInterface
+final class InMemoryRuleRepository implements
+    RuleCommandRepositoryInterface,
+    RuleMutationSupportInterface,
+    RuleManagementQueryInterface,
+    ActiveRuleReaderInterface
 {
     /** @var array<string, Rule> */
     private array $rules = [];
 
-    /** @var array<string, Rule>|null */
-    private ?array $transactionSnapshot = null;
-
-    /** @var array<string, array<string, Rule>> */
-    private array $savepointSnapshots = [];
-
     public int $bulkReadCount = 0;
 
     public int $lockCount = 0;
-
-    public int $beginCount = 0;
-
-    public int $commitCount = 0;
-
-    public int $rollbackCount = 0;
-
-    public int $savepointCreateCount = 0;
-
-    public int $savepointRollbackCount = 0;
-
-    public int $savepointReleaseCount = 0;
-
-    public ?\Throwable $failure = null;
-
-    public ?\Throwable $savepointRollbackFailure = null;
 
     public function seed(Rule ...$rules): void
     {
@@ -76,7 +61,6 @@ final class InMemoryRuleRepository implements RuleReplacementRepositoryInterface
             throw new RuleIdentityConflictException($rule->naturalIdentity());
         }
 
-        $this->throwInjectedFailure();
         $this->rules[$key] = $rule;
 
         return $rule;
@@ -152,7 +136,6 @@ final class InMemoryRuleRepository implements RuleReplacementRepositoryInterface
             return false;
         }
 
-        $this->throwInjectedFailure();
         $this->rules[$key] = $rule->withEffect($command->effect);
 
         return true;
@@ -170,83 +153,11 @@ final class InMemoryRuleRepository implements RuleReplacementRepositoryInterface
 
     public function cleanupSubject(CleanupSubjectCommand $command): void
     {
-        $this->throwInjectedFailure();
         foreach ($this->rules as $key => $rule) {
             if ($this->sameSubject($rule->subject, $command->subject)) {
                 unset($this->rules[$key]);
             }
         }
-    }
-
-    public function inTransaction(): bool
-    {
-        return $this->transactionSnapshot !== null;
-    }
-
-    public function beginTransaction(): void
-    {
-        if ($this->inTransaction()) {
-            throw new \LogicException('Nested test transactions are not supported.');
-        }
-
-        $this->transactionSnapshot = $this->rules;
-        $this->savepointSnapshots = [];
-        $this->beginCount++;
-    }
-
-    public function commit(): void
-    {
-        $this->transactionSnapshot = null;
-        $this->savepointSnapshots = [];
-        $this->commitCount++;
-    }
-
-    public function rollBack(): void
-    {
-        if (!$this->inTransaction()) {
-            throw new \LogicException('No test transaction is active.');
-        }
-
-        $this->rules = $this->transactionSnapshot ?? [];
-        $this->transactionSnapshot = null;
-        $this->savepointSnapshots = [];
-        $this->rollbackCount++;
-    }
-
-    public function createOperationSavepoint(): string
-    {
-        if (!$this->inTransaction()) {
-            throw new \LogicException('An operation savepoint requires an active test transaction.');
-        }
-
-        $savepoint = 'maa_eligibility_sp_' . (++$this->savepointCreateCount);
-        $this->savepointSnapshots[$savepoint] = $this->rules;
-
-        return $savepoint;
-    }
-
-    public function rollbackToOperationSavepoint(string $savepoint): void
-    {
-        if (!array_key_exists($savepoint, $this->savepointSnapshots)) {
-            throw new \LogicException('Unknown test operation savepoint.');
-        }
-
-        if ($this->savepointRollbackFailure !== null) {
-            throw $this->savepointRollbackFailure;
-        }
-
-        $this->rules = $this->savepointSnapshots[$savepoint];
-        $this->savepointRollbackCount++;
-    }
-
-    public function releaseOperationSavepoint(string $savepoint): void
-    {
-        if (!array_key_exists($savepoint, $this->savepointSnapshots)) {
-            throw new \LogicException('Unknown test operation savepoint.');
-        }
-
-        unset($this->savepointSnapshots[$savepoint]);
-        $this->savepointReleaseCount++;
     }
 
     public function lockSubjectForMutation(Subject $subject): void
@@ -287,17 +198,9 @@ final class InMemoryRuleRepository implements RuleReplacementRepositoryInterface
             return false;
         }
 
-        $this->throwInjectedFailure();
         $this->rules[$key] = $rule->withLifecycle($lifecycle);
 
         return true;
-    }
-
-    private function throwInjectedFailure(): void
-    {
-        if ($this->failure !== null) {
-            throw $this->failure;
-        }
     }
 
     private function sameSubject(Subject $left, Subject $right): bool
