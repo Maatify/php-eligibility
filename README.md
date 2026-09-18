@@ -5,7 +5,7 @@
 ![Maatify.dev](https://www.maatify.dev/assets/img/img/maatify_logo_white.svg)
 
 **Package status:**<br>
-[![Release state](https://img.shields.io/badge/Release-Pre--Stable%20v1.0.0--rc.1%20Release%20Candidate-orange)](#status)
+[![Release state](https://img.shields.io/badge/Status-Pre--Stable%20Release%20Candidate-orange)](#status)
 [![PHP](https://img.shields.io/badge/PHP-%5E8.4-8892BF)](composer.json)
 [![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-success)](phpstan.neon)
 [![License](https://img.shields.io/badge/License-proprietary-lightgrey)](LICENSE)
@@ -20,8 +20,11 @@
 [![Contributing Guide](https://img.shields.io/badge/Contributing-Guide-blue)](CONTRIBUTING.md)
 
 **Ecosystem and usage:**<br>
-[![Packagist](https://img.shields.io/badge/Packagist-maatify%2Fphp--eligibility-4F5B93)](https://packagist.org/packages/maatify/php-eligibility)
+[![Latest Version](https://img.shields.io/packagist/v/maatify/php-eligibility.svg?label=Latest%20Version)](https://packagist.org/packages/maatify/php-eligibility)
+[![Monthly Downloads](https://img.shields.io/packagist/dm/maatify/php-eligibility?label=Monthly%20Downloads)](https://packagist.org/packages/maatify/php-eligibility)
+[![Total Downloads](https://img.shields.io/packagist/dt/maatify/php-eligibility?label=Total%20Downloads)](https://packagist.org/packages/maatify/php-eligibility)
 [![Maatify Ecosystem](https://img.shields.io/badge/Maatify-Ecosystem-blueviolet)](https://github.com/Maatify)
+[![Install](https://img.shields.io/badge/Install-composer%20require%20maatify%2Fphp--eligibility-blue)](https://packagist.org/packages/maatify/php-eligibility)
 
 Framework-neutral eligibility rules and typed decisions that answer one
 reusable business question about an external Subject in a supplied Context.
