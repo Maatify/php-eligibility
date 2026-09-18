@@ -1,0 +1,64 @@
+{
+    "name": "maatify/php-eligibility",
+    "description": "Framework-neutral eligibility rules and typed decisions for Maatify applications.",
+    "keywords": [
+        "eligibility",
+        "maatify",
+        "php"
+    ],
+    "homepage": "https://github.com/Maatify/php-eligibility",
+    "type": "library",
+    "license": "proprietary",
+    "authors": [
+        {
+            "name": "Maatify",
+            "email": "support@maatify.dev",
+            "homepage": "https://maatify.dev"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/Maatify/php-eligibility/issues",
+        "source": "https://github.com/Maatify/php-eligibility"
+    },
+    "autoload": {
+        "psr-4": {
+            "Maatify\\Eligibility\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Maatify\\Eligibility\\Tests\\": "tests/"
+        }
+    },
+    "require": {
+        "ext-pcre": "*",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "maatify/exceptions": "^1.0",
+        "maatify/persistence": "^1.4",
+        "php": "^8.4"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.2",
+        "phpunit/phpunit": "^12.0"
+    },
+    "scripts": {
+        "analyse": "phpstan analyse --memory-limit=1G",
+        "check:local": "bash tools/check-local.sh",
+        "lint:php": "@php tools/php-lint.php",
+        "test": "phpunit",
+        "test:golden": "phpunit --testsuite golden",
+        "test:harness": "php consumer-harness/run.php",
+        "test:integration": "phpunit --testsuite integration",
+        "test:unit": "phpunit --testsuite unit"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "platform": {
+            "php": "8.4.0"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

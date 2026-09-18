@@ -1,0 +1,87 @@
+name: ci-integration
+
+on:
+  pull_request:
+    branches: [main, phase/v1.0.0-rc.1]
+  push:
+    branches: [main, phase/v1.0.0-rc.1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
+
+env:
+  COMPOSER_NO_INTERACTION: '1'
+
+jobs:
+  integration:
+    name: Real MySQL Integration (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4', '8.5']
+    services:
+      mysql:
+        image: mysql:8.4.11
+        env:
+          MYSQL_DATABASE: maatify_eligibility_test
+          MYSQL_USER: eligibility_test
+          MYSQL_PASSWORD: eligibility_test
+          MYSQL_ROOT_PASSWORD: root_test_only
+        ports:
+          - 13306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -proot_test_only --silent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 10s
+    env:
+      ELIGIBILITY_TEST_DB_HOST: '127.0.0.1'
+      ELIGIBILITY_TEST_DB_PORT: '13306'
+      ELIGIBILITY_TEST_DB_NAME: 'maatify_eligibility_test'
+      ELIGIBILITY_TEST_DB_USER: 'eligibility_test'
+      ELIGIBILITY_TEST_DB_PASSWORD: 'eligibility_test'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_mysql
+          coverage: none
+      - name: Resolve current compatible dependencies
+        run: composer update --no-interaction --prefer-dist --no-progress
+      - name: Wait for MySQL readiness
+        run: php tools/mysql-ready.php
+      - name: Unit suite
+        run: composer test:unit
+      - name: Golden suite
+        run: composer test:golden
+      - name: Integration suite
+        run: composer test:integration
+      - name: Integration suite repeatability run
+        run: composer test:integration
+      - name: Consumer Verification Harness
+        run: composer test:harness
+
+  integration-gate:
+    name: Integration aggregate gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [integration]
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Verify upstream integration jobs
+        run: tools/assert-gate.sh "$RESULTS"
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}

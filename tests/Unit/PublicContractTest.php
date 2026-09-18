@@ -1,0 +1,466 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Maatify\Eligibility\Tests\Unit;
+
+use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
+use Maatify\Eligibility\Management\Command\CreateRuleCommand;
+use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
+use Maatify\Eligibility\Management\Command\DesiredRule;
+use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
+use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
+use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
+use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
+use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Management\Result\ActiveDimensionKeyCollection;
+use Maatify\Eligibility\Evaluation\Result\SubjectDecisionCollection;
+use Maatify\Eligibility\Evaluation\Result\SubjectDecisionResult;
+use Maatify\Eligibility\Evaluation\Contract\EligibilityEvaluationServiceInterface;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
+use Maatify\Eligibility\Management\Contract\EligibilityManagementServiceInterface;
+use Maatify\Eligibility\Management\Service\EligibilityManagementService;
+use Maatify\Eligibility\Evaluation\Decision\EligibilityDecision;
+use Maatify\Eligibility\Exception\EligibilityExceptionInterface;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
+use Maatify\Eligibility\Exception\RuleConcurrencyConflictException;
+use Maatify\Eligibility\Exception\RuleIdentityConflictException;
+use Maatify\Eligibility\Exception\RuleNotFoundException;
+use Maatify\Eligibility\Rule\Repository\ActiveRuleReaderInterface;
+use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
+use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
+use Maatify\Eligibility\Rule\Repository\RuleManagementQueryInterface;
+use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
+use Maatify\Eligibility\Rule\Rule;
+use Maatify\Eligibility\Rule\RuleCollection;
+use Maatify\Eligibility\Rule\RuleEffectEnum;
+use Maatify\Eligibility\Rule\RuleIdentity;
+use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Eligibility\Tests\Support\NonStrictConsumer;
+use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Common\Value\SubjectCollection;
+use Maatify\Exceptions\Contracts\ApiAwareExceptionInterface;
+use Maatify\Exceptions\Exception\Conflict\ConflictMaatifyException;
+use Maatify\Exceptions\Exception\NotFound\NotFoundMaatifyException;
+use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
+use Maatify\Persistence\Pdo\Transaction\PdoTransactionRunner;
+use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
+use Maatify\Persistence\Pdo\Transaction\TransactionRunnerInterface;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use ReflectionClass;
+use ReflectionMethod;
+use ReflectionNamedType;
+
+final class PublicContractTest extends TestCase
+{
+    #[Test]
+    public function subjectBatchCollectionAcceptsEmptyInputAndPreservesOrder(): void
+    {
+        $first = new Subject('product', '150');
+        $second = new Subject('category', '25');
+        $subjects = new SubjectCollection($second, $first);
+
+        self::assertSame([], (new SubjectCollection())->items());
+        self::assertSame([$second, $first], $subjects->items());
+    }
+
+    #[Test]
+    public function subjectBatchCollectionRejectsDuplicateNaturalIdentities(): void
+    {
+        $subject = new Subject('product', '150');
+
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        new SubjectCollection($subject, new Subject('product', '150'));
+    }
+
+    #[Test]
+    public function subjectDecisionResultsKeepTypedAssociationAndInputOrder(): void
+    {
+        $firstSubject = new Subject('category', '25');
+        $secondSubject = new Subject('product', '150');
+        $firstDecision = EligibilityDecision::unrestricted();
+        $secondDecision = EligibilityDecision::unrestricted();
+
+        $results = new SubjectDecisionCollection(
+            new SubjectDecisionResult($firstSubject, $firstDecision),
+            new SubjectDecisionResult($secondSubject, $secondDecision),
+        );
+
+        self::assertSame($firstSubject, $results->items()[0]->subject);
+        self::assertSame($firstDecision, $results->items()[0]->decision);
+        self::assertSame($secondSubject, $results->items()[1]->subject);
+        self::assertSame($secondDecision, $results->items()[1]->decision);
+    }
+
+    #[Test]
+    public function subjectDecisionResultsRejectDuplicateSubjects(): void
+    {
+        $subject = new Subject('product', '150');
+        $decision = EligibilityDecision::unrestricted();
+
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        new SubjectDecisionCollection(
+            new SubjectDecisionResult($subject, $decision),
+            new SubjectDecisionResult(new Subject('product', '150'), $decision),
+        );
+    }
+
+    #[Test]
+    public function activeDimensionKeysAreCanonicalStringsInBytewiseOrder(): void
+    {
+        $keys = new ActiveDimensionKeyCollection('customer_type', 'country', 'customer_segment');
+
+        self::assertSame(['country', 'customer_segment', 'customer_type'], $keys->items());
+        self::assertTrue($keys->contains('country'));
+    }
+
+    #[Test]
+    public function activeDimensionKeysRejectDuplicateKeys(): void
+    {
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        new ActiveDimensionKeyCollection('country', 'country');
+    }
+
+    #[Test]
+    public function activeDimensionKeysRejectNonStrings(): void
+    {
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        new ActiveDimensionKeyCollection('country', 1);
+    }
+
+    #[Test]
+    public function desiredReplacementSetMayBeEmptyAndOrdersTypedEffects(): void
+    {
+        $empty = new DesiredRuleCollection();
+        $desired = new DesiredRuleCollection(
+            new DesiredRule('SA', RuleEffectEnum::DENY),
+            new DesiredRule('EG', RuleEffectEnum::ALLOW),
+        );
+
+        self::assertCount(0, $empty);
+        self::assertSame('EG', $desired->items()[0]->dimensionValue);
+        self::assertSame(RuleEffectEnum::ALLOW, $desired->items()[0]->effect);
+    }
+
+    #[Test]
+    public function desiredReplacementSetRejectsDuplicateNaturalValues(): void
+    {
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        new DesiredRuleCollection(
+            new DesiredRule('EG', RuleEffectEnum::ALLOW),
+            new DesiredRule('EG', RuleEffectEnum::DENY),
+        );
+    }
+
+    #[Test]
+    public function commandsRepresentTypedMutationIntentWithoutInitialLifecycle(): void
+    {
+        $subject = new Subject('product', '150');
+        $identity = new RuleIdentity('product', '150', 'country', 'EG');
+        $create = new CreateRuleCommand($subject, 'country', 'EG', RuleEffectEnum::ALLOW);
+        $replacement = new ReplaceDimensionRulesCommand($subject, 'country', new DesiredRuleCollection());
+
+        self::assertSame('country', $create->dimensionKey);
+        self::assertSame('EG', $create->dimensionValue);
+        self::assertSame([], $replacement->desiredRules->items());
+        self::assertSame($identity->dimensionKey, $replacement->dimensionKey);
+        self::assertFalse((new ReflectionClass(CreateRuleCommand::class))->hasProperty('lifecycle'));
+
+        $commands = [
+            new UpdateRuleEffectCommand($identity, RuleEffectEnum::DENY),
+            new DeactivateRuleCommand($identity),
+            new ReactivateRuleCommand($identity),
+            new CleanupSubjectCommand($subject),
+        ];
+
+        self::assertCount(4, $commands);
+    }
+
+    #[Test]
+    public function criteriaRepresentSubjectDimensionLifecycleAndBoundedRead(): void
+    {
+        $criteria = new RuleCriteria(
+            new Subject('product', '150'),
+            'country',
+            RuleLifecycleEnum::INACTIVE,
+            25,
+        );
+
+        self::assertSame('country', $criteria->dimensionKey);
+        self::assertSame(RuleLifecycleEnum::INACTIVE, $criteria->lifecycle);
+        self::assertSame(25, $criteria->maxResults);
+        self::assertSame(RuleCriteria::DEFAULT_MAX_RESULTS, (new RuleCriteria(new Subject('product', '1')))->maxResults);
+    }
+
+    #[Test]
+    public function criteriaRejectNonStringDimensionKeys(): void
+    {
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        new RuleCriteria(new Subject('product', '150'), 1);
+    }
+
+    #[Test]
+    public function criteriaRejectZeroMaxResults(): void
+    {
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        new RuleCriteria(new Subject('product', '150'), null, null, 0);
+    }
+
+    #[Test]
+    public function criteriaRejectMaxResultsAboveBound(): void
+    {
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        new RuleCriteria(new Subject('product', '150'), null, null, RuleCriteria::MAX_MAX_RESULTS + 1);
+    }
+
+    #[Test]
+    public function nonStrictCreateCommandBoundaryRejectsCoercion(): void
+    {
+        $subject = new Subject('product', '150');
+
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        NonStrictConsumer::createRuleCommand($subject, 1, 'EG');
+    }
+
+    #[Test]
+    public function nonStrictCriteriaBoundaryRejectsCoercion(): void
+    {
+        $subject = new Subject('product', '150');
+
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        NonStrictConsumer::ruleCriteria($subject, 'country', '25');
+    }
+
+    #[Test]
+    public function activeDimensionQueryUsesATypedSubjectContract(): void
+    {
+        $query = new ActiveDimensionKeysQuery(new Subject('product', '150'));
+
+        self::assertSame('product', $query->subject->subjectType);
+    }
+
+    #[Test]
+    public function managementResultsReuseRuleAndExposeLifecycle(): void
+    {
+        $inactive = Rule::active(
+            new Subject('product', '150'),
+            'country',
+            'EG',
+            RuleEffectEnum::ALLOW,
+        )->withLifecycle(RuleLifecycleEnum::INACTIVE);
+        $results = new RuleCollection($inactive);
+
+        self::assertSame(RuleLifecycleEnum::INACTIVE, $results->items()[0]->lifecycle);
+    }
+
+    #[Test]
+    public function repositoryAndServicesExposeSeparatedTypedBoundaries(): void
+    {
+        $commandRepository = new ReflectionClass(RuleCommandRepositoryInterface::class);
+        $managementQuery = new ReflectionClass(RuleManagementQueryInterface::class);
+        $activeRuleReader = new ReflectionClass(ActiveRuleReaderInterface::class);
+        $mutationSupport = new ReflectionClass(RuleMutationSupportInterface::class);
+        $commandRepositoryImplementation = new ReflectionClass(PdoRuleCommandRepository::class);
+        $evaluationService = new ReflectionClass(EligibilityEvaluationServiceInterface::class);
+        $managementService = new ReflectionClass(EligibilityManagementServiceInterface::class);
+        $evaluationServiceImplementation = new ReflectionClass(EligibilityEvaluationService::class);
+        $managementServiceImplementation = new ReflectionClass(EligibilityManagementService::class);
+
+        self::assertTrue($commandRepository->isInterface());
+        self::assertTrue($managementQuery->isInterface());
+        self::assertTrue($activeRuleReader->isInterface());
+        self::assertTrue($mutationSupport->isInterface());
+        self::assertTrue($evaluationService->isInterface());
+        self::assertTrue($managementService->isInterface());
+        self::assertTrue($commandRepositoryImplementation->implementsInterface(RuleCommandRepositoryInterface::class));
+        self::assertTrue($commandRepositoryImplementation->implementsInterface(RuleMutationSupportInterface::class));
+        self::assertFalse($commandRepositoryImplementation->implementsInterface(SavepointTransactionRunnerInterface::class));
+
+        $commandMethods = [
+            'create' => Rule::class,
+            'updateEffect' => 'bool',
+            'deactivate' => 'bool',
+            'reactivate' => 'bool',
+            'cleanupSubject' => 'void',
+        ];
+
+        foreach ($commandMethods as $methodName => $returnType) {
+            self::assertSame(
+                $returnType,
+                self::namedReturnTypeName($commandRepository->getMethod($methodName)),
+            );
+        }
+
+        foreach (
+            [
+                'findByIdentity' => Rule::class,
+                'findByCriteria' => RuleCollection::class,
+                'findActiveDimensionKeys' => ActiveDimensionKeyCollection::class,
+            ] as $methodName => $returnType
+        ) {
+            self::assertSame(
+                $returnType,
+                self::namedReturnTypeName($managementQuery->getMethod($methodName)),
+            );
+        }
+
+        self::assertSame(
+            RuleCollection::class,
+            self::namedReturnTypeName($activeRuleReader->getMethod('findActiveForSubjects')),
+        );
+
+        foreach (['lockSubjectForMutation', 'findAllForSubjectDimension', 'deleteSubjectCoordination'] as $methodName) {
+            self::assertTrue($mutationSupport->hasMethod($methodName));
+        }
+
+        self::assertFalse($commandRepository->hasMethod('replaceDimensionRules'));
+        foreach (
+            ['inTransaction', 'beginTransaction', 'commit', 'rollBack', 'createOperationSavepoint',
+                'rollbackToOperationSavepoint', 'releaseOperationSavepoint'] as $methodName
+        ) {
+            self::assertFalse($commandRepositoryImplementation->hasMethod($methodName));
+        }
+        self::assertTrue($managementService->hasMethod('replaceDimensionRules'));
+        self::assertSame(
+            Rule::class,
+            self::namedReturnTypeName($managementService->getMethod('createRule')),
+        );
+        self::assertSame(
+            'void',
+            self::namedReturnTypeName($managementService->getMethod('replaceDimensionRules')),
+        );
+        self::assertSame(
+            SubjectDecisionCollection::class,
+            self::namedReturnTypeName($evaluationService->getMethod('decideMany')),
+        );
+
+        $managementConstructor = $managementServiceImplementation->getConstructor();
+        self::assertNotNull($managementConstructor);
+        self::assertSame(4, count($managementConstructor->getParameters()));
+        self::assertSame(
+            RuleCommandRepositoryInterface::class,
+            self::parameterTypeName($managementConstructor->getParameters()[0]),
+        );
+        self::assertSame(
+            RuleManagementQueryInterface::class,
+            self::parameterTypeName($managementConstructor->getParameters()[1]),
+        );
+        self::assertSame(
+            RuleMutationSupportInterface::class,
+            self::parameterTypeName($managementConstructor->getParameters()[2]),
+        );
+        self::assertSame(
+            SavepointTransactionRunnerInterface::class,
+            self::parameterTypeName($managementConstructor->getParameters()[3]),
+        );
+
+        $evaluationConstructor = $evaluationServiceImplementation->getConstructor();
+        self::assertNotNull($evaluationConstructor);
+        self::assertSame(1, count($evaluationConstructor->getParameters()));
+        self::assertSame(
+            ActiveRuleReaderInterface::class,
+            self::parameterTypeName($evaluationConstructor->getParameters()[0]),
+        );
+    }
+
+    #[Test]
+    public function persistenceSavepointApiMatchesReleasedContract(): void
+    {
+        self::assertTrue(interface_exists(TransactionRunnerInterface::class));
+        self::assertTrue(interface_exists(SavepointTransactionRunnerInterface::class));
+        self::assertTrue(class_exists(PdoTransactionRunner::class));
+        self::assertTrue(class_exists(PdoSavepointTransactionRunner::class));
+
+        $transactionRunnerInterface = new ReflectionClass(TransactionRunnerInterface::class);
+        $savepointRunnerInterface = new ReflectionClass(SavepointTransactionRunnerInterface::class);
+
+        self::assertTrue($transactionRunnerInterface->isInterface());
+        self::assertTrue($savepointRunnerInterface->isInterface());
+        self::assertTrue(
+            $savepointRunnerInterface->implementsInterface(TransactionRunnerInterface::class),
+        );
+
+        $run = $transactionRunnerInterface->getMethod('run');
+
+        self::assertSame('mixed', self::namedReturnTypeName($run));
+        self::assertCount(1, $run->getParameters());
+        self::assertSame('callable', self::parameterTypeName($run->getParameters()[0]));
+    }
+
+    #[Test]
+    public function publicB2ModelsDoNotExposeAssociativeArrayState(): void
+    {
+        $classes = [
+            CreateRuleCommand::class,
+            UpdateRuleEffectCommand::class,
+            DeactivateRuleCommand::class,
+            ReactivateRuleCommand::class,
+            ReplaceDimensionRulesCommand::class,
+            CleanupSubjectCommand::class,
+            DesiredRule::class,
+            RuleCriteria::class,
+            ActiveDimensionKeysQuery::class,
+            ActiveDimensionKeyCollection::class,
+            SubjectDecisionResult::class,
+            SubjectDecisionCollection::class,
+            SubjectCollection::class,
+        ];
+
+        foreach ($classes as $className) {
+            foreach ((new ReflectionClass($className))->getProperties(\ReflectionProperty::IS_PUBLIC) as $property) {
+                $propertyType = $property->getType();
+                self::assertInstanceOf(ReflectionNamedType::class, $propertyType);
+                self::assertNotSame('array', $propertyType->getName(), $className . ' exposes array state.');
+            }
+        }
+    }
+
+    private static function namedReturnTypeName(ReflectionMethod $method): string
+    {
+        $returnType = $method->getReturnType();
+        self::assertInstanceOf(ReflectionNamedType::class, $returnType);
+
+        return $returnType->getName();
+    }
+
+    private static function parameterTypeName(\ReflectionParameter $parameter): string
+    {
+        $parameterType = $parameter->getType();
+        self::assertInstanceOf(ReflectionNamedType::class, $parameterType);
+
+        return $parameterType->getName();
+    }
+
+    #[Test]
+    public function semanticExceptionsUseEligibilityAndSharedHierarchies(): void
+    {
+        $identity = new RuleIdentity('product', '150', 'country', 'EG');
+        $previous = new \RuntimeException('storage conflict');
+        $notFound = new RuleNotFoundException($identity);
+        $identityConflict = new RuleIdentityConflictException($identity, $previous);
+        $concurrency = new RuleConcurrencyConflictException(previous: $previous);
+
+        self::assertInstanceOf(EligibilityExceptionInterface::class, $notFound);
+        self::assertInstanceOf(NotFoundMaatifyException::class, $notFound);
+        self::assertInstanceOf(ApiAwareExceptionInterface::class, $notFound);
+        self::assertSame($identity, $notFound->identity());
+        self::assertInstanceOf(EligibilityExceptionInterface::class, $identityConflict);
+        self::assertInstanceOf(ConflictMaatifyException::class, $identityConflict);
+        self::assertSame($previous, $identityConflict->getPrevious());
+        self::assertInstanceOf(EligibilityExceptionInterface::class, $concurrency);
+        self::assertInstanceOf(ConflictMaatifyException::class, $concurrency);
+        self::assertSame($previous, $concurrency->getPrevious());
+    }
+}
