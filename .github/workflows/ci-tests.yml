@@ -2,9 +2,9 @@ name: ci-tests
 
 on:
   pull_request:
-    branches: [main, phase/v1.0.0-rc.1]
+    branches: [main]
   push:
-    branches: [main, phase/v1.0.0-rc.1]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

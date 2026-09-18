@@ -5,16 +5,9 @@
 
 ## Supported Versions
 
-`maatify/php-eligibility` is in **unpublished RC1 preparation** for
-`1.0.0-rc.1`. The `1.0.0-rc.1` tag does not exist yet and the package is not
-externally resolvable through any Composer distribution source, so there is
-currently **no supported release line**.
-
-When `v1.0.0-rc.1` is actually published and resolvable by external consumers
-through its approved distribution source, this file will be updated to describe
-that pre-release explicitly as a pre-release and to record the then-supported
-release lines per the repository support policy. A published pre-release does
-not establish a supported Stable line on its own.
+`maatify/php-eligibility` is the **Pre-Stable `v1.0.0-rc.1` Release Candidate**
+distributed through Packagist. It is a pre-release and does not establish a
+supported Stable line on its own.
 
 ## Reporting a Vulnerability
 
@@ -29,9 +22,9 @@ and include:
 - A minimal reproduction (entry point, environment, and observations).
 - Your suggested impact/severity assessment if you have one.
 
-Because no version is published yet, do not assume a fix exists for a
-numbered version; the maintainers will coordinate a fix on the development
-branch and confirm when a published release line becomes available.
+Because this is a pre-release, do not assume a fix exists for a numbered Stable
+version; the maintainers will coordinate fixes on the development branch and
+identify the affected release line in the security advisory.
 
 ## Scope
 

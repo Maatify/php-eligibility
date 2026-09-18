@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.0-rc.1] - 2026-09-18
+
 ### Added
 
 - Comprehensive consumer Usage Guide and capability decision map, runnable public API examples, and README documentation/presentation alignment.
@@ -22,7 +24,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- B6 package presentation rewritten: the README now distinguishes Packagist registration from the pre-tag `v1.0.0-rc.1` distribution state, and documents requirements, installation state, the public API surface, runtime behavior, persistence/schema, exceptions, security, and local/CI testing.
+- B6 package presentation rewritten: the README now distinguishes Packagist registration from the `v1.0.0-rc.1` distribution state, and documents requirements, installation state, the public API surface, runtime behavior, persistence/schema, exceptions, security, and local/CI testing.
 - Final capability-first source organization is documented, with separate Command, Management Query, Evaluation Read, and internal Mutation Support persistence responsibilities.
 - `maatify/persistence ^1.4` is the explicit runtime transaction dependency, and Eligibility now uses its shared `PdoSavepointTransactionRunner` instead of package-local generic transaction/savepoint mechanics.
 - Atomic replacement and Subject cleanup, Host-owned outer transaction participation, and Eligibility-owned Subject coordination locking remain preserved under the shared transaction composition.
@@ -30,5 +32,3 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - B1 structural and invariant failures now use a typed Eligibility exception backed by the shared Maatify validation hierarchy, `RuleReference` now exposes the canonical direct fields, and the runtime PCRE extension contract is declared.
-
-No `v1.0.0-rc.1` tag or published release is claimed by this entry.

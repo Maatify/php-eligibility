@@ -32,7 +32,7 @@ Unused Profiles are not copied.
 | Profile ID | Profile Version | Scope | Activation Facts | Resolution Status | Exception State |
 |---|---:|---|---|---|---|
 | `composer-package` | `1.0.0` | `/` | Independent reusable PHP/Composer package; owns Rule persistence behavior and a planned framework-neutral/reference PDO adapter | `VALID` | `NONE` |
-| `repository-governance` | `1.0.0` | `/` | Repository follows the Maatify phase/stacked-PR workflow; umbrella is `phase/v1.0.0-rc.1` | `VALID` | `NONE` |
+| `repository-governance` | `1.0.0` | `/` | Repository follows the Maatify phase/stacked-PR workflow | `VALID` | `NONE` |
 
 ### Structural / Transitive Resolution
 
