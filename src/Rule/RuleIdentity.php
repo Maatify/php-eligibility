@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Maatify\Eligibility\Rule;
 
 use JsonSerializable;
-use Maatify\Eligibility\Validation\CanonicalString;
+use Maatify\Eligibility\Common\Validation\CanonicalString;
 
 final readonly class RuleIdentity implements JsonSerializable
 {

@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Unit;
 
-use Maatify\Eligibility\Application\Evaluation\EligibilityRuleEvaluator;
-use Maatify\Eligibility\Application\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Decision\DecisionReasonEnum;
-use Maatify\Eligibility\Decision\DimensionReasonEnum;
+use Maatify\Eligibility\Evaluation\Engine\EligibilityRuleEvaluator;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
+use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
+use Maatify\Eligibility\Evaluation\Decision\DimensionReasonEnum;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\InMemoryRuleRepository;
-use Maatify\Eligibility\Value\Context;
-use Maatify\Eligibility\Value\ContextDimension;
-use Maatify\Eligibility\Value\Subject;
-use Maatify\Eligibility\Value\SubjectCollection;
+use Maatify\Eligibility\Evaluation\Value\Context;
+use Maatify\Eligibility\Evaluation\Value\ContextDimension;
+use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Common\Value\SubjectCollection;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -238,11 +238,11 @@ final class RuntimeEvaluationServiceTest extends TestCase
     {
         self::assertTrue((new \ReflectionClass(EligibilityRuleEvaluator::class))->isFinal());
         self::assertTrue((new \ReflectionClass(EligibilityEvaluationService::class))->implementsInterface(
-            \Maatify\Eligibility\Application\Service\EligibilityEvaluationServiceInterface::class,
+            \Maatify\Eligibility\Evaluation\Contract\EligibilityEvaluationServiceInterface::class,
         ));
     }
 
-    private function evaluate(\Maatify\Eligibility\Value\Context $context, Rule ...$rules): \Maatify\Eligibility\Decision\EligibilityDecision
+    private function evaluate(\Maatify\Eligibility\Evaluation\Value\Context $context, Rule ...$rules): \Maatify\Eligibility\Evaluation\Decision\EligibilityDecision
     {
         $repository = new InMemoryRuleRepository();
         $repository->seed(...$rules);

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Unit;
 
-use Maatify\Eligibility\Application\Service\EligibilityEvaluationServiceInterface;
-use Maatify\Eligibility\Application\Result\SubjectDecisionCollection;
-use Maatify\Eligibility\Value\Context;
-use Maatify\Eligibility\Value\SubjectCollection;
+use Maatify\Eligibility\Evaluation\Contract\EligibilityEvaluationServiceInterface;
+use Maatify\Eligibility\Evaluation\Result\SubjectDecisionCollection;
+use Maatify\Eligibility\Evaluation\Value\Context;
+use Maatify\Eligibility\Common\Value\SubjectCollection;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;

@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Unit;
 
-use Maatify\Eligibility\Decision\DecisionReasonEnum;
-use Maatify\Eligibility\Decision\DimensionOutcome;
-use Maatify\Eligibility\Decision\DimensionOutcomeCollection;
-use Maatify\Eligibility\Decision\DimensionReasonEnum;
-use Maatify\Eligibility\Decision\EligibilityDecision;
-use Maatify\Eligibility\Decision\RuleReference;
-use Maatify\Eligibility\Decision\RuleReferenceCollection;
+use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
+use Maatify\Eligibility\Evaluation\Decision\DimensionOutcome;
+use Maatify\Eligibility\Evaluation\Decision\DimensionOutcomeCollection;
+use Maatify\Eligibility\Evaluation\Decision\DimensionReasonEnum;
+use Maatify\Eligibility\Evaluation\Decision\EligibilityDecision;
+use Maatify\Eligibility\Evaluation\Decision\RuleReference;
+use Maatify\Eligibility\Evaluation\Decision\RuleReferenceCollection;
 use Maatify\Eligibility\Exception\EligibilityExceptionInterface;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Value\Subject;
+use Maatify\Eligibility\Common\Value\Subject;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
