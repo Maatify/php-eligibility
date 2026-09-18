@@ -4,15 +4,23 @@
 
 ![Maatify.dev](https://www.maatify.dev/assets/img/img/maatify_logo_white.svg)
 
-[![PHP](https://img.shields.io/badge/php-%5E8.4-8892BF)](composer.json)
+**Package status:**<br>
+[![Release state](https://img.shields.io/badge/Release-Pre--Stable%20RC1%20Preparation-orange)](#status)
+[![PHP](https://img.shields.io/badge/PHP-%5E8.4-8892BF)](composer.json)
 [![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-success)](phpstan.neon)
-[![License](https://img.shields.io/badge/license-proprietary-lightgrey)](LICENSE)
+[![License](https://img.shields.io/badge/License-proprietary-lightgrey)](LICENSE)
 
+**Documentation:**<br>
 [![Changelog](https://img.shields.io/badge/Changelog-View-blue)](CHANGELOG.md)
-[![Package Reference](https://img.shields.io/badge/Reference-Read-blue)](ELIGIBILITY_PACKAGE_REFERENCE.md)
+[![Package Reference](https://img.shields.io/badge/Package%20Reference-Read-blue)](ELIGIBILITY_PACKAGE_REFERENCE.md)
+[![Usage Guide](https://img.shields.io/badge/Usage%20Guide-Read-blue)](docs/guides/USAGE_GUIDE.md)
+[![Examples](https://img.shields.io/badge/Examples-Run-blue)](examples/)
 [![Schema](https://img.shields.io/badge/Schema-Read-blue)](schema/README.md)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-blue)](SECURITY.md)
 [![Contributing Guide](https://img.shields.io/badge/Contributing-Guide-blue)](CONTRIBUTING.md)
+
+**Ecosystem and usage:**<br>
+[![Maatify Ecosystem](https://img.shields.io/badge/Maatify-Ecosystem-blueviolet)](https://github.com/Maatify)
 
 Framework-neutral eligibility rules and typed decisions that answer one
 reusable business question about an external Subject in a supplied Context.
@@ -348,9 +356,15 @@ Public surface (see the
 
 ## Documentation
 
+The [Usage Guide](docs/guides/USAGE_GUIDE.md) contains the capability decision
+map and helps a consumer choose the smallest suitable public API surface before
+installing or trying the package.
+
 | Document | Purpose |
 |---|---|
 | [Package Reference](ELIGIBILITY_PACKAGE_REFERENCE.md) | Canonical RC1 contract: identity, Context, Rule, Decision, lifecycle, ordering, persistence, transaction, concurrency, error, batch, and 52-scenario coverage. |
+| [Usage Guide](docs/guides/USAGE_GUIDE.md) | Consumer-facing API guide, capability decision map, input/output types, transaction notes, and links to runnable examples. |
+| [Runnable Examples](examples/) | Standalone public-API examples for evaluation, batch evaluation, management, replacement, PDO wiring, and typed exception handling. |
 | [Schema](schema/README.md) | Persistence contract, tables, bounds, applying/reapplying, and the local MySQL fixture. |
 | [CHANGELOG](CHANGELOG.md) | RC1 change history under `[Unreleased]`. |
 | [Security Policy](SECURITY.md) | Support state, vulnerability reporting, and scope. |

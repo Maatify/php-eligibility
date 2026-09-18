@@ -8,7 +8,7 @@ declare(strict_types=1);
  * Usage:
  *   php tools/php-lint.php [<directory> ...]
  *
- * With no arguments, lints every package-owned PHP path (src, tests,
+ * With no arguments, lints every package-owned PHP path (src, tests, examples,
  * consumer-harness, and this tools root). vendor/ is never scanned. A non-zero
  * exit code indicates at least one syntax error; CI and the local aggregate
  * gate rely on this fail-closed behavior.
@@ -19,6 +19,7 @@ if ($roots === []) {
     $roots = [
         __DIR__ . '/../src',
         __DIR__ . '/../tests',
+        __DIR__ . '/../examples',
         __DIR__ . '/../consumer-harness',
         __DIR__,
     ];
