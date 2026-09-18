@@ -20,7 +20,7 @@
 [![Contributing Guide](https://img.shields.io/badge/Contributing-Guide-blue)](CONTRIBUTING.md)
 
 **Ecosystem and usage:**<br>
-[![Packagist](https://img.shields.io/badge/Packagist-maatify%2Fphp--eligibility-4F5B93)](https://packagist.org/packages/maatify/php-eligibility)
+[![Latest Version](https://img.shields.io/packagist/v/maatify/php-eligibility.svg)](https://packagist.org/packages/maatify/php-eligibility)
 [![Monthly Downloads](https://img.shields.io/packagist/dm/maatify/php-eligibility?label=Monthly%20Downloads)](https://packagist.org/packages/maatify/php-eligibility)
 [![Total Downloads](https://img.shields.io/packagist/dt/maatify/php-eligibility?label=Total%20Downloads)](https://packagist.org/packages/maatify/php-eligibility)
 [![Maatify Ecosystem](https://img.shields.io/badge/Maatify-Ecosystem-blueviolet)](https://github.com/Maatify)
