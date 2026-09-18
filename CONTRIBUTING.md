@@ -1,8 +1,9 @@
 # Contributing Guide
 
-Thank you for contributing to `maatify/php-eligibility`. This package is part
-of RC1 preparation for the `v1.0.0-rc.1` prerelease of the intended Stable
-`1.0` line; the target version and the package itself are still unpublished.
+Thank you for contributing to `maatify/php-eligibility`. This package is the
+Pre-Stable `v1.0.0-rc.1` Release Candidate in the intended Stable `1.0` line.
+Its package identity is `maatify/php-eligibility` and its distribution is
+available through Packagist.
 
 ## Package identity and boundaries
 
@@ -23,7 +24,7 @@ of RC1 preparation for the `v1.0.0-rc.1` prerelease of the intended Stable
 - Code changes: open a pull request; see expectations below.
 - Documentation/presentation improvements: PRs are welcome, but they must not
   change runtime contracts and must stay accurate to the actual state
-  (including the current unpublished RC1 preparation state).
+  (including the current Pre-Stable Release Candidate state).
 - Vulnerability reports: use the private route documented in
   [SECURITY.md](SECURITY.md), never a public issue.
 

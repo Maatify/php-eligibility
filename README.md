@@ -5,7 +5,7 @@
 ![Maatify.dev](https://www.maatify.dev/assets/img/img/maatify_logo_white.svg)
 
 **Package status:**<br>
-[![Release state](https://img.shields.io/badge/Release-Pre--Stable%20RC1%20Preparation-orange)](#status)
+[![Release state](https://img.shields.io/badge/Release-Pre--Stable%20v1.0.0--rc.1%20Release%20Candidate-orange)](#status)
 [![PHP](https://img.shields.io/badge/PHP-%5E8.4-8892BF)](composer.json)
 [![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-success)](phpstan.neon)
 [![License](https://img.shields.io/badge/License-proprietary-lightgrey)](LICENSE)
@@ -44,17 +44,16 @@ Host Input -> Public API -> Domain Service -> Integration Boundary -> Observable
 The package knows external identities only. It does not know the database
 model, lifecycle, or implementation of the domains that own those identities.
 
-The canonical behavioral contract is **RC1 preparation for `1.0.0-rc.1`** in
-[ELIGIBILITY_PACKAGE_REFERENCE.md](ELIGIBILITY_PACKAGE_REFERENCE.md). This
-package identity is registered on Packagist, but the exact `v1.0.0-rc.1`
-distribution is not published yet; see [Installation](#installation).
+The canonical behavioral contract for the **Pre-Stable `v1.0.0-rc.1` Release
+Candidate** is [ELIGIBILITY_PACKAGE_REFERENCE.md](ELIGIBILITY_PACKAGE_REFERENCE.md).
+The package identity is `maatify/php-eligibility` and its distribution is
+available through [Packagist](https://packagist.org/packages/maatify/php-eligibility).
 
 ## Status
 
-- **Release state:** Pre-Stable RC1 preparation. The Composer package identity
-  is registered on [Packagist](https://packagist.org/packages/maatify/php-eligibility),
-  but the exact `v1.0.0-rc.1` tag does not exist yet and that version is not
-  published or installable through Packagist.
+- **Release state:** Pre-Stable `v1.0.0-rc.1` Release Candidate.
+- **Package identity:** `maatify/php-eligibility`.
+- **Distribution:** [Packagist](https://packagist.org/packages/maatify/php-eligibility).
 - **Quality:** see [Quality Status](#quality-status).
 
 ## Key Features
@@ -103,24 +102,18 @@ executed MariaDB verification.
 
 ## Installation
 
-The Composer package identity `maatify/php-eligibility` is registered on
-[Packagist](https://packagist.org/packages/maatify/php-eligibility). However,
-the exact `v1.0.0-rc.1` tag has not been created and indexed yet, so this command
-is not a valid current Packagist installation command:
+Install the Pre-Stable `v1.0.0-rc.1` Release Candidate from
+[Packagist](https://packagist.org/packages/maatify/php-eligibility):
 
 ```bash
 composer require maatify/php-eligibility:1.0.0-rc.1
 ```
 
-The command becomes valid only after the `v1.0.0-rc.1` tag is published and
-Packagist indexes that exact version.
-
-### Development installation (current pre-tag state)
+### Development access
 
 For development access only, use a local checkout of the current `main` branch
-through a Composer path repository. This does not use Packagist and must not be
-treated as the exact RC1 distribution or as an alternative to
-`v1.0.0-rc.1`. From your consumer project:
+through a Composer path repository. This development path is separate from the
+`v1.0.0-rc.1` Release Candidate. From your consumer project:
 
 ```bash
 git clone https://github.com/Maatify/php-eligibility.git .tools/php-eligibility
@@ -129,19 +122,8 @@ composer require maatify/php-eligibility:dev-main
 ```
 
 The `dev-main` constraint is development-only access to the current `main`
-checkout. It is not a substitute for the exact RC1 install command below and
-does not create or imply that the `v1.0.0-rc.1` tag or Packagist distribution
-exists. For developing the library itself (running the full local parity suite),
+checkout. For developing the library itself (running the full local parity suite),
 clone into a working directory and follow [Development and Testing](#development-and-testing).
-
-### After the RC is published
-
-Once the `v1.0.0-rc.1` tag is published and Packagist indexes that exact
-version, installation becomes:
-
-```bash
-composer require maatify/php-eligibility:1.0.0-rc.1
-```
 
 Installation (both paths) requires `ext-pdo`, `ext-pdo_mysql`, and
 `ext-pcre`. The package performs no automatic setup: the schema asset is an
@@ -375,7 +357,7 @@ installing or trying the package.
 | [Usage Guide](docs/guides/USAGE_GUIDE.md) | Consumer-facing API guide, capability decision map, input/output types, transaction notes, and links to runnable examples. |
 | [Runnable Examples](examples/) | Standalone public-API examples for evaluation, batch evaluation, management, replacement, PDO wiring, and typed exception handling. |
 | [Schema](schema/README.md) | Persistence contract, tables, bounds, applying/reapplying, and the local MySQL fixture. |
-| [CHANGELOG](CHANGELOG.md) | RC1 change history under `[Unreleased]`. |
+| [CHANGELOG](CHANGELOG.md) | RC1 change history under `[1.0.0-rc.1]`. |
 | [Security Policy](SECURITY.md) | Support state, vulnerability reporting, and scope. |
 | [Contributing Guide](CONTRIBUTING.md) | Contribution expectations, local verification, and PR requirements. |
 | [Code of Conduct](CODE_OF_CONDUCT.md) | Community rules and reporting. |
@@ -433,8 +415,8 @@ track it), and PHPUnit/PHPStan caches are not committed.
 ## License
 
 This package is released under a **proprietary Maatify license**. See
-[LICENSE](LICENSE). The exact `v1.0.0-rc.1` distribution is not published yet;
-see [Installation](#installation).
+[LICENSE](LICENSE). The Pre-Stable `v1.0.0-rc.1` Release Candidate is
+distributed through [Packagist](https://packagist.org/packages/maatify/php-eligibility).
 
 ## Author
 
