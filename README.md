@@ -73,8 +73,14 @@ package is not yet published; see [Installation](#installation).
 |---|---|
 | PHP | `^8.4` |
 | PHP extensions | `ext-pdo`, `ext-pdo_mysql`, `ext-pcre` |
-| Runtime package | `maatify/exceptions` (`^1.0`) |
+| Runtime packages | `maatify/exceptions` (`^1.0`), `maatify/persistence` (`^1.4`) |
 | Database | MySQL-compatible database-server semantics through direct PDO (capability-based; no minimum product version is declared — see [Persistence and Schema](#persistence-and-schema)) |
+
+`maatify/persistence ^1.4` is an explicit runtime dependency. `v1.4.0` is the
+minimum stable line required for the savepoint-capable transaction API used by
+the upcoming shared transaction migration. WU5 only resolves and verifies that
+released API; Eligibility still uses its local transitional transaction boundary.
+Actual runtime adoption of `PdoSavepointTransactionRunner` belongs to WU6.
 
 The database contract requires transactional InnoDB-style package-owned table
 behavior, binary-safe exact-value storage/comparison, the bounded indexed-key

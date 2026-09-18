@@ -1101,6 +1101,17 @@ The Host owns:
 - tenant/storage isolation where the Host is multi-tenant;
 - cleaning Eligibility Rules when an external Subject is permanently deleted.
 
+## Persistence dependency and transaction migration status
+
+Eligibility declares `maatify/persistence ^1.4` as an explicit runtime
+dependency. `v1.4.0` is the minimum stable line required for the released
+savepoint-capable transaction API used by the upcoming shared transaction
+migration.
+
+WU5 adopts and verifies that released API only. Eligibility has not yet
+migrated its local transitional transaction boundary, and production runtime
+adoption of `PdoSavepointTransactionRunner` belongs to WU6.
+
 ## Consumer workflow and integration boundary
 
 The canonical consumer path is:

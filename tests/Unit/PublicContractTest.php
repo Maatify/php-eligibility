@@ -43,6 +43,10 @@ use Maatify\Eligibility\Common\Value\SubjectCollection;
 use Maatify\Exceptions\Contracts\ApiAwareExceptionInterface;
 use Maatify\Exceptions\Exception\Conflict\ConflictMaatifyException;
 use Maatify\Exceptions\Exception\NotFound\NotFoundMaatifyException;
+use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
+use Maatify\Persistence\Pdo\Transaction\PdoTransactionRunner;
+use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
+use Maatify\Persistence\Pdo\Transaction\TransactionRunnerInterface;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -369,6 +373,30 @@ final class PublicContractTest extends TestCase
             ActiveRuleReaderInterface::class,
             self::parameterTypeName($evaluationConstructor->getParameters()[0]),
         );
+    }
+
+    #[Test]
+    public function persistenceSavepointApiMatchesReleasedContract(): void
+    {
+        self::assertTrue(interface_exists(TransactionRunnerInterface::class));
+        self::assertTrue(interface_exists(SavepointTransactionRunnerInterface::class));
+        self::assertTrue(class_exists(PdoTransactionRunner::class));
+        self::assertTrue(class_exists(PdoSavepointTransactionRunner::class));
+
+        $transactionRunnerInterface = new ReflectionClass(TransactionRunnerInterface::class);
+        $savepointRunnerInterface = new ReflectionClass(SavepointTransactionRunnerInterface::class);
+
+        self::assertTrue($transactionRunnerInterface->isInterface());
+        self::assertTrue($savepointRunnerInterface->isInterface());
+        self::assertTrue(
+            $savepointRunnerInterface->implementsInterface(TransactionRunnerInterface::class),
+        );
+
+        $run = $transactionRunnerInterface->getMethod('run');
+
+        self::assertSame('mixed', self::namedReturnTypeName($run));
+        self::assertCount(1, $run->getParameters());
+        self::assertSame('callable', self::parameterTypeName($run->getParameters()[0]));
     }
 
     #[Test]
