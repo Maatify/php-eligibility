@@ -1038,7 +1038,7 @@ must not trim, normalize, coerce, or truncate input. Repository results are
 hydrated and then normalized by the existing package collections to canonical
 bytewise ordering.
 
-The concrete B3 adapters are
+The concrete direct-PDO adapters are
 `Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository`,
 `Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery`, and
 `Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader`. They are
@@ -1123,7 +1123,7 @@ Host Input
   → Observable Result
 ```
 
-This workflow is normative at the responsibility and observable-behavior level. Concrete PHP class names, method signatures, factories, and dependency-wiring details remain implementation/contracts-slice decisions and MUST NOT be invented here.
+This workflow is normative at the responsibility and observable-behavior level. The implemented Public Runtime API inventory below is the authoritative record of the concrete RC1 PHP classes, signatures, adapters, and dependency wiring. Documentation MUST NOT invent classes or wiring that are absent from that inventory and the current source.
 
 1. The Host validates the external Subject and resolves its business Context. It constructs the canonical typed Subject and immutable Context using the exact string rules and Context shape defined in this reference. Host-owned semantic normalization, such as choosing an uppercase country code, occurs before the package boundary.
 2. The Host calls the public Eligibility API for one Subject or an ordered batch of Subjects. The public operation is conceptually `decide(Subject, Context)` or `decideMany(Subjects, Context)`; these labels describe the frozen capability and do not freeze concrete PHP names.
@@ -1133,15 +1133,17 @@ This workflow is normative at the responsibility and observable-behavior level. 
 
 Rule management follows the same boundary: the Host submits typed management commands/criteria through the public package contracts, the Domain Service coordinates the mutation or read, and the package-owned persistence boundary produces the typed management result or documented typed failure. Application/domain code MUST NOT require direct SQL access.
 
-The Consumer Verification Harness required by the adopted Testing and CI Standards is an RC1 readiness gate for a later implementation/readiness slice. It MUST exercise this external-consumer workflow through Composer production autoload and the public contracts in clean, repeatable consumer states, including the real persistence boundary when applicable. This Standards Decision Alignment pass freezes the workflow contract only; it does not implement or design the Harness scripts, fixtures, database setup, or CI job.
+The Consumer Verification Harness required by the adopted Testing and CI Standards exists and is part of the maintained RC1 verification contract. It installs and consumes the package through production Composer autoload, exercises the public contracts against the real MySQL persistence boundary, and verifies clean consumer and database states before and after the workflow. The maintained harness executes twice from clean consumer/database states and reports both runs as a current verification gate.
 
 ## Public Runtime API inventory
 
-This inventory records the public Runtime API currently implemented across B1–B4.
-It is an inventory of the code at this branch. B1 owns the model and validation
-types; B2 owns commands, interfaces, results, and semantic exceptions; B3 owns
-the concrete direct-PDO persistence implementation and the canonical-bound
-extensions; B4 owns the concrete evaluator and application-service runtime.
+This inventory records the public Runtime API currently implemented across the
+historical B1–B4 slices. The B1–B4 labels preserve slice provenance; the entries
+below describe the current code, not missing capabilities. B1 introduced the
+model and validation types; B2 introduced commands, interfaces, results, and
+semantic exceptions; B3 introduced the concrete direct-PDO persistence
+implementation and canonical-bound extensions; B4 introduced the concrete
+evaluator and application-service runtime.
 
 ### B1 model and validation types
 
@@ -1168,7 +1170,7 @@ extensions; B4 owns the concrete evaluator and application-service runtime.
 
 - `ActiveDimensionKeyCollection` contains only canonical dimension-key strings, rejects duplicates, and returns them in ascending bytewise order.
 - `SubjectDecisionResult` associates one `Subject` with one `EligibilityDecision`. `SubjectDecisionCollection` rejects duplicate Subject identities, accepts an empty result, and preserves the supplied result order.
-- `EligibilityEvaluationServiceInterface` exposes `decide(Subject $subject, Context $context): EligibilityDecision` and `decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollection`. The interface defines the public evaluation seam; B2 does not implement the evaluator.
+- `EligibilityEvaluationServiceInterface` exposes `decide(Subject $subject, Context $context): EligibilityDecision` and `decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollection`. The interface is the public evaluation seam defined in the historical B2 slice and is implemented by the concrete `EligibilityEvaluationService` documented under the B4 runtime slice below.
 - `EligibilityManagementServiceInterface` exposes typed Rule creation, identity inspection, bounded Rule inspection, active-dimension inspection, effect/lifecycle mutations, replacement intent, and Subject cleanup. Its state-setting methods return `void` except `createRule(...): Rule`; `inspectRule(...): Rule` has a typed Rule-not-found contract.
 - `RuleCommandRepositoryInterface` is the replaceable command/mutation persistence contract. It exposes only canonical Rule creation, effect/lifecycle mutations, and Subject cleanup.
 - `RuleManagementQueryInterface` is the replaceable management-query persistence contract. It exposes natural-identity lookup, bounded management reads, and active-dimension lookup, including inactive Rules where criteria allow them.
@@ -1189,9 +1191,10 @@ extensions; B4 owns the concrete evaluator and application-service runtime.
 
 All three B2 semantic exceptions implement `EligibilityExceptionInterface`. B3
 classifies only proven MySQL/MariaDB duplicate-key driver code `1062` at the
-repository boundary; other PDO/storage failures propagate unchanged. No concrete
-B2 evaluator or application service is claimed by this inventory; the concrete
-PDO persistence adapter is listed separately below.
+repository boundary; other PDO/storage failures propagate unchanged. The B2
+contracts are implemented by the concrete evaluation and management services
+listed under the B4 runtime slice, while the concrete PDO persistence adapters
+are listed separately below.
 
 ### B3 persistence implementation and bounds extensions
 
@@ -1199,11 +1202,11 @@ PDO persistence adapter is listed separately below.
 - `Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery` is the concrete direct-PDO implementation of `RuleManagementQueryInterface`. It provides exact identity reads, bounded management reads, lifecycle visibility, and active-dimension reads.
 - `Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader` is the concrete direct-PDO implementation of `ActiveRuleReaderInterface`. It provides the active-only bounded bulk read used by evaluation.
 - `PdoRuleHydrationTrait` is an internal implementation helper for shared PDO row binding and Rule hydration; it is not a public contract or business-service abstraction.
-- `Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface` is a package-internal mutation-support contract used by B4 for the complete Subject + dimension read, Subject coordination lock, and coordination cleanup; it is not an additional Host-facing service method.
-- B4 uses the package-owned `maa_eligibility_subject_locks` table as an explicit coordination row per Subject. Replacement and management cleanup create-or-lock this row inside their transaction before reading or mutating Rules, so an initially empty dimension is serialized without relying on database gap-lock behavior. Cleanup removes the coordination row for the cleaned Subject. The table has no Host foreign key or join.
+- `Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface` is a package-internal mutation-support contract used by `EligibilityManagementService` for the complete Subject + dimension read, Subject coordination lock, and coordination cleanup; it is not an additional Host-facing service method.
+- The current implementation uses the package-owned `maa_eligibility_subject_locks` table as an explicit coordination row per Subject. Replacement and management cleanup create-or-lock this row inside their transaction before reading or mutating Rules, so an initially empty dimension is serialized without relying on database gap-lock behavior. Cleanup removes the coordination row for the cleaned Subject. The table has no Host foreign key or join.
 - When the Host already owns a transaction, the shared `PdoSavepointTransactionRunner` creates an operation-local savepoint, releases it on success, and rolls back to it on failure while leaving the Host transaction active. Savepoint cleanup is best-effort and never replaces the original operation Throwable. This uses transactional MySQL-compatible savepoint capability without declaring a minimum database product version.
-- B3 extends `Maatify\Eligibility\Common\Validation\CanonicalString` with the single source of truth for the four canonical byte bounds and routes every semantic B1/B2 boundary through those bounded validators. The B1 validation type remains B1-owned; these bound constants and validators are the B3 contract extension.
-- B4 supplies the concrete evaluator and application-service implementations listed above; the B2 interfaces remain the public replaceable seams for consumers and persistence adapters.
+- The B3 slice introduced the bounded `Maatify\Eligibility\Common\Validation\CanonicalString` methods and constants; they are now the single source of truth for the four canonical byte bounds, and every semantic boundary routes through them.
+- The concrete evaluator and application-service implementations listed above are present, while the B2 interfaces remain the public replaceable seams for consumers and persistence adapters.
 
 ## RC1 exclusions
 

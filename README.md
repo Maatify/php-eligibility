@@ -312,9 +312,13 @@ Public surface (see the
 - **Framework neutrality:** direct PDO persistence only; no ORM, no external
   query builder, no framework runtime requirement, and no Host foreign keys or
   joins. The Host validates external identities; the package trusts them.
-- **Transaction ownership:** with no outer transaction the package owns its
-  transaction; inside a Host-owned outer transaction the package participates
-  without committing or rolling it back.
+- **Transaction ownership:** `PdoSavepointTransactionRunner` from
+  `maatify/persistence` owns the transaction lifecycle when no outer
+  transaction is active. Inside a Host-owned outer transaction it creates an
+  operation-local savepoint, releases it on success, and rolls back to it on
+  failure without committing or fully rolling back the Host transaction.
+  Eligibility still owns mutation coordination, and the runner plus all
+  Eligibility PDO adapters MUST use the same PDO connection.
 - **Concurrency:** parallel creates cannot duplicate a natural identity;
   parallel replacements cannot produce partial or mixed dimension state; reads
   observe coherent committed states.
@@ -348,7 +352,7 @@ Public surface (see the
 |---|---|
 | [Package Reference](ELIGIBILITY_PACKAGE_REFERENCE.md) | Canonical RC1 contract: identity, Context, Rule, Decision, lifecycle, ordering, persistence, transaction, concurrency, error, batch, and 52-scenario coverage. |
 | [Schema](schema/README.md) | Persistence contract, tables, bounds, applying/reapplying, and the local MySQL fixture. |
-| [CHANGELOG](CHANGELOG.md) | B1–B6 change history under `[Unreleased]`. |
+| [CHANGELOG](CHANGELOG.md) | RC1 change history under `[Unreleased]`. |
 | [Security Policy](SECURITY.md) | Support state, vulnerability reporting, and scope. |
 | [Contributing Guide](CONTRIBUTING.md) | Contribution expectations, local verification, and PR requirements. |
 | [Code of Conduct](CODE_OF_CONDUCT.md) | Community rules and reporting. |
