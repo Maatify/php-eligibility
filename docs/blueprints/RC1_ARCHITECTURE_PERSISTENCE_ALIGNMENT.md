@@ -106,7 +106,7 @@ Any public behavioral change requires an explicit documentation decision before 
    - Verify integrity and applicability before continuing.
 
 5. **Persistence dependency upgrade** — prerequisite for WU6
-   - Upgrade to the latest stable `maatify/persistence` release that exposes the required transaction/savepoint semantics, then consume its released runner from the Eligibility service composition.
+   - Upgrade to the latest stable `maatify/persistence` release that exposes the required transaction/savepoint semantics.
    - Update Composer constraints and verify the exact public API actually released.
 
 6. **Shared transaction migration**
