@@ -47,7 +47,12 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         IntegrationDatabase::clearRules($this->pdo);
         $this->repository = new PdoRuleCommandRepository($this->pdo);
         $this->managementQuery = new PdoRuleManagementQuery($this->pdo);
-        $this->management = new EligibilityManagementService($this->repository, $this->managementQuery);
+        $this->management = new EligibilityManagementService(
+            $this->repository,
+            $this->managementQuery,
+            $this->repository,
+            $this->repository,
+        );
     }
 
     protected function tearDown(): void
@@ -279,7 +284,12 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             $observerCommand = new PdoRuleCommandRepository($observer);
             $observerQuery = new PdoRuleManagementQuery($observer);
             $observerReader = new PdoActiveRuleReader($observer);
-            $observerManagement = new EligibilityManagementService($observerCommand, $observerQuery);
+            $observerManagement = new EligibilityManagementService(
+                $observerCommand,
+                $observerQuery,
+                $observerCommand,
+                $observerCommand,
+            );
             $observerEvaluation = new EligibilityEvaluationService($observerReader);
             $committedBefore = $observerManagement->inspectRules(new RuleCriteria(
                 $subject,

@@ -69,7 +69,12 @@ $subject = new Subject('consumer_harness', $runId);
 $commandRepository = new PdoRuleCommandRepository($pdo);
 $managementQuery = new PdoRuleManagementQuery($pdo);
 $activeRuleReader = new PdoActiveRuleReader($pdo);
-$management = new EligibilityManagementService($commandRepository, $managementQuery);
+$management = new EligibilityManagementService(
+    $commandRepository,
+    $managementQuery,
+    $commandRepository,
+    $commandRepository,
+);
 $evaluation = new EligibilityEvaluationService($activeRuleReader);
 
 assertTableEmpty($pdo, 'maa_eligibility_rules', 'Before workflow');

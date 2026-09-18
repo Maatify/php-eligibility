@@ -30,6 +30,7 @@ use Maatify\Eligibility\Exception\RuleNotFoundException;
 use Maatify\Eligibility\Rule\Repository\ActiveRuleReaderInterface;
 use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
 use Maatify\Eligibility\Rule\Repository\RuleManagementQueryInterface;
+use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
 use Maatify\Eligibility\Rule\Repository\RuleReplacementRepositoryInterface;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleCollection;
@@ -266,6 +267,7 @@ final class PublicContractTest extends TestCase
         $commandRepository = new ReflectionClass(RuleCommandRepositoryInterface::class);
         $managementQuery = new ReflectionClass(RuleManagementQueryInterface::class);
         $activeRuleReader = new ReflectionClass(ActiveRuleReaderInterface::class);
+        $mutationSupport = new ReflectionClass(RuleMutationSupportInterface::class);
         $replacementRepository = new ReflectionClass(RuleReplacementRepositoryInterface::class);
         $evaluationService = new ReflectionClass(EligibilityEvaluationServiceInterface::class);
         $managementService = new ReflectionClass(EligibilityManagementServiceInterface::class);
@@ -275,6 +277,7 @@ final class PublicContractTest extends TestCase
         self::assertTrue($commandRepository->isInterface());
         self::assertTrue($managementQuery->isInterface());
         self::assertTrue($activeRuleReader->isInterface());
+        self::assertTrue($mutationSupport->isInterface());
         self::assertTrue($replacementRepository->isInterface());
         self::assertTrue($evaluationService->isInterface());
         self::assertTrue($managementService->isInterface());
@@ -312,12 +315,19 @@ final class PublicContractTest extends TestCase
             self::namedReturnTypeName($activeRuleReader->getMethod('findActiveForSubjects')),
         );
 
+        foreach (['lockSubjectForMutation', 'findAllForSubjectDimension', 'deleteSubjectCoordination'] as $methodName) {
+            self::assertTrue($mutationSupport->hasMethod($methodName));
+        }
+
         self::assertFalse($commandRepository->hasMethod('replaceDimensionRules'));
-        self::assertTrue($replacementRepository->isSubclassOf(RuleCommandRepositoryInterface::class));
+        self::assertFalse($replacementRepository->isSubclassOf(RuleCommandRepositoryInterface::class));
         self::assertFalse($replacementRepository->hasMethod('findByIdentity'));
         self::assertFalse($replacementRepository->hasMethod('findByCriteria'));
         self::assertFalse($replacementRepository->hasMethod('findActiveForSubjects'));
         self::assertFalse($replacementRepository->hasMethod('findActiveDimensionKeys'));
+        self::assertFalse($replacementRepository->hasMethod('lockSubjectForMutation'));
+        self::assertFalse($replacementRepository->hasMethod('findAllForSubjectDimension'));
+        self::assertFalse($replacementRepository->hasMethod('deleteSubjectCoordination'));
         self::assertTrue($managementService->hasMethod('replaceDimensionRules'));
         self::assertSame(
             Rule::class,
@@ -334,14 +344,22 @@ final class PublicContractTest extends TestCase
 
         $managementConstructor = $managementServiceImplementation->getConstructor();
         self::assertNotNull($managementConstructor);
-        self::assertSame(2, count($managementConstructor->getParameters()));
+        self::assertSame(4, count($managementConstructor->getParameters()));
         self::assertSame(
-            RuleReplacementRepositoryInterface::class,
+            RuleCommandRepositoryInterface::class,
             self::parameterTypeName($managementConstructor->getParameters()[0]),
         );
         self::assertSame(
             RuleManagementQueryInterface::class,
             self::parameterTypeName($managementConstructor->getParameters()[1]),
+        );
+        self::assertSame(
+            RuleMutationSupportInterface::class,
+            self::parameterTypeName($managementConstructor->getParameters()[2]),
+        );
+        self::assertSame(
+            RuleReplacementRepositoryInterface::class,
+            self::parameterTypeName($managementConstructor->getParameters()[3]),
         );
 
         $evaluationConstructor = $evaluationServiceImplementation->getConstructor();

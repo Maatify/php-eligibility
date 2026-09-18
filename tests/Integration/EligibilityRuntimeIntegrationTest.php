@@ -53,7 +53,12 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         $this->repository = new PdoRuleCommandRepository($this->pdo);
         $this->managementQuery = new PdoRuleManagementQuery($this->pdo);
         $this->activeRuleReader = new PdoActiveRuleReader($this->pdo);
-        $this->management = new EligibilityManagementService($this->repository, $this->managementQuery);
+        $this->management = new EligibilityManagementService(
+            $this->repository,
+            $this->managementQuery,
+            $this->repository,
+            $this->repository,
+        );
         $this->evaluation = new EligibilityEvaluationService($this->activeRuleReader);
     }
 
@@ -284,7 +289,12 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         ));
         $failure = new \RuntimeException('real-boundary injected failure');
         $faultingRepository = new FaultingRuleReplacementRepository($this->repository, $failure);
-        $service = new EligibilityManagementService($faultingRepository, $this->managementQuery);
+        $service = new EligibilityManagementService(
+            $faultingRepository,
+            $this->managementQuery,
+            $faultingRepository,
+            $faultingRepository,
+        );
 
         try {
             $service->replaceDimensionRules(new ReplaceDimensionRulesCommand(
@@ -319,9 +329,12 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
             RuleEffectEnum::ALLOW,
         ));
         $failure = new \RuntimeException('real outer-boundary injected failure');
+        $faultingRepository = new FaultingRuleReplacementRepository($this->repository, $failure);
         $service = new EligibilityManagementService(
-            new FaultingRuleReplacementRepository($this->repository, $failure),
+            $faultingRepository,
             $this->managementQuery,
+            $faultingRepository,
+            $faultingRepository,
         );
 
         try {
@@ -371,13 +384,16 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         self::assertSame(1, $this->countCoordinationRows($subject));
 
         $failure = new \RuntimeException('real cleanup coordination failure');
+        $faultingRepository = new FaultingRuleReplacementRepository(
+            $this->repository,
+            new \RuntimeException('unused create failure'),
+            $failure,
+        );
         $service = new EligibilityManagementService(
-            new FaultingRuleReplacementRepository(
-                $this->repository,
-                new \RuntimeException('unused create failure'),
-                $failure,
-            ),
+            $faultingRepository,
             $this->managementQuery,
+            $faultingRepository,
+            $faultingRepository,
         );
         $this->pdo->beginTransaction();
 

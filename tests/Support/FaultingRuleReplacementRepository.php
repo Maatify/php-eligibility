@@ -9,6 +9,8 @@ use Maatify\Eligibility\Management\Command\CreateRuleCommand;
 use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
+use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
+use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
 use Maatify\Eligibility\Rule\Repository\RuleReplacementRepositoryInterface;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleCollection;
@@ -18,14 +20,19 @@ use Maatify\Eligibility\Common\Value\Subject;
 /**
  * Real-boundary decorator used only to inject a deterministic post-write fault.
  */
-final class FaultingRuleReplacementRepository implements RuleReplacementRepositoryInterface
+final class FaultingRuleReplacementRepository implements
+    RuleCommandRepositoryInterface,
+    RuleMutationSupportInterface,
+    RuleReplacementRepositoryInterface
 {
     private bool $failed = false;
 
     private bool $cleanupFailed = false;
 
     public function __construct(
-        private readonly RuleReplacementRepositoryInterface $repository,
+        private readonly RuleCommandRepositoryInterface
+        &RuleMutationSupportInterface
+        &RuleReplacementRepositoryInterface $repository,
         private readonly \Throwable $failure,
         private readonly ?\Throwable $cleanupFailure = null,
     ) {
