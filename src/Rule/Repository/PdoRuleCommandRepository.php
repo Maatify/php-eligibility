@@ -20,7 +20,10 @@ use Maatify\Eligibility\Rule\RuleLifecycleEnum;
 use PDO;
 use PDOException;
 
-final class PdoRuleCommandRepository implements RuleReplacementRepositoryInterface
+final class PdoRuleCommandRepository implements
+    RuleCommandRepositoryInterface,
+    RuleMutationSupportInterface,
+    RuleReplacementRepositoryInterface
 {
     use PdoRuleHydrationTrait;
 

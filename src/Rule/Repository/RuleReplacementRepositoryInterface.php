@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Rule\Repository;
 
-use Maatify\Eligibility\Common\Value\Subject;
-use Maatify\Eligibility\Rule\RuleCollection;
-
 /**
- * @internal Persistence capabilities used by atomic replacement and cleanup orchestration.
+ * @internal Transitional transaction/savepoint boundary for Eligibility mutations.
+ *
+ * This contract is retained only until the later shared Persistence transaction
+ * migration. It intentionally owns no Rule commands or mutation-support reads.
  */
-interface RuleReplacementRepositoryInterface extends RuleCommandRepositoryInterface
+interface RuleReplacementRepositoryInterface
 {
     public function inTransaction(): bool;
 
@@ -28,13 +28,4 @@ interface RuleReplacementRepositoryInterface extends RuleCommandRepositoryInterf
 
     /** Releases an operation-local savepoint without changing transaction ownership. */
     public function releaseOperationSavepoint(string $savepoint): void;
-
-    /** Acquires the package-owned Subject coordination lock inside a transaction. */
-    public function lockSubjectForMutation(Subject $subject): void;
-
-    /** Loads every Rule for one Subject + dimension without the management read bound. */
-    public function findAllForSubjectDimension(Subject $subject, string $dimensionKey): RuleCollection;
-
-    /** Removes the package-owned coordination metadata after Subject cleanup. */
-    public function deleteSubjectCoordination(Subject $subject): void;
 }

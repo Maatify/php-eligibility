@@ -100,7 +100,12 @@ function holdReplace(PDO $pdo, PdoRuleCommandRepository $repository, array $argu
         $repository->lockSubjectForMutation($subject);
         writeLine('LOCKED');
         awaitSignal();
-        (new EligibilityManagementService($repository, new PdoRuleManagementQuery($pdo)))->replaceDimensionRules(
+        (new EligibilityManagementService(
+            $repository,
+            new PdoRuleManagementQuery($pdo),
+            $repository,
+            $repository,
+        ))->replaceDimensionRules(
             replacementCommand($arguments),
         );
         writeLine('REPLACED');
@@ -124,6 +129,8 @@ function replace(PDO $pdo, PdoRuleCommandRepository $repository, array $argument
     (new EligibilityManagementService(
         $repository,
         new PdoRuleManagementQuery($pdo),
+        $repository,
+        $repository,
     ))->replaceDimensionRules(
         replacementCommand($arguments),
     );

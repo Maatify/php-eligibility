@@ -16,7 +16,9 @@ use Maatify\Eligibility\Management\Query\RuleCriteria;
 use Maatify\Eligibility\Management\Result\ActiveDimensionKeyCollection;
 use Maatify\Eligibility\Management\Contract\EligibilityManagementServiceInterface;
 use Maatify\Eligibility\Exception\RuleNotFoundException;
+use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
 use Maatify\Eligibility\Rule\Repository\RuleManagementQueryInterface;
+use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
 use Maatify\Eligibility\Rule\Repository\RuleReplacementRepositoryInterface;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleCollection;
@@ -26,15 +28,17 @@ use Maatify\Eligibility\Rule\RuleLifecycleEnum;
 final class EligibilityManagementService implements EligibilityManagementServiceInterface
 {
     public function __construct(
-        private readonly RuleReplacementRepositoryInterface $replacementRepository,
+        private readonly RuleCommandRepositoryInterface $commandRepository,
         private readonly RuleManagementQueryInterface $managementQuery,
+        private readonly RuleMutationSupportInterface $mutationSupport,
+        private readonly RuleReplacementRepositoryInterface $transactionBoundary,
     )
     {
     }
 
     public function createRule(CreateRuleCommand $command): Rule
     {
-        return $this->replacementRepository->create($command);
+        return $this->commandRepository->create($command);
     }
 
     public function inspectRule(RuleIdentity $identity): Rule
@@ -60,7 +64,7 @@ final class EligibilityManagementService implements EligibilityManagementService
     public function updateRuleEffect(UpdateRuleEffectCommand $command): void
     {
         $this->assertMutationSucceeded(
-            $this->replacementRepository->updateEffect($command),
+            $this->commandRepository->updateEffect($command),
             $command->identity,
         );
     }
@@ -68,7 +72,7 @@ final class EligibilityManagementService implements EligibilityManagementService
     public function deactivateRule(DeactivateRuleCommand $command): void
     {
         $this->assertMutationSucceeded(
-            $this->replacementRepository->deactivate($command),
+            $this->commandRepository->deactivate($command),
             $command->identity,
         );
     }
@@ -76,7 +80,7 @@ final class EligibilityManagementService implements EligibilityManagementService
     public function reactivateRule(ReactivateRuleCommand $command): void
     {
         $this->assertMutationSucceeded(
-            $this->replacementRepository->reactivate($command),
+            $this->commandRepository->reactivate($command),
             $command->identity,
         );
     }
@@ -84,9 +88,9 @@ final class EligibilityManagementService implements EligibilityManagementService
     public function replaceDimensionRules(ReplaceDimensionRulesCommand $command): void
     {
         $this->executeTransaction(function () use ($command): void {
-            $this->replacementRepository->lockSubjectForMutation($command->subject);
+            $this->mutationSupport->lockSubjectForMutation($command->subject);
 
-            $existingRules = $this->replacementRepository->findAllForSubjectDimension(
+            $existingRules = $this->mutationSupport->findAllForSubjectDimension(
                 $command->subject,
                 $command->dimensionKey,
             );
@@ -104,7 +108,7 @@ final class EligibilityManagementService implements EligibilityManagementService
                 $existingRule = $existingByValue[$valueKey] ?? null;
 
                 if ($existingRule === null) {
-                    $this->replacementRepository->create(new CreateRuleCommand(
+                    $this->commandRepository->create(new CreateRuleCommand(
                         $command->subject,
                         $command->dimensionKey,
                         $desiredRule->dimensionValue,
@@ -115,7 +119,7 @@ final class EligibilityManagementService implements EligibilityManagementService
 
                 if ($existingRule->effect !== $desiredRule->effect) {
                     $this->assertMutationSucceeded(
-                        $this->replacementRepository->updateEffect(new UpdateRuleEffectCommand(
+                        $this->commandRepository->updateEffect(new UpdateRuleEffectCommand(
                             $existingRule->naturalIdentity(),
                             $desiredRule->effect,
                         )),
@@ -125,7 +129,7 @@ final class EligibilityManagementService implements EligibilityManagementService
 
                 if ($existingRule->lifecycle === RuleLifecycleEnum::INACTIVE) {
                     $this->assertMutationSucceeded(
-                        $this->replacementRepository->reactivate(new ReactivateRuleCommand(
+                        $this->commandRepository->reactivate(new ReactivateRuleCommand(
                             $existingRule->naturalIdentity(),
                         )),
                         $existingRule->naturalIdentity(),
@@ -139,7 +143,7 @@ final class EligibilityManagementService implements EligibilityManagementService
                     && !isset($desiredValues[$this->stringKey($existingRule->dimensionValue)])
                 ) {
                     $this->assertMutationSucceeded(
-                        $this->replacementRepository->deactivate(new DeactivateRuleCommand(
+                        $this->commandRepository->deactivate(new DeactivateRuleCommand(
                             $existingRule->naturalIdentity(),
                         )),
                         $existingRule->naturalIdentity(),
@@ -152,9 +156,9 @@ final class EligibilityManagementService implements EligibilityManagementService
     public function cleanupSubject(CleanupSubjectCommand $command): void
     {
         $this->executeTransaction(function () use ($command): void {
-            $this->replacementRepository->lockSubjectForMutation($command->subject);
-            $this->replacementRepository->cleanupSubject($command);
-            $this->replacementRepository->deleteSubjectCoordination($command->subject);
+            $this->mutationSupport->lockSubjectForMutation($command->subject);
+            $this->commandRepository->cleanupSubject($command);
+            $this->mutationSupport->deleteSubjectCoordination($command->subject);
         });
     }
 
@@ -167,38 +171,38 @@ final class EligibilityManagementService implements EligibilityManagementService
 
     private function executeTransaction(Closure $operation): void
     {
-        $ownsTransaction = !$this->replacementRepository->inTransaction();
+        $ownsTransaction = !$this->transactionBoundary->inTransaction();
         $savepoint = null;
         if ($ownsTransaction) {
-            $this->replacementRepository->beginTransaction();
+            $this->transactionBoundary->beginTransaction();
         } else {
-            $savepoint = $this->replacementRepository->createOperationSavepoint();
+            $savepoint = $this->transactionBoundary->createOperationSavepoint();
         }
 
         try {
             $operation();
             if ($savepoint !== null) {
-                $this->replacementRepository->releaseOperationSavepoint($savepoint);
+                $this->transactionBoundary->releaseOperationSavepoint($savepoint);
             }
             if ($ownsTransaction) {
-                $this->replacementRepository->commit();
+                $this->transactionBoundary->commit();
             }
         } catch (\Throwable $exception) {
-            if ($ownsTransaction && $this->replacementRepository->inTransaction()) {
+            if ($ownsTransaction && $this->transactionBoundary->inTransaction()) {
                 try {
-                    $this->replacementRepository->rollBack();
+                    $this->transactionBoundary->rollBack();
                 } catch (\Throwable) {
                     // The operation's original Throwable is the contractually visible failure.
                 }
-            } elseif ($savepoint !== null && $this->replacementRepository->inTransaction()) {
+            } elseif ($savepoint !== null && $this->transactionBoundary->inTransaction()) {
                 try {
-                    $this->replacementRepository->rollbackToOperationSavepoint($savepoint);
+                    $this->transactionBoundary->rollbackToOperationSavepoint($savepoint);
                 } catch (\Throwable) {
                     // The operation's original Throwable is the contractually visible failure.
                 }
 
                 try {
-                    $this->replacementRepository->releaseOperationSavepoint($savepoint);
+                    $this->transactionBoundary->releaseOperationSavepoint($savepoint);
                 } catch (\Throwable) {
                     // Savepoint cleanup must not replace the operation's original Throwable.
                 }

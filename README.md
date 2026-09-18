@@ -150,7 +150,14 @@ $pdo->exec(file_get_contents(__DIR__ . '/vendor/maatify/php-eligibility/schema/e
 $commandRepository = new PdoRuleCommandRepository($pdo);
 $managementQuery = new PdoRuleManagementQuery($pdo);
 $activeRuleReader = new PdoActiveRuleReader($pdo);
-$management = new EligibilityManagementService($commandRepository, $managementQuery);
+// The command adapter also supplies the internal mutation-support and
+// transitional transaction/savepoint contracts over this same PDO connection.
+$management = new EligibilityManagementService(
+    $commandRepository,
+    $managementQuery,
+    $commandRepository,
+    $commandRepository,
+);
 $evaluation = new EligibilityEvaluationService($activeRuleReader);
 
 $subject = new Subject('product', '150');
@@ -236,12 +243,16 @@ Public surface (see the
 - **Persistence contracts:** `RuleCommandRepositoryInterface` owns command
   mutations, `RuleManagementQueryInterface` owns bounded management reads, and
   `ActiveRuleReaderInterface` owns active bulk reads for evaluation. The
-  internal `RuleReplacementRepositoryInterface` retains the transitional
-  replacement transaction/locking support required by `replaceDimensionRules()`
-  and cleanup.
+  internal `RuleMutationSupportInterface` owns only the coordination lock,
+  complete Subject + dimension mutation read, and coordination cleanup needed
+  by atomic replacement/cleanup. The transitional
+  `RuleReplacementRepositoryInterface` owns only transaction/savepoint
+  operations pending the later shared Persistence migration.
 - **PDO adapters:** `PdoRuleCommandRepository`, `PdoRuleManagementQuery`, and
-  `PdoActiveRuleReader` are constructed from the same PDO connection and wired
-  explicitly to the corresponding services.
+  `PdoActiveRuleReader` are constructed from the same PDO connection. The
+  command adapter may implement the internal mutation-support and transitional
+  transaction contracts as additional narrow interfaces; callers wire each
+  responsibility explicitly to the corresponding service dependency.
 - **Commands / queries / results:** `CreateRuleCommand`,
   `UpdateRuleEffectCommand`, `DeactivateRuleCommand`, `ReactivateRuleCommand`,
   `DesiredRule`, `DesiredRuleCollection`, `ReplaceDimensionRulesCommand`,
@@ -348,13 +359,16 @@ See [schema/README.md](schema/README.md) for bounds, storage guarantees,
 transaction/savepoint behavior, and the local `mysql:8.4.11` reproducibility
 fixture. The fixture version is **not** a minimum supported product version.
 
-The runtime composition keeps mutation, management-query, and evaluation-read
-responsibilities explicit. A Host constructs the three PDO adapters from the
-same connection, passes the command adapter plus management query to
-`EligibilityManagementService`, and passes the active-rule reader to
-`EligibilityEvaluationService`. Replacement and cleanup continue to use the
-command adapter's transitional transaction, savepoint, lock, and coordination
-support until the separately scoped WU3 cleanup.
+The runtime composition keeps command, management-query, evaluation-read, and
+internal mutation-support responsibilities explicit. A Host constructs the
+three PDO adapters from the same connection, passes the command adapter,
+management query, mutation-support capability, and transitional
+transaction/savepoint boundary separately to `EligibilityManagementService`,
+and passes the active-rule reader to `EligibilityEvaluationService`.
+`RuleReplacementRepositoryInterface` is intentionally limited to the existing
+transaction/savepoint methods and remains transitional pending the later shared
+Persistence migration; it does not inherit command methods or expose
+Eligibility mutation-support operations.
 
 ## Quality Status
 
