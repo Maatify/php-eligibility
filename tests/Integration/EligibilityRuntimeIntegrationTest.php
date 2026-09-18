@@ -22,13 +22,14 @@ use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
-use Maatify\Eligibility\Tests\Support\FaultingRuleReplacementRepository;
+use Maatify\Eligibility\Tests\Support\FaultingRuleMutationRepository;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
 use Maatify\Eligibility\Evaluation\Value\Context;
 use Maatify\Eligibility\Evaluation\Value\ContextDimension;
 use Maatify\Eligibility\Common\Value\Subject;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use PDO;
 
 final class EligibilityRuntimeIntegrationTest extends TestCase
@@ -40,6 +41,8 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
     private PdoRuleManagementQuery $managementQuery;
 
     private PdoActiveRuleReader $activeRuleReader;
+
+    private PdoSavepointTransactionRunner $transactionRunner;
 
     private EligibilityManagementService $management;
 
@@ -53,11 +56,12 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         $this->repository = new PdoRuleCommandRepository($this->pdo);
         $this->managementQuery = new PdoRuleManagementQuery($this->pdo);
         $this->activeRuleReader = new PdoActiveRuleReader($this->pdo);
+        $this->transactionRunner = new PdoSavepointTransactionRunner($this->pdo);
         $this->management = new EligibilityManagementService(
             $this->repository,
             $this->managementQuery,
             $this->repository,
-            $this->repository,
+            $this->transactionRunner,
         );
         $this->evaluation = new EligibilityEvaluationService($this->activeRuleReader);
     }
@@ -288,12 +292,12 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
             RuleEffectEnum::ALLOW,
         ));
         $failure = new \RuntimeException('real-boundary injected failure');
-        $faultingRepository = new FaultingRuleReplacementRepository($this->repository, $failure);
+        $faultingRepository = new FaultingRuleMutationRepository($this->repository, $failure);
         $service = new EligibilityManagementService(
             $faultingRepository,
             $this->managementQuery,
             $faultingRepository,
-            $faultingRepository,
+            $this->transactionRunner,
         );
 
         try {
@@ -329,12 +333,12 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
             RuleEffectEnum::ALLOW,
         ));
         $failure = new \RuntimeException('real outer-boundary injected failure');
-        $faultingRepository = new FaultingRuleReplacementRepository($this->repository, $failure);
+        $faultingRepository = new FaultingRuleMutationRepository($this->repository, $failure);
         $service = new EligibilityManagementService(
             $faultingRepository,
             $this->managementQuery,
             $faultingRepository,
-            $faultingRepository,
+            $this->transactionRunner,
         );
 
         try {
@@ -384,7 +388,7 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         self::assertSame(1, $this->countCoordinationRows($subject));
 
         $failure = new \RuntimeException('real cleanup coordination failure');
-        $faultingRepository = new FaultingRuleReplacementRepository(
+        $faultingRepository = new FaultingRuleMutationRepository(
             $this->repository,
             new \RuntimeException('unused create failure'),
             $failure,
@@ -393,7 +397,7 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
             $faultingRepository,
             $this->managementQuery,
             $faultingRepository,
-            $faultingRepository,
+            $this->transactionRunner,
         );
         $this->pdo->beginTransaction();
 

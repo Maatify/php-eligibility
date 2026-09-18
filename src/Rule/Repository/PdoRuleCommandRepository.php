@@ -22,8 +22,7 @@ use PDOException;
 
 final class PdoRuleCommandRepository implements
     RuleCommandRepositoryInterface,
-    RuleMutationSupportInterface,
-    RuleReplacementRepositoryInterface
+    RuleMutationSupportInterface
 {
     use PdoRuleHydrationTrait;
 
@@ -123,44 +122,6 @@ final class PdoRuleCommandRepository implements
         ]);
     }
 
-    public function inTransaction(): bool
-    {
-        return $this->pdo->inTransaction();
-    }
-
-    public function beginTransaction(): void
-    {
-        $this->pdo->beginTransaction();
-    }
-
-    public function commit(): void
-    {
-        $this->pdo->commit();
-    }
-
-    public function rollBack(): void
-    {
-        $this->pdo->rollBack();
-    }
-
-    public function createOperationSavepoint(): string
-    {
-        $savepoint = 'maa_eligibility_sp_' . bin2hex(random_bytes(16));
-        $this->executeSavepointStatement('SAVEPOINT ' . $savepoint);
-
-        return $savepoint;
-    }
-
-    public function rollbackToOperationSavepoint(string $savepoint): void
-    {
-        $this->executeSavepointStatement('ROLLBACK TO SAVEPOINT ' . $this->savepointName($savepoint));
-    }
-
-    public function releaseOperationSavepoint(string $savepoint): void
-    {
-        $this->executeSavepointStatement('RELEASE SAVEPOINT ' . $this->savepointName($savepoint));
-    }
-
     public function lockSubjectForMutation(Subject $subject): void
     {
         $statement = $this->pdo->prepare(
@@ -205,20 +166,6 @@ final class PdoRuleCommandRepository implements
             CanonicalString::validateSubjectType($subject->subjectType),
             CanonicalString::validateSubjectId($subject->subjectId),
         ]);
-    }
-
-    private function executeSavepointStatement(string $sql): void
-    {
-        $this->pdo->exec($sql);
-    }
-
-    private function savepointName(string $savepoint): string
-    {
-        if (preg_match('/\\Amaa_eligibility_sp_[0-9a-f]{32}\\z/D', $savepoint) !== 1) {
-            throw new \InvalidArgumentException('Invalid package operation savepoint name.');
-        }
-
-        return $savepoint;
     }
 
     /** @return list<string> */

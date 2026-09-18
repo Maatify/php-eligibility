@@ -14,6 +14,7 @@ use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Tests\Support\ConcurrencyTimeout;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
 use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 require_once __DIR__ . '/ConcurrencyTimeout.php';
@@ -47,12 +48,13 @@ try {
 
     $pdo = IntegrationDatabase::connect();
     $repository = new PdoRuleCommandRepository($pdo);
+    $transactionRunner = new PdoSavepointTransactionRunner($pdo);
 
     match ($mode) {
         'hold-create' => holdCreate($pdo, $repository, $arguments),
         'create' => create($repository, $arguments),
-        'hold-replace' => holdReplace($pdo, $repository, $arguments),
-        'replace' => replace($pdo, $repository, $arguments),
+        'hold-replace' => holdReplace($pdo, $repository, $transactionRunner, $arguments),
+        'replace' => replace($pdo, $repository, $transactionRunner, $arguments),
         default => throw new InvalidArgumentException('Unknown concurrency worker mode.'),
     };
 } catch (Throwable $exception) {
@@ -92,7 +94,12 @@ function create(PdoRuleCommandRepository $repository, array $arguments): void
 }
 
 /** @param list<string> $arguments */
-function holdReplace(PDO $pdo, PdoRuleCommandRepository $repository, array $arguments): void
+function holdReplace(
+    PDO $pdo,
+    PdoRuleCommandRepository $repository,
+    PdoSavepointTransactionRunner $transactionRunner,
+    array $arguments,
+): void
 {
     $subject = subjectFromArguments($arguments);
     $pdo->beginTransaction();
@@ -104,7 +111,7 @@ function holdReplace(PDO $pdo, PdoRuleCommandRepository $repository, array $argu
             $repository,
             new PdoRuleManagementQuery($pdo),
             $repository,
-            $repository,
+            $transactionRunner,
         ))->replaceDimensionRules(
             replacementCommand($arguments),
         );
@@ -122,7 +129,12 @@ function holdReplace(PDO $pdo, PdoRuleCommandRepository $repository, array $argu
 }
 
 /** @param list<string> $arguments */
-function replace(PDO $pdo, PdoRuleCommandRepository $repository, array $arguments): void
+function replace(
+    PDO $pdo,
+    PdoRuleCommandRepository $repository,
+    PdoSavepointTransactionRunner $transactionRunner,
+    array $arguments,
+): void
 {
     writeLine('STARTED');
     writeLine('ATTEMPTING_LOCK');
@@ -130,7 +142,7 @@ function replace(PDO $pdo, PdoRuleCommandRepository $repository, array $argument
         $repository,
         new PdoRuleManagementQuery($pdo),
         $repository,
-        $repository,
+        $transactionRunner,
     ))->replaceDimensionRules(
         replacementCommand($arguments),
     );

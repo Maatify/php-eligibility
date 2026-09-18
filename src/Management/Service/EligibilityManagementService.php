@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Management\Service;
 
-use Closure;
 use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
 use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
@@ -19,11 +18,11 @@ use Maatify\Eligibility\Exception\RuleNotFoundException;
 use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
 use Maatify\Eligibility\Rule\Repository\RuleManagementQueryInterface;
 use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
-use Maatify\Eligibility\Rule\Repository\RuleReplacementRepositoryInterface;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleCollection;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 
 final class EligibilityManagementService implements EligibilityManagementServiceInterface
 {
@@ -31,7 +30,7 @@ final class EligibilityManagementService implements EligibilityManagementService
         private readonly RuleCommandRepositoryInterface $commandRepository,
         private readonly RuleManagementQueryInterface $managementQuery,
         private readonly RuleMutationSupportInterface $mutationSupport,
-        private readonly RuleReplacementRepositoryInterface $transactionBoundary,
+        private readonly SavepointTransactionRunnerInterface $transactionRunner,
     )
     {
     }
@@ -87,7 +86,7 @@ final class EligibilityManagementService implements EligibilityManagementService
 
     public function replaceDimensionRules(ReplaceDimensionRulesCommand $command): void
     {
-        $this->executeTransaction(function () use ($command): void {
+        $this->transactionRunner->run(function () use ($command): void {
             $this->mutationSupport->lockSubjectForMutation($command->subject);
 
             $existingRules = $this->mutationSupport->findAllForSubjectDimension(
@@ -155,7 +154,7 @@ final class EligibilityManagementService implements EligibilityManagementService
 
     public function cleanupSubject(CleanupSubjectCommand $command): void
     {
-        $this->executeTransaction(function () use ($command): void {
+        $this->transactionRunner->run(function () use ($command): void {
             $this->mutationSupport->lockSubjectForMutation($command->subject);
             $this->commandRepository->cleanupSubject($command);
             $this->mutationSupport->deleteSubjectCoordination($command->subject);
@@ -166,49 +165,6 @@ final class EligibilityManagementService implements EligibilityManagementService
     {
         if (!$succeeded) {
             throw new RuleNotFoundException($identity);
-        }
-    }
-
-    private function executeTransaction(Closure $operation): void
-    {
-        $ownsTransaction = !$this->transactionBoundary->inTransaction();
-        $savepoint = null;
-        if ($ownsTransaction) {
-            $this->transactionBoundary->beginTransaction();
-        } else {
-            $savepoint = $this->transactionBoundary->createOperationSavepoint();
-        }
-
-        try {
-            $operation();
-            if ($savepoint !== null) {
-                $this->transactionBoundary->releaseOperationSavepoint($savepoint);
-            }
-            if ($ownsTransaction) {
-                $this->transactionBoundary->commit();
-            }
-        } catch (\Throwable $exception) {
-            if ($ownsTransaction && $this->transactionBoundary->inTransaction()) {
-                try {
-                    $this->transactionBoundary->rollBack();
-                } catch (\Throwable) {
-                    // The operation's original Throwable is the contractually visible failure.
-                }
-            } elseif ($savepoint !== null && $this->transactionBoundary->inTransaction()) {
-                try {
-                    $this->transactionBoundary->rollbackToOperationSavepoint($savepoint);
-                } catch (\Throwable) {
-                    // The operation's original Throwable is the contractually visible failure.
-                }
-
-                try {
-                    $this->transactionBoundary->releaseOperationSavepoint($savepoint);
-                } catch (\Throwable) {
-                    // Savepoint cleanup must not replace the operation's original Throwable.
-                }
-            }
-
-            throw $exception;
         }
     }
 

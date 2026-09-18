@@ -25,6 +25,7 @@ use Maatify\Eligibility\Common\Value\Subject;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use PDO;
 
 final class EligibilityConcurrencyIntegrationTest extends TestCase
@@ -34,6 +35,8 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
     private PdoRuleCommandRepository $repository;
 
     private PdoRuleManagementQuery $managementQuery;
+
+    private PdoSavepointTransactionRunner $transactionRunner;
 
     private EligibilityManagementService $management;
 
@@ -47,11 +50,12 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         IntegrationDatabase::clearRules($this->pdo);
         $this->repository = new PdoRuleCommandRepository($this->pdo);
         $this->managementQuery = new PdoRuleManagementQuery($this->pdo);
+        $this->transactionRunner = new PdoSavepointTransactionRunner($this->pdo);
         $this->management = new EligibilityManagementService(
             $this->repository,
             $this->managementQuery,
             $this->repository,
-            $this->repository,
+            $this->transactionRunner,
         );
     }
 
@@ -284,11 +288,12 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             $observerCommand = new PdoRuleCommandRepository($observer);
             $observerQuery = new PdoRuleManagementQuery($observer);
             $observerReader = new PdoActiveRuleReader($observer);
+            $observerTransactionRunner = new PdoSavepointTransactionRunner($observer);
             $observerManagement = new EligibilityManagementService(
                 $observerCommand,
                 $observerQuery,
                 $observerCommand,
-                $observerCommand,
+                $observerTransactionRunner,
             );
             $observerEvaluation = new EligibilityEvaluationService($observerReader);
             $committedBefore = $observerManagement->inspectRules(new RuleCriteria(

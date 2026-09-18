@@ -2,7 +2,7 @@
 
 ## Current State
 
-`maatify/php-eligibility` RC1 currently exposes a working Eligibility runtime with Evaluation, Management, Rule persistence, canonical ordering/validation, schema, concurrency coordination, tests, and consumer verification. The current source layout is partially layer-first (`Application/`) and the Rule persistence boundary currently combines mutation, management-query, evaluation-read, transaction, locking, savepoint, and cleanup concerns.
+`maatify/php-eligibility` RC1 currently exposes a working Eligibility runtime with Evaluation, Management, Rule persistence, canonical ordering/validation, schema, concurrency coordination, tests, and consumer verification. The current source layout is partially layer-first (`Application/`), while the Rule persistence boundary separates command/mutation, management-query, evaluation-read, and Eligibility-specific coordination support; generic transaction/savepoint mechanics are delegated to the released `maatify/persistence` API.
 
 The package is currently stacked on `phase/v1.0.0-rc.1`. This phase is an architecture/persistence alignment phase and does not change Eligibility business semantics unless a separately approved contract decision requires it.
 
@@ -10,7 +10,7 @@ The package is currently stacked on `phase/v1.0.0-rc.1`. This phase is an archit
 
 1. Source organization does not fully follow the package-building direction `Domain -> Capability -> Layer`.
 2. Rule persistence responsibilities are mixed: Command mutations, Management Query/List/Filter reads, and Consumer/Evaluation reads share the same repository contract/implementation.
-3. Generic transaction/savepoint mechanics are currently exposed through Eligibility-owned persistence contracts and orchestrated locally.
+3. **Resolved by WU6:** generic transaction/savepoint mechanics are owned by the released shared Persistence API rather than Eligibility-local contracts or orchestration.
 4. Mutation-specific persistence support is coupled to the broad repository contract instead of being a narrow internal capability.
 5. Package reference, tests, examples, namespaces, and consumer wiring will need alignment after the architecture changes.
 
@@ -106,7 +106,7 @@ Any public behavioral change requires an explicit documentation decision before 
    - Verify integrity and applicability before continuing.
 
 5. **Persistence dependency upgrade** — prerequisite for WU6
-   - Upgrade to the latest stable `maatify/persistence` release that exposes the required transaction/savepoint semantics.
+   - Upgrade to the latest stable `maatify/persistence` release that exposes the required transaction/savepoint semantics, then consume its released runner from the Eligibility service composition.
    - Update Composer constraints and verify the exact public API actually released.
 
 6. **Shared transaction migration**

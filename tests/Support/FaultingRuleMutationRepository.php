@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Support;
 
+use Maatify\Eligibility\Common\Value\Subject;
 use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
 use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
@@ -11,28 +12,20 @@ use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
 use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
 use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
-use Maatify\Eligibility\Rule\Repository\RuleReplacementRepositoryInterface;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleCollection;
-use Maatify\Eligibility\Rule\RuleIdentity;
-use Maatify\Eligibility\Common\Value\Subject;
 
 /**
- * Real-boundary decorator used only to inject a deterministic post-write fault.
+ * Real-boundary decorator used only to inject deterministic post-write faults.
  */
-final class FaultingRuleReplacementRepository implements
-    RuleCommandRepositoryInterface,
-    RuleMutationSupportInterface,
-    RuleReplacementRepositoryInterface
+final class FaultingRuleMutationRepository implements RuleCommandRepositoryInterface, RuleMutationSupportInterface
 {
     private bool $failed = false;
 
     private bool $cleanupFailed = false;
 
     public function __construct(
-        private readonly RuleCommandRepositoryInterface
-        &RuleMutationSupportInterface
-        &RuleReplacementRepositoryInterface $repository,
+        private readonly RuleCommandRepositoryInterface & RuleMutationSupportInterface $repository,
         private readonly \Throwable $failure,
         private readonly ?\Throwable $cleanupFailure = null,
     ) {
@@ -71,41 +64,6 @@ final class FaultingRuleReplacementRepository implements
             $this->cleanupFailed = true;
             throw $this->cleanupFailure;
         }
-    }
-
-    public function inTransaction(): bool
-    {
-        return $this->repository->inTransaction();
-    }
-
-    public function beginTransaction(): void
-    {
-        $this->repository->beginTransaction();
-    }
-
-    public function commit(): void
-    {
-        $this->repository->commit();
-    }
-
-    public function rollBack(): void
-    {
-        $this->repository->rollBack();
-    }
-
-    public function createOperationSavepoint(): string
-    {
-        return $this->repository->createOperationSavepoint();
-    }
-
-    public function rollbackToOperationSavepoint(string $savepoint): void
-    {
-        $this->repository->rollbackToOperationSavepoint($savepoint);
-    }
-
-    public function releaseOperationSavepoint(string $savepoint): void
-    {
-        $this->repository->releaseOperationSavepoint($savepoint);
     }
 
     public function lockSubjectForMutation(Subject $subject): void

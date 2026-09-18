@@ -21,6 +21,7 @@ use Maatify\Eligibility\Rule\RuleLifecycleEnum;
 use Maatify\Eligibility\Evaluation\Value\Context;
 use Maatify\Eligibility\Evaluation\Value\ContextDimension;
 use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 
 $consumerRoot = dirname(__DIR__);
 $autoloadPath = $consumerRoot . '/vendor/autoload.php';
@@ -69,11 +70,12 @@ $subject = new Subject('consumer_harness', $runId);
 $commandRepository = new PdoRuleCommandRepository($pdo);
 $managementQuery = new PdoRuleManagementQuery($pdo);
 $activeRuleReader = new PdoActiveRuleReader($pdo);
+$transactionRunner = new PdoSavepointTransactionRunner($pdo);
 $management = new EligibilityManagementService(
     $commandRepository,
     $managementQuery,
     $commandRepository,
-    $commandRepository,
+    $transactionRunner,
 );
 $evaluation = new EligibilityEvaluationService($activeRuleReader);
 
