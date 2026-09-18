@@ -9,7 +9,7 @@ use Maatify\Eligibility\Evaluation\Contract\EligibilityEvaluationServiceInterfac
 use Maatify\Eligibility\Evaluation\Result\SubjectDecisionCollection;
 use Maatify\Eligibility\Evaluation\Result\SubjectDecisionResult;
 use Maatify\Eligibility\Evaluation\Decision\EligibilityDecision;
-use Maatify\Eligibility\Rule\Repository\RuleRepositoryInterface;
+use Maatify\Eligibility\Rule\Repository\ActiveRuleReaderInterface;
 use Maatify\Eligibility\Rule\RuleCollection;
 use Maatify\Eligibility\Evaluation\Value\Context;
 use Maatify\Eligibility\Common\Value\Subject;
@@ -19,21 +19,21 @@ final class EligibilityEvaluationService implements EligibilityEvaluationService
 {
     private readonly EligibilityRuleEvaluator $evaluator;
 
-    public function __construct(private readonly RuleRepositoryInterface $repository)
+    public function __construct(private readonly ActiveRuleReaderInterface $activeRuleReader)
     {
         $this->evaluator = new EligibilityRuleEvaluator();
     }
 
     public function decide(Subject $subject, Context $context): EligibilityDecision
     {
-        $rules = $this->repository->findActiveForSubjects(new SubjectCollection($subject));
+        $rules = $this->activeRuleReader->findActiveForSubjects(new SubjectCollection($subject));
 
         return $this->evaluator->evaluate($subject, $context, $rules);
     }
 
     public function decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollection
     {
-        $rules = $this->repository->findActiveForSubjects($subjects);
+        $rules = $this->activeRuleReader->findActiveForSubjects($subjects);
         $results = [];
 
         foreach ($subjects as $subject) {

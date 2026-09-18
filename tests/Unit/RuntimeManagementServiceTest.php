@@ -32,7 +32,7 @@ final class RuntimeManagementServiceTest extends TestCase
     public function createInspectReadsAndActiveDimensionKeysDelegateTypedResults(): void
     {
         $repository = new InMemoryRuleRepository();
-        $service = new EligibilityManagementService($repository);
+        $service = new EligibilityManagementService($repository, $repository);
         $command = new CreateRuleCommand(new Subject('product', '150'), 'country', 'EG', RuleEffectEnum::ALLOW);
 
         $created = $service->createRule($command);
@@ -49,7 +49,7 @@ final class RuntimeManagementServiceTest extends TestCase
     public function inspectMissingAndMissingMutationsProduceTypedNotFound(): void
     {
         $repository = new InMemoryRuleRepository();
-        $service = new EligibilityManagementService($repository);
+        $service = new EligibilityManagementService($repository, $repository);
         $identity = new RuleIdentity('product', 'missing', 'country', 'EG');
 
         try {
@@ -88,7 +88,7 @@ final class RuntimeManagementServiceTest extends TestCase
             $this->rule('EG', RuleEffectEnum::ALLOW),
             $this->rule('SA', RuleEffectEnum::DENY)->withLifecycle(RuleLifecycleEnum::INACTIVE),
         );
-        $service = new EligibilityManagementService($repository);
+        $service = new EligibilityManagementService($repository, $repository);
 
         self::assertCount(2, $service->inspectRules(new RuleCriteria($subject)));
         self::assertCount(1, $service->inspectRules(new RuleCriteria(
@@ -101,7 +101,7 @@ final class RuntimeManagementServiceTest extends TestCase
     public function lifecycleAndEffectCommandsAreOrthogonalAndIdempotent(): void
     {
         $repository = new InMemoryRuleRepository();
-        $service = new EligibilityManagementService($repository);
+        $service = new EligibilityManagementService($repository, $repository);
         $rule = $service->createRule(new CreateRuleCommand(
             new Subject('product', '150'),
             'country',
@@ -136,7 +136,7 @@ final class RuntimeManagementServiceTest extends TestCase
             $this->rule('retail', RuleEffectEnum::DENY, 'customer_type'),
             $this->rule('EG', RuleEffectEnum::DENY, 'country', 'product', '151'),
         );
-        $service = new EligibilityManagementService($repository);
+        $service = new EligibilityManagementService($repository, $repository);
 
         $replacement = new ReplaceDimensionRulesCommand(
             $subject,
@@ -180,7 +180,7 @@ final class RuntimeManagementServiceTest extends TestCase
             $this->rule('EG', RuleEffectEnum::ALLOW),
             $this->rule('SA', RuleEffectEnum::DENY)->withLifecycle(RuleLifecycleEnum::INACTIVE),
         );
-        $service = new EligibilityManagementService($repository);
+        $service = new EligibilityManagementService($repository, $repository);
 
         $service->replaceDimensionRules(new ReplaceDimensionRulesCommand(
             $subject,
@@ -201,7 +201,7 @@ final class RuntimeManagementServiceTest extends TestCase
     {
         $subject = new Subject('product', '150');
         $repository = new InMemoryRuleRepository();
-        $service = new EligibilityManagementService($repository);
+        $service = new EligibilityManagementService($repository, $repository);
         $command = new ReplaceDimensionRulesCommand(
             $subject,
             'country',
@@ -229,7 +229,7 @@ final class RuntimeManagementServiceTest extends TestCase
         $subject = new Subject('product', '150');
         $repository = new InMemoryRuleRepository();
         $repository->seed($this->rule('EG', RuleEffectEnum::ALLOW));
-        $service = new EligibilityManagementService($repository);
+        $service = new EligibilityManagementService($repository, $repository);
         $failure = new \RuntimeException('injected replacement failure');
         $repository->failure = $failure;
 
@@ -257,10 +257,10 @@ final class RuntimeManagementServiceTest extends TestCase
         $repository = new InMemoryRuleRepository();
         $repository->seed($this->rule('EG', RuleEffectEnum::ALLOW));
         $failure = new \RuntimeException('injected outer replacement failure');
-        $service = new EligibilityManagementService(new FaultingRuleReplacementRepository(
+        $service = new EligibilityManagementService(
+            new FaultingRuleReplacementRepository($repository, $failure),
             $repository,
-            $failure,
-        ));
+        );
         $repository->beginTransaction();
 
         try {
@@ -300,7 +300,7 @@ final class RuntimeManagementServiceTest extends TestCase
         $failure = new \RuntimeException('original outer operation failure');
         $repository->failure = $failure;
         $repository->savepointRollbackFailure = new \RuntimeException('savepoint rollback failure');
-        $service = new EligibilityManagementService($repository);
+        $service = new EligibilityManagementService($repository, $repository);
         $repository->beginTransaction();
 
         try {
@@ -330,7 +330,7 @@ final class RuntimeManagementServiceTest extends TestCase
             $this->rule('SA', RuleEffectEnum::DENY)->withLifecycle(RuleLifecycleEnum::INACTIVE),
             $this->rule('EG', RuleEffectEnum::ALLOW, 'country', 'product', '151'),
         );
-        $service = new EligibilityManagementService($repository);
+        $service = new EligibilityManagementService($repository, $repository);
 
         $service->cleanupSubject(new CleanupSubjectCommand($subject));
         $service->cleanupSubject(new CleanupSubjectCommand($subject));

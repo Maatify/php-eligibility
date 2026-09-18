@@ -15,7 +15,9 @@ use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
 use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
 use Maatify\Eligibility\Exception\RuleNotFoundException;
-use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
+use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
+use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
+use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleIdentity;
@@ -33,7 +35,11 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
 {
     private PDO $pdo;
 
-    private PdoRuleRepository $repository;
+    private PdoRuleCommandRepository $repository;
+
+    private PdoRuleManagementQuery $managementQuery;
+
+    private PdoActiveRuleReader $activeRuleReader;
 
     private EligibilityManagementService $management;
 
@@ -44,9 +50,11 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         $this->pdo = IntegrationDatabase::connect();
         IntegrationDatabase::applySchema($this->pdo);
         IntegrationDatabase::clearRules($this->pdo);
-        $this->repository = new PdoRuleRepository($this->pdo);
-        $this->management = new EligibilityManagementService($this->repository);
-        $this->evaluation = new EligibilityEvaluationService($this->repository);
+        $this->repository = new PdoRuleCommandRepository($this->pdo);
+        $this->managementQuery = new PdoRuleManagementQuery($this->pdo);
+        $this->activeRuleReader = new PdoActiveRuleReader($this->pdo);
+        $this->management = new EligibilityManagementService($this->repository, $this->managementQuery);
+        $this->evaluation = new EligibilityEvaluationService($this->activeRuleReader);
     }
 
     protected function tearDown(): void
@@ -140,10 +148,10 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         self::assertSame(['total' => 502, 'active' => 2, 'inactive' => 500], $this->stateCounts($subject, 'country'));
         self::assertSame(['total' => 1, 'active' => 1, 'inactive' => 0], $this->stateCounts($subject, $otherDimension));
         self::assertSame(['total' => 1, 'active' => 1, 'inactive' => 0], $this->stateCounts($otherSubject, 'country'));
-        self::assertSame(RuleLifecycleEnum::INACTIVE, $this->repository->findByIdentity(
+        self::assertSame(RuleLifecycleEnum::INACTIVE, $this->managementQuery->findByIdentity(
             new RuleIdentity('bulk', '500', 'country', 'v500'),
         )?->lifecycle);
-        self::assertSame(RuleEffectEnum::DENY, $this->repository->findByIdentity(
+        self::assertSame(RuleEffectEnum::DENY, $this->managementQuery->findByIdentity(
             new RuleIdentity('bulk', '500', 'country', 'v000'),
         )?->effect);
     }
@@ -196,9 +204,9 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         $this->management->replaceDimensionRules($replacement);
 
         self::assertSame(['total' => 4, 'active' => 3, 'inactive' => 1], $this->stateCounts($subject, 'country'));
-        $foundEg = $this->repository->findByIdentity($eg->naturalIdentity());
-        $foundSa = $this->repository->findByIdentity($sa->naturalIdentity());
-        $foundKw = $this->repository->findByIdentity($kw->naturalIdentity());
+        $foundEg = $this->managementQuery->findByIdentity($eg->naturalIdentity());
+        $foundSa = $this->managementQuery->findByIdentity($sa->naturalIdentity());
+        $foundKw = $this->managementQuery->findByIdentity($kw->naturalIdentity());
         self::assertNotNull($foundEg);
         self::assertNotNull($foundSa);
         self::assertNotNull($foundKw);
@@ -213,7 +221,7 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         $this->management->replaceDimensionRules($this->replacement($subject));
 
         self::assertSame(['total' => 4, 'active' => 0, 'inactive' => 4], $this->stateCounts($subject, 'country'));
-        $foundKwAfterEmpty = $this->repository->findByIdentity($kw->naturalIdentity());
+        $foundKwAfterEmpty = $this->managementQuery->findByIdentity($kw->naturalIdentity());
         self::assertNotNull($foundKwAfterEmpty);
         self::assertSame(RuleEffectEnum::ALLOW, $foundKwAfterEmpty->effect);
         self::assertSame(DecisionReasonEnum::ELIGIBLE, $this->evaluation->decide(
@@ -276,7 +284,7 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         ));
         $failure = new \RuntimeException('real-boundary injected failure');
         $faultingRepository = new FaultingRuleReplacementRepository($this->repository, $failure);
-        $service = new EligibilityManagementService($faultingRepository);
+        $service = new EligibilityManagementService($faultingRepository, $this->managementQuery);
 
         try {
             $service->replaceDimensionRules(new ReplaceDimensionRulesCommand(
@@ -292,10 +300,10 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
             self::assertSame($failure, $exception);
         }
 
-        $eg = $this->repository->findByIdentity(new RuleIdentity('product', '150', 'country', 'EG'));
+        $eg = $this->managementQuery->findByIdentity(new RuleIdentity('product', '150', 'country', 'EG'));
         self::assertNotNull($eg);
         self::assertSame(RuleEffectEnum::ALLOW, $eg->effect);
-        self::assertNull($this->repository->findByIdentity(new RuleIdentity('product', '150', 'country', 'SA')));
+        self::assertNull($this->managementQuery->findByIdentity(new RuleIdentity('product', '150', 'country', 'SA')));
         self::assertFalse($this->pdo->inTransaction());
     }
 
@@ -311,10 +319,10 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
             RuleEffectEnum::ALLOW,
         ));
         $failure = new \RuntimeException('real outer-boundary injected failure');
-        $service = new EligibilityManagementService(new FaultingRuleReplacementRepository(
-            $this->repository,
-            $failure,
-        ));
+        $service = new EligibilityManagementService(
+            new FaultingRuleReplacementRepository($this->repository, $failure),
+            $this->managementQuery,
+        );
 
         try {
             $this->pdo->beginTransaction();
@@ -363,11 +371,14 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         self::assertSame(1, $this->countCoordinationRows($subject));
 
         $failure = new \RuntimeException('real cleanup coordination failure');
-        $service = new EligibilityManagementService(new FaultingRuleReplacementRepository(
-            $this->repository,
-            new \RuntimeException('unused create failure'),
-            $failure,
-        ));
+        $service = new EligibilityManagementService(
+            new FaultingRuleReplacementRepository(
+                $this->repository,
+                new \RuntimeException('unused create failure'),
+                $failure,
+            ),
+            $this->managementQuery,
+        );
         $this->pdo->beginTransaction();
 
         try {

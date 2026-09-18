@@ -61,8 +61,9 @@ package is not yet published; see [Installation](#installation).
 - Management lifecycle: create, inspect/list (including inactive Rules),
   active-dimension introspection, effect and lifecycle mutations, atomic
   `replaceDimensionRules()`, and idempotent Subject cleanup.
-- Direct-PDO MySQL-compatible persistence with package-owned transaction and
-  concurrency guarantees, and no Host foreign keys or joins.
+- Direct-PDO MySQL-compatible persistence with separate command, management
+  query, and evaluation-read adapters, plus package-owned transaction and
+  concurrency guarantees; no Host foreign keys or joins.
 - Typed package exceptions on the shared `maatify/exceptions` hierarchy, with
   unknown external throwables propagated unchanged.
 
@@ -132,7 +133,9 @@ use Maatify\Eligibility\Management\Query\RuleCriteria;
 use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
 use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
-use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
+use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
+use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
+use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Evaluation\Value\Context;
 use Maatify\Eligibility\Evaluation\Value\ContextDimension;
@@ -144,9 +147,11 @@ $pdo = new PDO('mysql:host=127.0.0.1;dbname=app;charset=utf8mb4', 'app', 'secret
 ]);
 $pdo->exec(file_get_contents(__DIR__ . '/vendor/maatify/php-eligibility/schema/eligibility_rules.sql'));
 
-$repository = new PdoRuleRepository($pdo);
-$management = new EligibilityManagementService($repository);
-$evaluation = new EligibilityEvaluationService($repository);
+$commandRepository = new PdoRuleCommandRepository($pdo);
+$managementQuery = new PdoRuleManagementQuery($pdo);
+$activeRuleReader = new PdoActiveRuleReader($pdo);
+$management = new EligibilityManagementService($commandRepository, $managementQuery);
+$evaluation = new EligibilityEvaluationService($activeRuleReader);
 
 $subject = new Subject('product', '150');
 $management->createRule(new \Maatify\Eligibility\Management\Command\CreateRuleCommand(
@@ -228,6 +233,15 @@ Public surface (see the
   `inspectRules()`, `inspectActiveDimensionKeys()`, `updateRuleEffect()`,
   `deactivateRule()`, `reactivateRule()`, `replaceDimensionRules()`,
   `cleanupSubject()`.
+- **Persistence contracts:** `RuleCommandRepositoryInterface` owns command
+  mutations, `RuleManagementQueryInterface` owns bounded management reads, and
+  `ActiveRuleReaderInterface` owns active bulk reads for evaluation. The
+  internal `RuleReplacementRepositoryInterface` retains the transitional
+  replacement transaction/locking support required by `replaceDimensionRules()`
+  and cleanup.
+- **PDO adapters:** `PdoRuleCommandRepository`, `PdoRuleManagementQuery`, and
+  `PdoActiveRuleReader` are constructed from the same PDO connection and wired
+  explicitly to the corresponding services.
 - **Commands / queries / results:** `CreateRuleCommand`,
   `UpdateRuleEffectCommand`, `DeactivateRuleCommand`, `ReactivateRuleCommand`,
   `DesiredRule`, `DesiredRuleCollection`, `ReplaceDimensionRulesCommand`,
@@ -333,6 +347,14 @@ The package owns two tables with the `maa_eligibility_` prefix:
 See [schema/README.md](schema/README.md) for bounds, storage guarantees,
 transaction/savepoint behavior, and the local `mysql:8.4.11` reproducibility
 fixture. The fixture version is **not** a minimum supported product version.
+
+The runtime composition keeps mutation, management-query, and evaluation-read
+responsibilities explicit. A Host constructs the three PDO adapters from the
+same connection, passes the command adapter plus management query to
+`EligibilityManagementService`, and passes the active-rule reader to
+`EligibilityEvaluationService`. Replacement and cleanup continue to use the
+command adapter's transitional transaction, savepoint, lock, and coordination
+support until the separately scoped WU3 cleanup.
 
 ## Quality Status
 

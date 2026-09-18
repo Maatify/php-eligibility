@@ -1038,11 +1038,15 @@ must not trim, normalize, coerce, or truncate input. Repository results are
 hydrated and then normalized by the existing package collections to canonical
 bytewise ordering.
 
-The concrete B3 adapter is
-`Maatify\Eligibility\Rule\Repository\PdoRuleRepository`. Its internal
-auto-increment `BIGINT UNSIGNED` primary key is infrastructure-only and is not
-part of `Rule`, `RuleIdentity`, `RuleReference`, Decisions, or B2 public
-contracts. B3 converts only MySQL/MariaDB driver error code `1062` to
+The concrete B3 adapters are
+`Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository`,
+`Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery`, and
+`Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader`. They are
+constructed from the same PDO connection while keeping mutation, management
+query, and evaluation-read responsibilities separate. The command adapter's
+internal auto-increment `BIGINT UNSIGNED` primary key is infrastructure-only
+and is not part of `Rule`, `RuleIdentity`, `RuleReference`, Decisions, or B2
+public contracts. B3 converts only MySQL/MariaDB driver error code `1062` to
 `RuleIdentityConflictException` and preserves the original `PDOException` as
 `previous`; unknown storage failures propagate unchanged. No Eligibility table
 has a Host foreign key or Host join.
@@ -1111,8 +1115,8 @@ This workflow is normative at the responsibility and observable-behavior level. 
 
 1. The Host validates the external Subject and resolves its business Context. It constructs the canonical typed Subject and immutable Context using the exact string rules and Context shape defined in this reference. Host-owned semantic normalization, such as choosing an uppercase country code, occurs before the package boundary.
 2. The Host calls the public Eligibility API for one Subject or an ordered batch of Subjects. The public operation is conceptually `decide(Subject, Context)` or `decideMany(Subjects, Context)`; these labels describe the frozen capability and do not freeze concrete PHP names.
-3. The package-owned Domain Service orchestrates evaluation. It applies the canonical rule semantics, requests active Rules through the package-owned persistence boundary, and uses bounded bulk loading for the batch path. It does not query or join Host-owned Subject, Product, Category, Payment, Shipping, Customer, or geography tables.
-4. The Integration Boundary is the package-owned Rule repository backed by the direct-PDO RC1 persistence implementation. It preserves exact validated strings, active/inactive lifecycle state, natural-identity uniqueness, canonical ordering, transaction participation, and the concurrency guarantees above. The Host supplies/wires this boundary; the package remains framework-neutral. Repository/interface substitution MUST NOT be used to introduce a non-PDO RC1 persistence implementation.
+3. The package-owned Domain Service orchestrates evaluation. It applies the canonical rule semantics, requests active Rules only through `ActiveRuleReaderInterface`, and uses bounded bulk loading for the batch path. It does not query or join Host-owned Subject, Product, Category, Payment, Shipping, Customer, or geography tables.
+4. The Integration Boundary consists of the package-owned command, management-query, and evaluation-read contracts backed by the direct-PDO RC1 adapters. The Host constructs `PdoRuleCommandRepository`, `PdoRuleManagementQuery`, and `PdoActiveRuleReader` from the same PDO connection and wires each capability explicitly. Together they preserve exact validated strings, active/inactive lifecycle state, natural-identity uniqueness, canonical ordering, transaction participation, and the concurrency guarantees above. Repository/interface substitution MUST NOT be used to introduce a non-PDO RC1 persistence implementation.
 5. The Host receives a typed immutable `EligibilityDecision` (or an ordered collection of typed Subject Decisions for batch evaluation), including its machine-readable reason and complete dimension/matched-Rule traces. The Host then combines that Decision with its own domain lifecycle and visibility rules where applicable, for example `intrinsically visible AND eligible`; `eligible=true` MUST NOT be interpreted as Product, Category, Payment Method, Shipping Method, or other Host-domain publication/availability.
 
 Rule management follows the same boundary: the Host submits typed management commands/criteria through the public package contracts, the Domain Service coordinates the mutation or read, and the package-owned persistence boundary produces the typed management result or documented typed failure. Application/domain code MUST NOT require direct SQL access.
@@ -1154,11 +1158,14 @@ extensions; B4 owns the concrete evaluator and application-service runtime.
 - `SubjectDecisionResult` associates one `Subject` with one `EligibilityDecision`. `SubjectDecisionCollection` rejects duplicate Subject identities, accepts an empty result, and preserves the supplied result order.
 - `EligibilityEvaluationServiceInterface` exposes `decide(Subject $subject, Context $context): EligibilityDecision` and `decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollection`. The interface defines the public evaluation seam; B2 does not implement the evaluator.
 - `EligibilityManagementServiceInterface` exposes typed Rule creation, identity inspection, bounded Rule inspection, active-dimension inspection, effect/lifecycle mutations, replacement intent, and Subject cleanup. Its state-setting methods return `void` except `createRule(...): Rule`; `inspectRule(...): Rule` has a typed Rule-not-found contract.
-- `RuleRepositoryInterface` is the replaceable package-owned persistence boundary. It exposes canonical domain-Rule creation without a storage identifier, natural-identity lookup, bounded management reads, active Rule bulk loading for `SubjectCollection`, active-dimension lookup, Rule mutation primitives, and Subject cleanup. B3 provides the direct-PDO `Maatify\Eligibility\Rule\Repository\PdoRuleRepository` implementation. Replacement intent remains above this persistence seam in `ReplaceDimensionRulesCommand` and `EligibilityManagementServiceInterface`; no replacement algorithm or atomicity contract is implemented by B2 or B3.
+- `RuleCommandRepositoryInterface` is the replaceable command/mutation persistence contract. It exposes only canonical Rule creation, effect/lifecycle mutations, and Subject cleanup.
+- `RuleManagementQueryInterface` is the replaceable management-query persistence contract. It exposes natural-identity lookup, bounded management reads, and active-dimension lookup, including inactive Rules where criteria allow them.
+- `ActiveRuleReaderInterface` is the replaceable evaluation-read persistence contract. It exposes only bounded bulk loading of active Rules for a supplied `SubjectCollection`.
+- `RuleReplacementRepositoryInterface` is a package-internal transitional extension of the command contract. It retains the transaction, savepoint, locking, complete Subject + dimension read, and coordination-cleanup primitives required by atomic replacement and cleanup; WU3 owns their later cleanup.
 
 ### B4 concrete runtime services
 
-- `Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService` implements `EligibilityEvaluationServiceInterface`. It loads active Rules through one repository bulk call for a batch and delegates both single and batch calls to the shared pure `Maatify\Eligibility\Evaluation\Engine\EligibilityRuleEvaluator`; `PdoRuleRepository` internally chunks large Subject collections at its configured bound, and the service preserves input order.
+- `Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService` implements `EligibilityEvaluationServiceInterface` and depends only on `ActiveRuleReaderInterface`. It loads active Rules through one reader bulk call for a batch and delegates both single and batch calls to the shared pure `Maatify\Eligibility\Evaluation\Engine\EligibilityRuleEvaluator`; `PdoActiveRuleReader` internally chunks large Subject collections at its configured bound, and the service preserves input order.
 - `Maatify\Eligibility\Management\Service\EligibilityManagementService` implements `EligibilityManagementServiceInterface`. It maps missing identity mutation results to `RuleNotFoundException` and coordinates create, inspect, lifecycle/effect, replacement, and cleanup behavior without SQL.
 - `Maatify\Eligibility\Evaluation\Engine\EligibilityRuleEvaluator` is package-internal shared evaluation logic. It groups active Rules by dimension, evaluates every ruled dimension, applies DENY precedence, preserves the complete matching trace, and constructs the existing immutable Decision types in canonical order.
 
@@ -1176,7 +1183,10 @@ PDO persistence adapter is listed separately below.
 
 ### B3 persistence implementation and bounds extensions
 
-- `Maatify\Eligibility\Rule\Repository\PdoRuleRepository` is the concrete direct-PDO implementation of `RuleRepositoryInterface`. It provides the package-owned schema adapter, typed hydration, exact reads, lifecycle/effect mutations, bounded/bulk reads, active-dimension reads, and Subject cleanup described by the B3 persistence contract.
+- `Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository` is the concrete direct-PDO implementation of `RuleCommandRepositoryInterface` and the transitional `RuleReplacementRepositoryInterface`. It provides command mutations, Subject cleanup, and the existing transaction/savepoint/lock/mutation-support primitives required by B4.
+- `Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery` is the concrete direct-PDO implementation of `RuleManagementQueryInterface`. It provides exact identity reads, bounded management reads, lifecycle visibility, and active-dimension reads.
+- `Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader` is the concrete direct-PDO implementation of `ActiveRuleReaderInterface`. It provides the active-only bounded bulk read used by evaluation.
+- `PdoRuleHydrationTrait` is an internal implementation helper for shared PDO row binding and Rule hydration; it is not a public contract or business-service abstraction.
 - `Maatify\Eligibility\Rule\Repository\RuleReplacementRepositoryInterface` is a package-internal extension of the persistence boundary used by B4. It exposes only transaction ownership, operation-local savepoint, complete Subject + dimension read, Subject coordination-lock, and coordination-cleanup primitives required by atomic replacement and cleanup; it is not an additional Host-facing service method.
 - B4 uses the package-owned `maa_eligibility_subject_locks` table as an explicit coordination row per Subject. Replacement and management cleanup create-or-lock this row inside their transaction before reading or mutating Rules, so an initially empty dimension is serialized without relying on database gap-lock behavior. Cleanup removes the coordination row for the cleaned Subject. The table has no Host foreign key or join.
 - When the Host already owns a transaction, B4 creates a unique package-prefixed operation savepoint through the repository, releases it on success, and rolls back to it on failure while leaving the Host transaction active. Savepoint cleanup is best-effort and never replaces the original operation Throwable. This uses transactional MySQL-compatible savepoint capability without declaring a minimum database product version.

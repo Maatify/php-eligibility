@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Rule\Repository;
 
-use Maatify\Eligibility\Rule\RuleCollection;
 use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Rule\RuleCollection;
 
 /**
  * @internal Persistence capabilities used by atomic replacement and cleanup orchestration.
  */
-interface RuleReplacementRepositoryInterface extends RuleRepositoryInterface
+interface RuleReplacementRepositoryInterface extends RuleCommandRepositoryInterface
 {
     public function inTransaction(): bool;
 

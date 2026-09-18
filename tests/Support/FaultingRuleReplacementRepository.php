@@ -9,15 +9,11 @@ use Maatify\Eligibility\Management\Command\CreateRuleCommand;
 use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
-use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Management\Query\RuleCriteria;
-use Maatify\Eligibility\Management\Result\ActiveDimensionKeyCollection;
 use Maatify\Eligibility\Rule\Repository\RuleReplacementRepositoryInterface;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleCollection;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Common\Value\Subject;
-use Maatify\Eligibility\Common\Value\SubjectCollection;
 
 /**
  * Real-boundary decorator used only to inject a deterministic post-write fault.
@@ -44,26 +40,6 @@ final class FaultingRuleReplacementRepository implements RuleReplacementReposito
         }
 
         return $rule;
-    }
-
-    public function findByIdentity(RuleIdentity $identity): ?Rule
-    {
-        return $this->repository->findByIdentity($identity);
-    }
-
-    public function findByCriteria(RuleCriteria $criteria): RuleCollection
-    {
-        return $this->repository->findByCriteria($criteria);
-    }
-
-    public function findActiveForSubjects(SubjectCollection $subjects): RuleCollection
-    {
-        return $this->repository->findActiveForSubjects($subjects);
-    }
-
-    public function findActiveDimensionKeys(ActiveDimensionKeysQuery $query): ActiveDimensionKeyCollection
-    {
-        return $this->repository->findActiveDimensionKeys($query);
     }
 
     public function updateEffect(UpdateRuleEffectCommand $command): bool

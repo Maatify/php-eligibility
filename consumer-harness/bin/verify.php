@@ -12,7 +12,9 @@ use Maatify\Eligibility\Management\Query\RuleCriteria;
 use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
 use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
-use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
+use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
+use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
+use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Rule\RuleIdentity;
 use Maatify\Eligibility\Rule\RuleLifecycleEnum;
@@ -64,9 +66,11 @@ $pdo->exec($schema);
 
 $runId = environment('ELIGIBILITY_HARNESS_RUN_ID', 'manual');
 $subject = new Subject('consumer_harness', $runId);
-$repository = new PdoRuleRepository($pdo);
-$management = new EligibilityManagementService($repository);
-$evaluation = new EligibilityEvaluationService($repository);
+$commandRepository = new PdoRuleCommandRepository($pdo);
+$managementQuery = new PdoRuleManagementQuery($pdo);
+$activeRuleReader = new PdoActiveRuleReader($pdo);
+$management = new EligibilityManagementService($commandRepository, $managementQuery);
+$evaluation = new EligibilityEvaluationService($activeRuleReader);
 
 assertTableEmpty($pdo, 'maa_eligibility_rules', 'Before workflow');
 assertTableEmpty($pdo, 'maa_eligibility_subject_locks', 'Before workflow');

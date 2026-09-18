@@ -8,7 +8,8 @@ use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
-use Maatify\Eligibility\Rule\Repository\PdoRuleRepository;
+use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
+use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
 use Maatify\Eligibility\Rule\RuleEffectEnum;
 use Maatify\Eligibility\Tests\Support\ConcurrencyTimeout;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
@@ -45,13 +46,13 @@ try {
     }
 
     $pdo = IntegrationDatabase::connect();
-    $repository = new PdoRuleRepository($pdo);
+    $repository = new PdoRuleCommandRepository($pdo);
 
     match ($mode) {
         'hold-create' => holdCreate($pdo, $repository, $arguments),
         'create' => create($repository, $arguments),
         'hold-replace' => holdReplace($pdo, $repository, $arguments),
-        'replace' => replace($repository, $arguments),
+        'replace' => replace($pdo, $repository, $arguments),
         default => throw new InvalidArgumentException('Unknown concurrency worker mode.'),
     };
 } catch (Throwable $exception) {
@@ -60,7 +61,7 @@ try {
 }
 
 /** @param list<string> $arguments */
-function holdCreate(PDO $pdo, PdoRuleRepository $repository, array $arguments): void
+function holdCreate(PDO $pdo, PdoRuleCommandRepository $repository, array $arguments): void
 {
     $pdo->beginTransaction();
     try {
@@ -79,7 +80,7 @@ function holdCreate(PDO $pdo, PdoRuleRepository $repository, array $arguments): 
 }
 
 /** @param list<string> $arguments */
-function create(PdoRuleRepository $repository, array $arguments): void
+function create(PdoRuleCommandRepository $repository, array $arguments): void
 {
     writeLine('STARTED');
     try {
@@ -91,7 +92,7 @@ function create(PdoRuleRepository $repository, array $arguments): void
 }
 
 /** @param list<string> $arguments */
-function holdReplace(PDO $pdo, PdoRuleRepository $repository, array $arguments): void
+function holdReplace(PDO $pdo, PdoRuleCommandRepository $repository, array $arguments): void
 {
     $subject = subjectFromArguments($arguments);
     $pdo->beginTransaction();
@@ -99,7 +100,7 @@ function holdReplace(PDO $pdo, PdoRuleRepository $repository, array $arguments):
         $repository->lockSubjectForMutation($subject);
         writeLine('LOCKED');
         awaitSignal();
-        (new EligibilityManagementService($repository))->replaceDimensionRules(
+        (new EligibilityManagementService($repository, new PdoRuleManagementQuery($pdo)))->replaceDimensionRules(
             replacementCommand($arguments),
         );
         writeLine('REPLACED');
@@ -116,11 +117,14 @@ function holdReplace(PDO $pdo, PdoRuleRepository $repository, array $arguments):
 }
 
 /** @param list<string> $arguments */
-function replace(PdoRuleRepository $repository, array $arguments): void
+function replace(PDO $pdo, PdoRuleCommandRepository $repository, array $arguments): void
 {
     writeLine('STARTED');
     writeLine('ATTEMPTING_LOCK');
-    (new EligibilityManagementService($repository))->replaceDimensionRules(
+    (new EligibilityManagementService(
+        $repository,
+        new PdoRuleManagementQuery($pdo),
+    ))->replaceDimensionRules(
         replacementCommand($arguments),
     );
     writeLine('DONE');

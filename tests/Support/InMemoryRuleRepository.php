@@ -13,6 +13,8 @@ use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
 use Maatify\Eligibility\Management\Query\RuleCriteria;
 use Maatify\Eligibility\Management\Result\ActiveDimensionKeyCollection;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
+use Maatify\Eligibility\Rule\Repository\ActiveRuleReaderInterface;
+use Maatify\Eligibility\Rule\Repository\RuleManagementQueryInterface;
 use Maatify\Eligibility\Rule\Repository\RuleReplacementRepositoryInterface;
 use Maatify\Eligibility\Rule\Rule;
 use Maatify\Eligibility\Rule\RuleCollection;
@@ -24,7 +26,10 @@ use Maatify\Eligibility\Common\Value\SubjectCollection;
 /**
  * Deterministic test double for the replaceable persistence boundary.
  */
-final class InMemoryRuleRepository implements RuleReplacementRepositoryInterface
+final class InMemoryRuleRepository implements
+    RuleReplacementRepositoryInterface,
+    RuleManagementQueryInterface,
+    ActiveRuleReaderInterface
 {
     /** @var array<string, Rule> */
     private array $rules = [];
