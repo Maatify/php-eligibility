@@ -117,22 +117,22 @@ Packagist indexes that exact version.
 
 ### Development installation (current pre-tag state)
 
-For development before the RC1 tag exists, consume the package from a local
-checkout through a Composer path repository. The `1.0.0-rc.1` version is mapped
-explicitly in the local repository configuration; this does not use Packagist or
-claim that the RC1 distribution has been published. From your consumer project:
+For development access only, use a local checkout of the current `main` branch
+through a Composer path repository. This does not use Packagist and must not be
+treated as the exact RC1 distribution or as an alternative to
+`v1.0.0-rc.1`. From your consumer project:
 
 ```bash
-git clone --branch phase/v1.0.0-rc.1 https://github.com/Maatify/php-eligibility.git .tools/php-eligibility
-composer config repositories.php-eligibility '{"type": "path", "url": ".tools/php-eligibility", "options": {"symlink": true, "versions": {"maatify/php-eligibility": "1.0.0-rc.1"}}}'
-composer require maatify/php-eligibility:1.0.0-rc.1 # resolves from the configured local path
+git clone https://github.com/Maatify/php-eligibility.git .tools/php-eligibility
+composer config repositories.php-eligibility '{"type":"path","url":".tools/php-eligibility","options":{"symlink":true}}'
+composer require maatify/php-eligibility:dev-main
 ```
 
-This uses the `phase/v1.0.0-rc.1` development branch; it is executable in the
-current state and does not create or imply that an `1.0.0-rc.1` tag already
-exists or has been distributed. For developing the library itself (running the
-full local parity suite), clone into a working directory and follow
-[Development and Testing](#development-and-testing).
+The `dev-main` constraint is development-only access to the current `main`
+checkout. It is not a substitute for the exact RC1 install command below and
+does not create or imply that the `v1.0.0-rc.1` tag or Packagist distribution
+exists. For developing the library itself (running the full local parity suite),
+clone into a working directory and follow [Development and Testing](#development-and-testing).
 
 ### After the RC is published
 
