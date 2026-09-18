@@ -41,10 +41,14 @@ ELIGIBILITY_DB_USER
 ELIGIBILITY_DB_PASSWORD
 ```
 
-If any variable is absent, a database-backed example prints `SKIP` and exits
-without attempting a connection. The examples apply the package's
-`schema/eligibility_rules.sql` asset and use the same PDO connection for every
-Eligibility adapter and the shared transaction runner.
+The runnable database examples are fail-closed and accept only a dedicated
+local test database: `ELIGIBILITY_DB_HOST` must be exactly `127.0.0.1` or
+`localhost`, and `ELIGIBILITY_DB_NAME` must match a clear `*_test` database
+name. They reject any other Host or database name before creating PDO or
+executing the schema. If a variable is absent or a guard fails, the example
+prints `SKIP` and exits without attempting a connection. The examples apply
+the package's `schema/eligibility_rules.sql` asset and use the same PDO
+connection for every Eligibility adapter and the shared transaction runner.
 
 ## What Eligibility provides
 
@@ -362,15 +366,17 @@ direct SQL.
   `InvalidEligibilityInputException`. A duplicate natural identity is converted
   to `RuleIdentityConflictException` only when the concrete persistence boundary
   has the documented driver-specific duplicate evidence. The public exception
-  inventory also contains `RuleConcurrencyConflictException` for an explicitly
-  classified unresolved concurrency outcome; consumers must not treat every
-  arbitrary PDO failure as that exception. Unknown storage failures propagate
-  unchanged.
-- **Transaction/concurrency:** The service uses
-  `PdoSavepointTransactionRunner`, locks the Subject coordination row, reads
-  the complete Subject + dimension state, and applies the replacement as one
-  atomic operation. Concurrent replacements cannot expose a partial or mixed
-  dimension state.
+  inventory contains `RuleConcurrencyConflictException`, but the current RC1
+  concrete PDO paths do not automatically throw or classify arbitrary
+  concurrency/driver failures as that exception. Unknown storage failures
+  propagate unchanged.
+- **Transaction/concurrency:** `EligibilityManagementService` depends on
+  `SavepointTransactionRunnerInterface`; production PDO wiring supplies
+  `PdoSavepointTransactionRunner`. The service locks the Subject coordination
+  row, reads the complete Subject + dimension state, and applies the replacement
+  as one atomic operation. Concurrent replacements cannot expose a partial or
+  mixed dimension state. The same-PDO requirement applies to the production PDO
+  composition.
 - **Host responsibility:** Pass adapters and the transaction runner built from
   the same PDO. If a Host transaction is already active, the Host owns the
   outer commit or rollback; Eligibility uses an operation-local savepoint and
@@ -451,9 +457,12 @@ presentation text in the Host.
 
 ## Production PDO wiring
 
-The RC1 persistence implementation is direct PDO. Construct the three
-Eligibility adapters and `PdoSavepointTransactionRunner` from the same PDO
-connection, then wire their separate capabilities into the two services:
+The RC1 persistence implementation is direct PDO. The
+`EligibilityManagementService` depends on
+`SavepointTransactionRunnerInterface`; production PDO composition constructs
+`PdoSavepointTransactionRunner` from the same PDO connection as the three
+Eligibility adapters, then wires their separate capabilities into the two
+services:
 
 ```php
 $commandRepository = new PdoRuleCommandRepository($pdo);
@@ -480,11 +489,12 @@ runnable construction-only example.
 ## Host-owned transactions
 
 `replaceDimensionRules()` and `cleanupSubject()` use the shared
-`PdoSavepointTransactionRunner`. When no outer transaction is active, the runner
-owns the complete operation transaction. When a Host transaction is already
-active on the same PDO connection, the runner creates an operation-local
-savepoint, releases it on success, and rolls back to it on failure. It never
-commits or fully rolls back the Host transaction.
+`SavepointTransactionRunnerInterface`. In production PDO composition, that
+interface is supplied by `PdoSavepointTransactionRunner`. When no outer
+transaction is active, the runner owns the complete operation transaction. When
+a Host transaction is already active on the same PDO connection, the runner
+creates an operation-local savepoint, releases it on success, and rolls back to
+it on failure. It never commits or fully rolls back the Host transaction.
 
 The Host must commit or roll back its outer transaction. A failed operation is
 propagated; the package does not swallow the original Throwable. The
@@ -503,9 +513,10 @@ Package-defined failures implement
   or a lifecycle/effect mutation.
 - `RuleIdentityConflictException` — a create would duplicate a natural Rule
   identity; the original driver exception is preserved where applicable.
-- `RuleConcurrencyConflictException` — the public package classification for an
-  explicitly classified Rule uniqueness/concurrency condition that could not be
-  resolved safely; unknown external failures are not converted automatically.
+- `RuleConcurrencyConflictException` — a public exception class in the package
+  inventory. The current RC1 concrete PDO paths do not use it to classify
+  arbitrary concurrency or driver failures; unknown external failures are not
+  converted automatically.
 
 Unknown external `PDOException` or other `Throwable` values propagate unchanged.
 Consumers may catch the package marker for a package-level boundary, or catch a

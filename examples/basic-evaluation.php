@@ -58,6 +58,17 @@ function connectFromEnvironmentOrSkip(): PDO
         exit(0);
     }
 
+    $host = (string) getenv('ELIGIBILITY_DB_HOST');
+    $databaseName = (string) getenv('ELIGIBILITY_DB_NAME');
+    if (!in_array($host, ['127.0.0.1', 'localhost'], true)) {
+        fwrite(STDOUT, "SKIP: ELIGIBILITY_DB_HOST must be 127.0.0.1 or localhost; refusing a non-local database.\n");
+        exit(0);
+    }
+    if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_]*_test$/D', $databaseName) !== 1) {
+        fwrite(STDOUT, "SKIP: ELIGIBILITY_DB_NAME must be a dedicated local test database ending in _test.\n");
+        exit(0);
+    }
+
     if (!extension_loaded('pdo_mysql')) {
         fwrite(STDOUT, "SKIP: ext-pdo_mysql is required for this persistence example.\n");
         exit(0);
