@@ -21,9 +21,11 @@ defines the meaning of Subject types and Context dimensions, wires the package's
 PDO adapters, manages the package-owned schema, and maps the typed result to its
 own API or UI behavior.
 
-The package is currently an unpublished RC1 preparation. For the current local
-checkout, install development dependencies with Composer before running the
-examples:
+The package is currently in RC1 preparation. Its Composer package identity is
+registered on [Packagist](https://packagist.org/packages/maatify/php-eligibility),
+but the exact `v1.0.0-rc.1` tag and Packagist-installable distribution do not
+exist yet. For the current local checkout, install development dependencies
+with Composer before running the examples:
 
 ```bash
 composer update --no-interaction --prefer-dist --no-progress
@@ -76,8 +78,8 @@ connection for every Eligibility adapter and the shared transaction runner.
 - It does not provide controllers, HTTP responses, UI messages, translations,
   framework bindings, ORM integration, or a query builder.
 - It does not infer behavior between different Subjects or dimensions.
-- It does not publish or install itself from Packagist while the RC1 is
-  unpublished.
+- Packagist registration exists, but the exact `v1.0.0-rc.1` distribution is
+  not available from Packagist until that tag is published and indexed.
 
 ## Host responsibilities
 

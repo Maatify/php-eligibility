@@ -20,6 +20,7 @@
 [![Contributing Guide](https://img.shields.io/badge/Contributing-Guide-blue)](CONTRIBUTING.md)
 
 **Ecosystem and usage:**<br>
+[![Packagist](https://img.shields.io/badge/Packagist-maatify%2Fphp--eligibility-4F5B93)](https://packagist.org/packages/maatify/php-eligibility)
 [![Maatify Ecosystem](https://img.shields.io/badge/Maatify-Ecosystem-blueviolet)](https://github.com/Maatify)
 
 Framework-neutral eligibility rules and typed decisions that answer one
@@ -45,13 +46,15 @@ model, lifecycle, or implementation of the domains that own those identities.
 
 The canonical behavioral contract is **RC1 preparation for `1.0.0-rc.1`** in
 [ELIGIBILITY_PACKAGE_REFERENCE.md](ELIGIBILITY_PACKAGE_REFERENCE.md). This
-package is not yet published; see [Installation](#installation).
+package identity is registered on Packagist, but the exact `v1.0.0-rc.1`
+distribution is not published yet; see [Installation](#installation).
 
 ## Status
 
-- **Release state:** unpublished RC1 preparation. No `1.0.0-rc.1` tag exists
-  yet, and there is no Packagist (or any other public Composer) distribution of
-  this package.
+- **Release state:** Pre-Stable RC1 preparation. The Composer package identity
+  is registered on [Packagist](https://packagist.org/packages/maatify/php-eligibility),
+  but the exact `v1.0.0-rc.1` tag does not exist yet and that version is not
+  published or installable through Packagist.
 - **Quality:** see [Quality Status](#quality-status).
 
 ## Key Features
@@ -100,35 +103,41 @@ executed MariaDB verification.
 
 ## Installation
 
-The package is **not yet published** to Packagist or any other Composer
-registry. Until the `1.0.0-rc.1` tag is published and externally resolvable, an
-external consumer cannot `composer require maatify/php-eligibility` from
-Packagist.
-
-### Development installation (current unpublished state)
-
-While the RC1 target is still unpublished, consume the package from a local
-checkout through a Composer path repository. The `1.0.0-rc.1` version is mapped
-explicitly in the repository configuration, because the corresponding tag does
-not exist yet and cannot be resolved from a remote repository. From your
-consumer project:
+The Composer package identity `maatify/php-eligibility` is registered on
+[Packagist](https://packagist.org/packages/maatify/php-eligibility). However,
+the exact `v1.0.0-rc.1` tag has not been created and indexed yet, so this command
+is not a valid current Packagist installation command:
 
 ```bash
-git clone --branch phase/v1.0.0-rc.1 https://github.com/Maatify/php-eligibility.git .tools/php-eligibility
-composer config repositories.php-eligibility '{"type": "path", "url": ".tools/php-eligibility", "options": {"symlink": true, "versions": {"maatify/php-eligibility": "1.0.0-rc.1"}}}'
 composer require maatify/php-eligibility:1.0.0-rc.1
 ```
 
-This uses the `phase/v1.0.0-rc.1` development branch; it is executable in the
-current state and does not create or imply that an `1.0.0-rc.1` tag already
-exists or has been distributed. For developing the library itself (running the
-full local parity suite), clone into a working directory and follow
-[Development and Testing](#development-and-testing).
+The command becomes valid only after the `v1.0.0-rc.1` tag is published and
+Packagist indexes that exact version.
+
+### Development installation (current pre-tag state)
+
+For development access only, use a local checkout of the current `main` branch
+through a Composer path repository. This does not use Packagist and must not be
+treated as the exact RC1 distribution or as an alternative to
+`v1.0.0-rc.1`. From your consumer project:
+
+```bash
+git clone https://github.com/Maatify/php-eligibility.git .tools/php-eligibility
+composer config repositories.php-eligibility '{"type":"path","url":".tools/php-eligibility","options":{"symlink":true}}'
+composer require maatify/php-eligibility:dev-main
+```
+
+The `dev-main` constraint is development-only access to the current `main`
+checkout. It is not a substitute for the exact RC1 install command below and
+does not create or imply that the `v1.0.0-rc.1` tag or Packagist distribution
+exists. For developing the library itself (running the full local parity suite),
+clone into a working directory and follow [Development and Testing](#development-and-testing).
 
 ### After the RC is published
 
-Once the `1.0.0-rc.1` tag is actually published through its approved
-distribution source, installation becomes:
+Once the `v1.0.0-rc.1` tag is published and Packagist indexes that exact
+version, installation becomes:
 
 ```bash
 composer require maatify/php-eligibility:1.0.0-rc.1
@@ -424,7 +433,8 @@ track it), and PHPUnit/PHPStan caches are not committed.
 ## License
 
 This package is released under a **proprietary Maatify license**. See
-[LICENSE](LICENSE). No public distribution exists yet; see [Installation](#installation).
+[LICENSE](LICENSE). The exact `v1.0.0-rc.1` distribution is not published yet;
+see [Installation](#installation).
 
 ## Author
 
