@@ -270,9 +270,11 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
                 new DesiredRule('KW', RuleEffectEnum::ALLOW),
             ));
             self::assertSame(1, $this->countRows($this->pdo, $subject, 'country', 'KW', 'active'));
-            self::assertSame(0, $this->countRows($otherConnection, $subject, 'country', 'KW', 'active'));
+            $uncommittedVisibility = $this->countRows($otherConnection, $subject, 'country', 'KW', 'active');
+            self::assertSame(0, $uncommittedVisibility);
             $this->pdo->rollBack();
-            self::assertSame(0, $this->countRows($otherConnection, $subject, 'country', 'KW', 'active'));
+            $discardedVisibility = $this->countRows($otherConnection, $subject, 'country', 'KW', 'active');
+            self::assertSame(0, $discardedVisibility);
             self::assertSame(1, $this->countRows($otherConnection, $subject, 'country', 'SA', 'active'));
         } finally {
             if ($otherConnection->inTransaction()) {
