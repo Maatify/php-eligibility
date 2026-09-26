@@ -138,18 +138,18 @@ not a migration run at install time.
 ### Evaluation
 
 ```php
-use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleCriteria;
 use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
-use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
-use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
-use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
-use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
+use Maatify\Eligibility\Evaluation\Enum\DecisionReasonEnum;
+use Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader;
+use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
+use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
 use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
-use Maatify\Eligibility\Evaluation\Value\Context;
-use Maatify\Eligibility\Evaluation\Value\ContextDimension;
-use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Evaluation\ValueObject\Context;
+use Maatify\Eligibility\Evaluation\ValueObject\ContextDimension;
+use Maatify\Eligibility\ValueObject\Subject;
 
 $pdo = new PDO('mysql:host=127.0.0.1;dbname=app;charset=utf8mb4', 'app', 'secret', [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -196,7 +196,7 @@ if ($decision->eligible) {
 ### Ordered batch evaluation
 
 ```php
-use Maatify\Eligibility\Common\Value\SubjectCollection;
+use Maatify\Eligibility\ValueObject\SubjectCollection;
 
 $decisions = $evaluation->decideMany(
     new SubjectCollection(
@@ -212,8 +212,8 @@ $decisions = $evaluation->decideMany(
 
 ```php
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
-use Maatify\Eligibility\Management\Command\DesiredRule;
-use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\ValueObject\DesiredRule;
+use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
 
 // Atomic replacement of the complete active set for one Subject dimension.
 $management->replaceDimensionRules(new ReplaceDimensionRulesCommand(
@@ -265,9 +265,9 @@ Public surface (see the
 - **Commands / queries / results:** `CreateRuleCommand`,
   `UpdateRuleEffectCommand`, `DeactivateRuleCommand`, `ReactivateRuleCommand`,
   `DesiredRule`, `DesiredRuleCollection`, `ReplaceDimensionRulesCommand`,
-  `CleanupSubjectCommand`, `RuleCriteria`, `ActiveDimensionKeysQuery`,
-  `ActiveDimensionKeyCollection`, `SubjectDecisionResult`,
-  `SubjectDecisionCollection`.
+  `CleanupSubjectCommand`, `RuleCriteria`, `ActiveDimensionKeysCriteria`,
+  `ActiveDimensionKeyCollectionDTO`, `SubjectDecisionDTO`,
+  `SubjectDecisionCollectionDTO`.
 - **Exceptions:** `EligibilityExceptionInterface`, `InvalidEligibilityInputException`,
   `RuleNotFoundException`, `RuleIdentityConflictException`,
   `RuleConcurrencyConflictException` (backed by the shared

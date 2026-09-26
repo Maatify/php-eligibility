@@ -9,20 +9,20 @@ use Maatify\Eligibility\Management\Command\CreateRuleCommand;
 use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
-use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Management\Query\RuleCriteria;
-use Maatify\Eligibility\Management\Result\ActiveDimensionKeyCollection;
+use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleCriteria;
+use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyCollectionDTO;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
-use Maatify\Eligibility\Rule\Repository\ActiveRuleReaderInterface;
-use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
-use Maatify\Eligibility\Rule\Repository\RuleManagementQueryInterface;
-use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
-use Maatify\Eligibility\Rule\Rule;
-use Maatify\Eligibility\Rule\RuleCollection;
-use Maatify\Eligibility\Rule\RuleIdentity;
-use Maatify\Eligibility\Rule\RuleLifecycleEnum;
-use Maatify\Eligibility\Common\Value\Subject;
-use Maatify\Eligibility\Common\Value\SubjectCollection;
+use Maatify\Eligibility\Evaluation\Repository\ActiveRuleReaderInterface;
+use Maatify\Eligibility\Management\Repository\RuleCommandRepositoryInterface;
+use Maatify\Eligibility\Management\Repository\RuleManagementQueryInterface;
+use Maatify\Eligibility\Management\Repository\RuleMutationSupportInterface;
+use Maatify\Eligibility\ValueObject\Rule;
+use Maatify\Eligibility\ValueObject\RuleCollection;
+use Maatify\Eligibility\ValueObject\RuleIdentity;
+use Maatify\Eligibility\Enum\RuleLifecycleEnum;
+use Maatify\Eligibility\ValueObject\Subject;
+use Maatify\Eligibility\ValueObject\SubjectCollection;
 
 /**
  * Deterministic test double for the shared in-memory persistence state.
@@ -113,7 +113,7 @@ final class InMemoryRuleRepository implements
         return new RuleCollection(...$rules);
     }
 
-    public function findActiveDimensionKeys(ActiveDimensionKeysQuery $query): ActiveDimensionKeyCollection
+    public function findActiveDimensionKeys(ActiveDimensionKeysCriteria $query): ActiveDimensionKeyCollectionDTO
     {
         $keys = [];
         foreach ($this->rules as $rule) {
@@ -125,7 +125,7 @@ final class InMemoryRuleRepository implements
             }
         }
 
-        return new ActiveDimensionKeyCollection(...array_values(array_unique($keys)));
+        return new ActiveDimensionKeyCollectionDTO(...array_values(array_unique($keys)));
     }
 
     public function updateEffect(UpdateRuleEffectCommand $command): bool

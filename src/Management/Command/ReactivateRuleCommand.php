@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Management\Command;
 
-use Maatify\Eligibility\Rule\RuleIdentity;
+use Maatify\Eligibility\ValueObject\RuleIdentity;
 
 final readonly class ReactivateRuleCommand
 {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Exception;
 
-use Maatify\Eligibility\Rule\RuleIdentity;
+use Maatify\Eligibility\ValueObject\RuleIdentity;
 use Maatify\Exceptions\Exception\NotFound\ResourceNotFoundMaatifyException;
 
 final class RuleNotFoundException extends ResourceNotFoundMaatifyException implements EligibilityExceptionInterface

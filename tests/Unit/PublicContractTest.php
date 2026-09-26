@@ -7,39 +7,39 @@ namespace Maatify\Eligibility\Tests\Unit;
 use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
 use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
-use Maatify\Eligibility\Management\Command\DesiredRule;
-use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\ValueObject\DesiredRule;
+use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
 use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
-use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Management\Query\RuleCriteria;
-use Maatify\Eligibility\Management\Result\ActiveDimensionKeyCollection;
-use Maatify\Eligibility\Evaluation\Result\SubjectDecisionCollection;
-use Maatify\Eligibility\Evaluation\Result\SubjectDecisionResult;
-use Maatify\Eligibility\Evaluation\Contract\EligibilityEvaluationServiceInterface;
+use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleCriteria;
+use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyCollectionDTO;
+use Maatify\Eligibility\Evaluation\DTO\SubjectDecisionCollectionDTO;
+use Maatify\Eligibility\Evaluation\DTO\SubjectDecisionDTO;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationServiceInterface;
 use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Management\Contract\EligibilityManagementServiceInterface;
+use Maatify\Eligibility\Management\Service\EligibilityManagementServiceInterface;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
-use Maatify\Eligibility\Evaluation\Decision\EligibilityDecision;
+use Maatify\Eligibility\Evaluation\ValueObject\EligibilityDecision;
 use Maatify\Eligibility\Exception\EligibilityExceptionInterface;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Exception\RuleConcurrencyConflictException;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
 use Maatify\Eligibility\Exception\RuleNotFoundException;
-use Maatify\Eligibility\Rule\Repository\ActiveRuleReaderInterface;
-use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
-use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
-use Maatify\Eligibility\Rule\Repository\RuleManagementQueryInterface;
-use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
-use Maatify\Eligibility\Rule\Rule;
-use Maatify\Eligibility\Rule\RuleCollection;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Rule\RuleIdentity;
-use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Eligibility\Evaluation\Repository\ActiveRuleReaderInterface;
+use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
+use Maatify\Eligibility\Management\Repository\RuleCommandRepositoryInterface;
+use Maatify\Eligibility\Management\Repository\RuleManagementQueryInterface;
+use Maatify\Eligibility\Management\Repository\RuleMutationSupportInterface;
+use Maatify\Eligibility\ValueObject\Rule;
+use Maatify\Eligibility\ValueObject\RuleCollection;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\ValueObject\RuleIdentity;
+use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\NonStrictConsumer;
-use Maatify\Eligibility\Common\Value\Subject;
-use Maatify\Eligibility\Common\Value\SubjectCollection;
+use Maatify\Eligibility\ValueObject\Subject;
+use Maatify\Eligibility\ValueObject\SubjectCollection;
 use Maatify\Exceptions\Contracts\ApiAwareExceptionInterface;
 use Maatify\Exceptions\Exception\Conflict\ConflictMaatifyException;
 use Maatify\Exceptions\Exception\NotFound\NotFoundMaatifyException;
@@ -84,9 +84,9 @@ final class PublicContractTest extends TestCase
         $firstDecision = EligibilityDecision::unrestricted();
         $secondDecision = EligibilityDecision::unrestricted();
 
-        $results = new SubjectDecisionCollection(
-            new SubjectDecisionResult($firstSubject, $firstDecision),
-            new SubjectDecisionResult($secondSubject, $secondDecision),
+        $results = new SubjectDecisionCollectionDTO(
+            new SubjectDecisionDTO($firstSubject, $firstDecision),
+            new SubjectDecisionDTO($secondSubject, $secondDecision),
         );
 
         self::assertSame($firstSubject, $results->items()[0]->subject);
@@ -103,16 +103,16 @@ final class PublicContractTest extends TestCase
 
         $this->expectException(InvalidEligibilityInputException::class);
 
-        new SubjectDecisionCollection(
-            new SubjectDecisionResult($subject, $decision),
-            new SubjectDecisionResult(new Subject('product', '150'), $decision),
+        new SubjectDecisionCollectionDTO(
+            new SubjectDecisionDTO($subject, $decision),
+            new SubjectDecisionDTO(new Subject('product', '150'), $decision),
         );
     }
 
     #[Test]
     public function activeDimensionKeysAreCanonicalStringsInBytewiseOrder(): void
     {
-        $keys = new ActiveDimensionKeyCollection('customer_type', 'country', 'customer_segment');
+        $keys = new ActiveDimensionKeyCollectionDTO('customer_type', 'country', 'customer_segment');
 
         self::assertSame(['country', 'customer_segment', 'customer_type'], $keys->items());
         self::assertTrue($keys->contains('country'));
@@ -123,7 +123,7 @@ final class PublicContractTest extends TestCase
     {
         $this->expectException(InvalidEligibilityInputException::class);
 
-        new ActiveDimensionKeyCollection('country', 'country');
+        new ActiveDimensionKeyCollectionDTO('country', 'country');
     }
 
     #[Test]
@@ -131,7 +131,7 @@ final class PublicContractTest extends TestCase
     {
         $this->expectException(InvalidEligibilityInputException::class);
 
-        new ActiveDimensionKeyCollection('country', 1);
+        new ActiveDimensionKeyCollectionDTO('country', 1);
     }
 
     #[Test]
@@ -246,7 +246,7 @@ final class PublicContractTest extends TestCase
     #[Test]
     public function activeDimensionQueryUsesATypedSubjectContract(): void
     {
-        $query = new ActiveDimensionKeysQuery(new Subject('product', '150'));
+        $query = new ActiveDimensionKeysCriteria(new Subject('product', '150'));
 
         self::assertSame('product', $query->subject->subjectType);
     }
@@ -307,7 +307,7 @@ final class PublicContractTest extends TestCase
             [
                 'findByIdentity' => Rule::class,
                 'findByCriteria' => RuleCollection::class,
-                'findActiveDimensionKeys' => ActiveDimensionKeyCollection::class,
+                'findActiveDimensionKeys' => ActiveDimensionKeyCollectionDTO::class,
             ] as $methodName => $returnType
         ) {
             self::assertSame(
@@ -342,7 +342,7 @@ final class PublicContractTest extends TestCase
             self::namedReturnTypeName($managementService->getMethod('replaceDimensionRules')),
         );
         self::assertSame(
-            SubjectDecisionCollection::class,
+            SubjectDecisionCollectionDTO::class,
             self::namedReturnTypeName($evaluationService->getMethod('decideMany')),
         );
 
@@ -411,10 +411,10 @@ final class PublicContractTest extends TestCase
             CleanupSubjectCommand::class,
             DesiredRule::class,
             RuleCriteria::class,
-            ActiveDimensionKeysQuery::class,
-            ActiveDimensionKeyCollection::class,
-            SubjectDecisionResult::class,
-            SubjectDecisionCollection::class,
+            ActiveDimensionKeysCriteria::class,
+            ActiveDimensionKeyCollectionDTO::class,
+            SubjectDecisionDTO::class,
+            SubjectDecisionCollectionDTO::class,
             SubjectCollection::class,
         ];
 

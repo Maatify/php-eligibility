@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Maatify\Eligibility\Tests\Unit;
 
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
-use Maatify\Eligibility\Rule\Rule;
-use Maatify\Eligibility\Rule\RuleCollection;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Rule\RuleLifecycleEnum;
-use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\ValueObject\Rule;
+use Maatify\Eligibility\ValueObject\RuleCollection;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\Enum\RuleLifecycleEnum;
+use Maatify\Eligibility\ValueObject\Subject;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\ValueObject\Subject;
 use Maatify\Eligibility\Exception\EligibilityExceptionInterface;
 
 require __DIR__ . '/../vendor/autoload.php';

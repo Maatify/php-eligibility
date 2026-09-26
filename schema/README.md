@@ -48,7 +48,7 @@ not a package minimum version.
   product version.
 
 Canonical strings are bounded in **bytes**, not characters, by the production
-source of truth `Maatify\Eligibility\Common\Validation\CanonicalString` and
+source of truth `Maatify\Eligibility\Common\CanonicalString` and
 validated there before SQL:
 
 | Field | Maximum | SQL type |

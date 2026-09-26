@@ -5,23 +5,23 @@ declare(strict_types=1);
 namespace Maatify\Eligibility\Tests\Integration;
 
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
-use Maatify\Eligibility\Management\Command\DesiredRule;
-use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\ValueObject\DesiredRule;
+use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
-use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleCriteria;
 use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
-use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
-use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
-use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
-use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Eligibility\Evaluation\Enum\DecisionReasonEnum;
+use Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader;
+use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
+use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\ConcurrencyTimeout;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
-use Maatify\Eligibility\Evaluation\Value\Context;
-use Maatify\Eligibility\Evaluation\Value\ContextDimension;
-use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Evaluation\ValueObject\Context;
+use Maatify\Eligibility\Evaluation\ValueObject\ContextDimension;
+use Maatify\Eligibility\ValueObject\Subject;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -171,7 +171,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
 
         self::assertSame(1, $this->countAllRules());
         self::assertSame(RuleEffectEnum::ALLOW, $this->managementQuery->findByIdentity(
-            new \Maatify\Eligibility\Rule\RuleIdentity('product', '150', 'country', 'EG'),
+            new \Maatify\Eligibility\ValueObject\RuleIdentity('product', '150', 'country', 'EG'),
         )?->effect);
     }
 
@@ -230,14 +230,14 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             }
         }
 
-        $rules = $this->managementQuery->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Rule\RuleLifecycleEnum::ACTIVE));
+        $rules = $this->managementQuery->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Enum\RuleLifecycleEnum::ACTIVE));
         self::assertSame(
             [
                 ['KW', RuleEffectEnum::ALLOW],
                 ['SA', RuleEffectEnum::DENY],
             ],
             array_map(
-                static fn (\Maatify\Eligibility\Rule\Rule $rule): array => [$rule->dimensionValue, $rule->effect],
+                static fn (\Maatify\Eligibility\ValueObject\Rule $rule): array => [$rule->dimensionValue, $rule->effect],
                 $rules->items(),
             ),
         );
@@ -304,7 +304,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             self::assertSame(
                 [['OLD', RuleEffectEnum::ALLOW]],
                 array_map(
-                    static fn (\Maatify\Eligibility\Rule\Rule $rule): array => [
+                    static fn (\Maatify\Eligibility\ValueObject\Rule $rule): array => [
                         $rule->dimensionValue,
                         $rule->effect,
                     ],
@@ -335,7 +335,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                     ['B2', RuleEffectEnum::DENY],
                 ],
                 array_map(
-                    static fn (\Maatify\Eligibility\Rule\Rule $rule): array => [
+                    static fn (\Maatify\Eligibility\ValueObject\Rule $rule): array => [
                         $rule->dimensionValue,
                         $rule->effect,
                     ],
@@ -363,9 +363,9 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             }
         }
 
-        $rules = $this->managementQuery->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Rule\RuleLifecycleEnum::ACTIVE));
+        $rules = $this->managementQuery->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Enum\RuleLifecycleEnum::ACTIVE));
         self::assertSame(['B', 'B2'], array_map(
-            static fn (\Maatify\Eligibility\Rule\Rule $rule): string => $rule->dimensionValue,
+            static fn (\Maatify\Eligibility\ValueObject\Rule $rule): string => $rule->dimensionValue,
             $rules->items(),
         ));
         self::assertSame(5, $this->countAllRules());

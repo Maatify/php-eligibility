@@ -53,7 +53,7 @@ All eleven Candidate Standards were evaluated against the activation scope and t
 
 Applicable conditional rules:
 
-- The `Persistence Conditional Applicability` rules owned by `std-package-building` are **applicable**, because this package owns SQL persistence behavior: direct PDO repositories under `src/Rule/Repository/`, `schema/eligibility_rules.sql`, `ext-pdo` / `ext-pdo_mysql` requirements, the `maatify/persistence` dependency, and a real MySQL integration fixture. All persistence, schema, transaction, and persistence-testing obligations of that Standard are therefore in force. This adds no extra Standard.
+- The `Persistence Conditional Applicability` rules owned by `std-package-building` are **applicable**, because this package owns SQL persistence behavior: direct repositories under `src/Evaluation/Repository/` and `src/Management/Repository/`, technology-specific PDO implementations under `src/Evaluation/Repository/Pdo/` and `src/Management/Repository/Pdo/`, shared PDO support under `src/Repository/Pdo/`, `schema/eligibility_rules.sql`, `ext-pdo` / `ext-pdo_mysql` requirements, the `maatify/persistence` dependency, and a real MySQL integration fixture. All persistence, schema, transaction, and persistence-testing obligations of that Standard are therefore in force. This adds no extra Standard.
 - The `AI consumer discovery applicability` rule owned by `std-library-presentation` is **applicable**, because this repository is a standalone reusable PHP Composer library.
 
 Non-applicable conditional rules:
@@ -104,5 +104,5 @@ The final pinned local set is locally reference-closed. Every relative link requ
 - Manifest auditable from local Control Set and exact Adoption Commit: `YES`
 - Full upstream `standards/` snapshot copied: `NO`
 - Historical audits, verification evidence, or decisions copied: `NO`
-- Repository-owned decision governance bootstrap: `docs/decisions/DECISIONS_INDEX.md` (required by `std-decision-governance`, currently zero decision records)
+- Repository-owned decision governance: `docs/decisions/DECISIONS_INDEX.md` (required by `std-decision-governance`; current discovery state: 1 Decision Record / 1 ACTIVE / 0 pending Owner Decisions)
 - Underlying Standards remain the source of truth: `YES`
