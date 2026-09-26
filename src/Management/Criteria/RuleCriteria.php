@@ -9,6 +9,11 @@ use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\Common\CanonicalString;
 use Maatify\Eligibility\ValueObject\Subject;
 
+/**
+ * Bounded management query for one Subject, optionally narrowed by dimension
+ * and lifecycle. A null dimension or lifecycle omits that filter; maxResults
+ * is always constrained to the package's safe query bound.
+ */
 final readonly class RuleCriteria
 {
     public const DEFAULT_MAX_RESULTS = 100;
@@ -19,6 +24,7 @@ final readonly class RuleCriteria
 
     public int $maxResults;
 
+    /** Applies optional filters and rejects result limits outside the package query bound. */
     public function __construct(
         public Subject $subject,
         mixed $dimensionKey = null,

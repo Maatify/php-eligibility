@@ -23,6 +23,13 @@ use Maatify\Eligibility\Repository\Pdo\PdoRuleHydrationTrait;
 use PDO;
 use PDOException;
 
+/**
+ * Direct-PDO Rule mutation and Subject-coordination adapter.
+ *
+ * Natural-identity uniqueness conflicts are translated to the package exception
+ * while unrelated PDO failures propagate. Lock creation is transaction-scoped
+ * and is used by the management service for atomic desired-state replacement.
+ */
 final class PdoRuleCommandRepository implements
     RuleCommandRepositoryInterface,
     RuleMutationSupportInterface
@@ -33,9 +40,7 @@ final class PdoRuleCommandRepository implements
 
     private const SUBJECT_LOCK_TABLE = 'maa_eligibility_subject_locks';
 
-    public function __construct(private readonly PDO $pdo)
-    {
-    }
+    public function __construct(private readonly PDO $pdo) {}
 
     public function create(CreateRuleCommand $command): Rule
     {

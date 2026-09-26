@@ -47,7 +47,7 @@ function connectFromEnvironmentOrSkip(): PDO
     ];
     $missing = array_values(array_filter(
         $required,
-        static fn (string $name): bool => getenv($name) === false || getenv($name) === '',
+        static fn(string $name): bool => getenv($name) === false || getenv($name) === '',
     ));
 
     if ($missing !== []) {
@@ -82,12 +82,12 @@ function connectFromEnvironmentOrSkip(): PDO
     $pdo = new PDO(
         sprintf(
             'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
-            getenv('ELIGIBILITY_DB_HOST'),
-            getenv('ELIGIBILITY_DB_PORT'),
-            getenv('ELIGIBILITY_DB_NAME'),
+            (string) getenv('ELIGIBILITY_DB_HOST'),
+            (string) getenv('ELIGIBILITY_DB_PORT'),
+            (string) getenv('ELIGIBILITY_DB_NAME'),
         ),
-        getenv('ELIGIBILITY_DB_USER'),
-        getenv('ELIGIBILITY_DB_PASSWORD'),
+        (string) getenv('ELIGIBILITY_DB_USER'),
+        (string) getenv('ELIGIBILITY_DB_PASSWORD'),
         [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_EMULATE_PREPARES => false,

@@ -7,8 +7,8 @@ set -euo pipefail
 # gates which do not require an external service:
 #
 #   composer validate, optimized strict autoload, platform requirements,
-#   PHP syntax lint, PHPStan level max, whitespace check, Composer security
-#   audit, workflow lint, Unit suite, Golden suite.
+#   PHP syntax lint, PHPStan level max, PER-CS style, whitespace check,
+#   Composer security audit, workflow lint, Unit suite, Golden suite.
 #
 # Before running, resolve development dependencies once:
 #
@@ -52,6 +52,7 @@ run_step "Optimized strict PSR-4 autoload" composer dump-autoload --optimize --s
 run_step "Platform requirements" composer check-platform-reqs
 run_step "PHP syntax lint" php tools/php-lint.php
 run_step "PHPStan level max" composer analyse
+run_step "PER-CS 3.1 style check" composer check:style
 run_step "Whitespace check" tools/check-whitespace.sh
 run_step "Composer security audit" composer audit --no-interaction --abandoned=fail
 run_step "Workflow lint" tools/lint-workflows.sh

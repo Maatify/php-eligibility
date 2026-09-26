@@ -57,7 +57,7 @@ final readonly class SubjectCollection implements Countable, IteratorAggregate, 
     public function jsonSerialize(): array
     {
         return array_map(
-            static fn (Subject $subject): array => $subject->jsonSerialize(),
+            static fn(Subject $subject): array => $subject->jsonSerialize(),
             $this->items,
         );
     }

@@ -101,7 +101,7 @@ final readonly class RuleReferenceCollection implements Countable, IteratorAggre
     public function jsonSerialize(): array
     {
         return array_map(
-            static fn (RuleReference $reference): array => $reference->jsonSerialize(),
+            static fn(RuleReference $reference): array => $reference->jsonSerialize(),
             $this->items,
         );
     }

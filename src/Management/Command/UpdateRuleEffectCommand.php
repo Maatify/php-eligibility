@@ -12,6 +12,5 @@ final readonly class UpdateRuleEffectCommand
     public function __construct(
         public RuleIdentity $identity,
         public RuleEffectEnum $effect,
-    ) {
-    }
+    ) {}
 }

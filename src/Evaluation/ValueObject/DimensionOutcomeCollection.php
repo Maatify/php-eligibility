@@ -30,7 +30,7 @@ final readonly class DimensionOutcomeCollection implements Countable, IteratorAg
 
         usort(
             $items,
-            static fn (DimensionOutcome $left, DimensionOutcome $right): int => CanonicalOrdering::compareStrings(
+            static fn(DimensionOutcome $left, DimensionOutcome $right): int => CanonicalOrdering::compareStrings(
                 $left->dimensionKey,
                 $right->dimensionKey,
             ),
@@ -82,7 +82,7 @@ final readonly class DimensionOutcomeCollection implements Countable, IteratorAg
     public function jsonSerialize(): array
     {
         return array_map(
-            static fn (DimensionOutcome $outcome): array => $outcome->jsonSerialize(),
+            static fn(DimensionOutcome $outcome): array => $outcome->jsonSerialize(),
             $this->items,
         );
     }

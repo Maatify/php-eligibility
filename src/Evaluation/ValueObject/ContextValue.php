@@ -7,6 +7,12 @@ namespace Maatify\Eligibility\Evaluation\ValueObject;
 use JsonSerializable;
 use Maatify\Eligibility\Common\CanonicalString;
 
+/**
+ * Immutable canonical value supplied for one evaluation dimension.
+ *
+ * The original validated string is preserved exactly; no semantic normalization
+ * is performed before matching.
+ */
 final readonly class ContextValue implements JsonSerializable, \Stringable
 {
     public string $value;

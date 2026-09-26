@@ -10,10 +10,18 @@ use Maatify\Eligibility\Evaluation\Enum\DimensionReasonEnum;
 use Maatify\Eligibility\Enum\RuleEffectEnum;
 use Maatify\Eligibility\Common\CanonicalString;
 
+/**
+ * Immutable result and evidence for one evaluated dimension.
+ *
+ * Matched Rule references must belong to this dimension and one Subject. The
+ * reason code also constrains whether the outcome passed and whether evidence
+ * may be present.
+ */
 final readonly class DimensionOutcome implements JsonSerializable
 {
     public string $dimensionKey;
 
+    /** Validates the reason/evidence invariants for one dimension's result. */
     public function __construct(
         mixed $dimensionKey,
         mixed $passed,

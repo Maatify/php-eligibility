@@ -25,11 +25,10 @@ final class FaultingRuleMutationRepository implements RuleCommandRepositoryInter
     private bool $cleanupFailed = false;
 
     public function __construct(
-        private readonly RuleCommandRepositoryInterface & RuleMutationSupportInterface $repository,
+        private readonly RuleCommandRepositoryInterface&RuleMutationSupportInterface $repository,
         private readonly \Throwable $failure,
         private readonly ?\Throwable $cleanupFailure = null,
-    ) {
-    }
+    ) {}
 
     public function create(CreateRuleCommand $command): Rule
     {

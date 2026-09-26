@@ -14,7 +14,7 @@ declare(strict_types=1);
  * gate rely on this fail-closed behavior.
  */
 
-$roots = array_slice($argv, 1);
+$roots = array_slice($argv ?? [], 1);
 if ($roots === []) {
     $roots = [
         __DIR__ . '/../src',

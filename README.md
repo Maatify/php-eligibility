@@ -406,7 +406,7 @@ Prerequisites: PHP `^8.4`, Composer, Docker (for the real MySQL fixture).
 
 ```bash
 composer update --no-interaction --prefer-dist --no-progress
-tools/check-local.sh                # Composer, platform, syntax, PHPStan, whitespace, audit, workflow lint, Unit, Golden
+tools/check-local.sh                # Composer, platform, syntax, PHPStan, PER-CS 3.1 style, whitespace, audit, workflow lint, Unit, Golden
 docker compose -f docker-compose.integration.yml up -d --wait
 tools/check-local.sh --with-integration   # adds real-MySQL Integration + Harness
 docker compose -f docker-compose.integration.yml down

@@ -71,7 +71,7 @@ final readonly class RuleCollection implements Countable, IteratorAggregate, Jso
     public function jsonSerialize(): array
     {
         return array_map(
-            static fn (Rule $rule): array => $rule->jsonSerialize(),
+            static fn(Rule $rule): array => $rule->jsonSerialize(),
             $this->items,
         );
     }

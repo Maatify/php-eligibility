@@ -6,6 +6,7 @@ namespace Maatify\Eligibility\Exception;
 
 use Maatify\Exceptions\Exception\Conflict\GenericConflictMaatifyException;
 
+/** Signals that a concurrent Rule mutation could not be resolved safely. */
 final class RuleConcurrencyConflictException extends GenericConflictMaatifyException implements EligibilityExceptionInterface
 {
     public function __construct(string $message = 'Eligibility Rule concurrency could not be resolved safely.', ?\Throwable $previous = null)

@@ -43,8 +43,8 @@ docker compose -f docker-compose.integration.yml down
 `composer check:local` mirrors the required CI gates: Composer
 strict validation, optimized strict PSR-4 autoload, platform requirements,
 PHP syntax lint, PHPStan level max (no baseline, no suppressions), the
-whitespace gate, the Composer security audit, the workflow lint, the Unit
-suite, and the Golden suite. With `--with-integration` it adds the MySQL
+PER-CS 3.1 style check, the whitespace gate, the Composer security audit, the
+workflow lint, the Unit suite, and the Golden suite. With `--with-integration` it adds the MySQL
 readiness check, the real-MySQL Integration suite run twice (repeatability),
 and the two-run Consumer Verification Harness.
 

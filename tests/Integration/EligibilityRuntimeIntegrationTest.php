@@ -100,7 +100,7 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
 
         self::assertSame(DecisionReasonEnum::ELIGIBLE, $decision->reasonCode);
         self::assertSame(['country', 'customer_type'], array_map(
-            static fn (\Maatify\Eligibility\Evaluation\ValueObject\DimensionOutcome $outcome): string => $outcome->dimensionKey,
+            static fn(\Maatify\Eligibility\Evaluation\ValueObject\DimensionOutcome $outcome): string => $outcome->dimensionKey,
             $decision->dimensionOutcomes->items(),
         ));
 

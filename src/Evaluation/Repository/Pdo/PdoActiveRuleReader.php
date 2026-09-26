@@ -12,6 +12,13 @@ use Maatify\Eligibility\ValueObject\RuleCollection;
 use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use PDO;
 
+/**
+ * Direct-PDO reader for active Rules used by evaluation.
+ *
+ * Subject batches are split into bounded chunks and returned in canonical
+ * database order; an empty SubjectCollection produces an empty RuleCollection
+ * without issuing a query.
+ */
 final class PdoActiveRuleReader implements ActiveRuleReaderInterface
 {
     use PdoRuleHydrationTrait;
@@ -20,9 +27,7 @@ final class PdoActiveRuleReader implements ActiveRuleReaderInterface
 
     private const BULK_SUBJECT_CHUNK_SIZE = 100;
 
-    public function __construct(private readonly PDO $pdo)
-    {
-    }
+    public function __construct(private readonly PDO $pdo) {}
 
     public function findActiveForSubjects(SubjectCollection $subjects): RuleCollection
     {

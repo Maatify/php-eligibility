@@ -8,7 +8,5 @@ use Maatify\Eligibility\ValueObject\RuleIdentity;
 
 final readonly class DeactivateRuleCommand
 {
-    public function __construct(public RuleIdentity $identity)
-    {
-    }
+    public function __construct(public RuleIdentity $identity) {}
 }

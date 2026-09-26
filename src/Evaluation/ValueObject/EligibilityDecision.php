@@ -8,8 +8,16 @@ use JsonSerializable;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Evaluation\Enum\DecisionReasonEnum;
 
+/**
+ * Immutable aggregate decision with a reason and per-dimension evidence.
+ *
+ * The constructor enforces the state invariants between eligible, reasonCode,
+ * and dimension outcomes; use the named factories when constructing standard
+ * unrestricted, eligible, or denied results.
+ */
 final readonly class EligibilityDecision implements JsonSerializable
 {
+    /** Enforces consistency between decision state, reason, and per-dimension evidence. */
     public function __construct(
         mixed $eligible,
         public DecisionReasonEnum $reasonCode,

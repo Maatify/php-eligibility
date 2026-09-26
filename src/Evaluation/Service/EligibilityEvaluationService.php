@@ -15,6 +15,12 @@ use Maatify\Eligibility\Evaluation\ValueObject\Context;
 use Maatify\Eligibility\ValueObject\Subject;
 use Maatify\Eligibility\ValueObject\SubjectCollection;
 
+/**
+ * Reads active Rules and turns them into deterministic single or bulk decisions.
+ *
+ * Bulk evaluation performs one reader call for all supplied Subjects and then
+ * preserves the input Subject order in the returned decision collection.
+ */
 final class EligibilityEvaluationService implements EligibilityEvaluationServiceInterface
 {
     private readonly EligibilityRuleEvaluator $evaluator;
@@ -24,6 +30,7 @@ final class EligibilityEvaluationService implements EligibilityEvaluationService
         $this->evaluator = new EligibilityRuleEvaluator();
     }
 
+    /** Reads active Rules for one Subject and returns its unrestricted or evaluated decision. */
     public function decide(Subject $subject, Context $context): EligibilityDecision
     {
         $rules = $this->activeRuleReader->findActiveForSubjects(new SubjectCollection($subject));
@@ -31,6 +38,7 @@ final class EligibilityEvaluationService implements EligibilityEvaluationService
         return $this->evaluator->evaluate($subject, $context, $rules);
     }
 
+    /** Performs one bulk active-Rule read and returns one decision per input Subject in input order. */
     public function decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollectionDTO
     {
         $rules = $this->activeRuleReader->findActiveForSubjects($subjects);

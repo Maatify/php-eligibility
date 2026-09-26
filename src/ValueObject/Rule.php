@@ -10,12 +10,19 @@ use Maatify\Eligibility\Enum\RuleEffectEnum;
 use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\ValueObject\Subject;
 
+/**
+ * Immutable policy binding a Subject to one exact dimension value and effect.
+ *
+ * The natural identity contains the Subject and dimension value only; effect
+ * and lifecycle are mutable policy state represented by replacement instances.
+ */
 final readonly class Rule implements JsonSerializable
 {
     public string $dimensionKey;
 
     public string $dimensionValue;
 
+    /** Constructs one exact Rule identity; effect and lifecycle do not alter that identity. */
     public function __construct(
         public Subject $subject,
         mixed $dimensionKey,

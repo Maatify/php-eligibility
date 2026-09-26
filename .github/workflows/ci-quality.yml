@@ -2,9 +2,9 @@ name: ci-quality
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, draft/rc-2]
   push:
-    branches: [main]
+    branches: [main, draft/rc-2]
   workflow_dispatch:
 
 permissions:
@@ -29,7 +29,12 @@ jobs:
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.4'
+          composer-version: '2.10.2'
           coverage: none
+      - name: Verify Composer 2.10 capability
+        run: |
+          composer --version
+          composer --version | grep -Eq '^Composer version 2\.10\.'
       - name: Validate composer.json
         run: composer validate --strict
       - name: Resolve current compatible dependencies
@@ -60,6 +65,23 @@ jobs:
       - name: PHPStan level max
         run: composer analyse
 
+  style:
+    name: PER-CS 3.1 style
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          coverage: none
+      - name: Resolve current compatible dependencies
+        run: composer update --no-interaction --prefer-dist --no-progress
+      - name: Check PER-CS 3.1 style
+        run: composer check:style
+
   whitespace:
     name: Whitespace check
     runs-on: ubuntu-latest
@@ -89,7 +111,7 @@ jobs:
     name: Quality aggregate gate
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [composer-contract, static-analysis, whitespace, workflow-lint]
+    needs: [composer-contract, static-analysis, style, whitespace, workflow-lint]
     if: always()
     steps:
       - name: Checkout

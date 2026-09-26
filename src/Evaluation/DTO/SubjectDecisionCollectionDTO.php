@@ -57,7 +57,7 @@ final readonly class SubjectDecisionCollectionDTO implements Countable, Iterator
     public function jsonSerialize(): array
     {
         return array_map(
-            static fn (SubjectDecisionDTO $result): array => $result->jsonSerialize(),
+            static fn(SubjectDecisionDTO $result): array => $result->jsonSerialize(),
             $this->items,
         );
     }

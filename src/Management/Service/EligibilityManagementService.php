@@ -24,6 +24,14 @@ use Maatify\Eligibility\ValueObject\RuleIdentity;
 use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 
+/**
+ * Application boundary for Rule inspection and lifecycle mutations.
+ *
+ * Replacement and Subject cleanup run inside the injected transaction runner;
+ * replacement also acquires the Subject coordination lock before comparing and
+ * applying the desired state, making the operation safe against concurrent
+ * mutation attempts under the package persistence contract.
+ */
 final class EligibilityManagementService implements EligibilityManagementServiceInterface
 {
     public function __construct(
@@ -31,15 +39,15 @@ final class EligibilityManagementService implements EligibilityManagementService
         private readonly RuleManagementQueryInterface $managementQuery,
         private readonly RuleMutationSupportInterface $mutationSupport,
         private readonly SavepointTransactionRunnerInterface $transactionRunner,
-    )
-    {
-    }
+    ) {}
 
+    /** Persists a new active Rule and surfaces natural-identity conflicts from the repository. */
     public function createRule(CreateRuleCommand $command): Rule
     {
         return $this->commandRepository->create($command);
     }
 
+    /** Reads either lifecycle state and throws when the natural identity is absent. */
     public function inspectRule(RuleIdentity $identity): Rule
     {
         $rule = $this->managementQuery->findByIdentity($identity);
@@ -50,16 +58,19 @@ final class EligibilityManagementService implements EligibilityManagementService
         return $rule;
     }
 
+    /** Reads the bounded set selected by the supplied management criteria. */
     public function inspectRules(RuleCriteria $criteria): RuleCollection
     {
         return $this->managementQuery->findByCriteria($criteria);
     }
 
+    /** Returns active dimension keys for one Subject in canonical order. */
     public function inspectActiveDimensionKeys(ActiveDimensionKeysCriteria $query): ActiveDimensionKeyCollectionDTO
     {
         return $this->managementQuery->findActiveDimensionKeys($query);
     }
 
+    /** Changes only effect state; a missing natural identity becomes RuleNotFoundException. */
     public function updateRuleEffect(UpdateRuleEffectCommand $command): void
     {
         $this->assertMutationSucceeded(
@@ -68,6 +79,7 @@ final class EligibilityManagementService implements EligibilityManagementService
         );
     }
 
+    /** Marks an existing Rule inactive without deleting its natural identity. */
     public function deactivateRule(DeactivateRuleCommand $command): void
     {
         $this->assertMutationSucceeded(
@@ -76,6 +88,7 @@ final class EligibilityManagementService implements EligibilityManagementService
         );
     }
 
+    /** Marks an existing Rule active again without creating a second identity. */
     public function reactivateRule(ReactivateRuleCommand $command): void
     {
         $this->assertMutationSucceeded(

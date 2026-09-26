@@ -33,7 +33,7 @@ final readonly class DesiredRuleCollection implements Countable, IteratorAggrega
 
         usort(
             $items,
-            static fn (DesiredRule $left, DesiredRule $right): int => CanonicalOrdering::compareStrings(
+            static fn(DesiredRule $left, DesiredRule $right): int => CanonicalOrdering::compareStrings(
                 $left->dimensionValue,
                 $right->dimensionValue,
             ),
@@ -63,7 +63,7 @@ final readonly class DesiredRuleCollection implements Countable, IteratorAggrega
     public function jsonSerialize(): array
     {
         return array_map(
-            static fn (DesiredRule $desiredRule): array => $desiredRule->jsonSerialize(),
+            static fn(DesiredRule $desiredRule): array => $desiredRule->jsonSerialize(),
             $this->items,
         );
     }

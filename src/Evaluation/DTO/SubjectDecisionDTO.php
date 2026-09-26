@@ -13,8 +13,7 @@ final readonly class SubjectDecisionDTO implements JsonSerializable
     public function __construct(
         public Subject $subject,
         public EligibilityDecision $decision,
-    ) {
-    }
+    ) {}
 
     /** @return array{subject: Subject, decision: EligibilityDecision} */
     public function jsonSerialize(): array

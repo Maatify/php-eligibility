@@ -8,7 +8,5 @@ use Maatify\Eligibility\ValueObject\Subject;
 
 final readonly class ActiveDimensionKeysCriteria
 {
-    public function __construct(public Subject $subject)
-    {
-    }
+    public function __construct(public Subject $subject) {}
 }

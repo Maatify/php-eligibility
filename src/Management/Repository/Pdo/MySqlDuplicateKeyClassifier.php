@@ -9,9 +9,7 @@ namespace Maatify\Eligibility\Management\Repository\Pdo;
  */
 final class MySqlDuplicateKeyClassifier
 {
-    private function __construct()
-    {
-    }
+    private function __construct() {}
 
     public static function isDuplicate(\PDOException $exception): bool
     {

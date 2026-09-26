@@ -21,7 +21,7 @@ final readonly class ActiveDimensionKeyCollectionDTO implements Countable, Itera
     public function __construct(mixed ...$dimensionKeys)
     {
         $items = array_map(
-            static fn (mixed $dimensionKey): string => CanonicalString::validateDimensionKey($dimensionKey),
+            static fn(mixed $dimensionKey): string => CanonicalString::validateDimensionKey($dimensionKey),
             $dimensionKeys,
         );
 
@@ -35,7 +35,7 @@ final readonly class ActiveDimensionKeyCollectionDTO implements Countable, Itera
             }
         }
 
-        usort($items, static fn (string $left, string $right): int => CanonicalOrdering::compareStrings($left, $right));
+        usort($items, static fn(string $left, string $right): int => CanonicalOrdering::compareStrings($left, $right));
 
         $this->items = $items;
     }

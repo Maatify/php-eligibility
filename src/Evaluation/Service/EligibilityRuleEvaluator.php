@@ -18,7 +18,13 @@ use Maatify\Eligibility\Evaluation\ValueObject\Context;
 use Maatify\Eligibility\ValueObject\Subject;
 
 /**
- * @internal Pure evaluation logic shared by single and bulk service paths.
+ * Pure evaluation logic shared by single and bulk service paths.
+ *
+ * Only active Rules for the requested Subject participate. A matching DENY
+ * wins; otherwise an ALLOW list requires a matching supplied value, while a
+ * deny-only dimension passes when its Context dimension is absent.
+ *
+ * @internal
  */
 final class EligibilityRuleEvaluator
 {

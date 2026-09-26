@@ -9,9 +9,7 @@ use RuntimeException;
 
 final class IntegrationDatabase
 {
-    private function __construct()
-    {
-    }
+    private function __construct() {}
 
     public static function connect(): PDO
     {

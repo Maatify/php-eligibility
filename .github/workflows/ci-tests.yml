@@ -2,9 +2,9 @@ name: ci-tests
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, draft/rc-2]
   push:
-    branches: [main]
+    branches: [main, draft/rc-2]
   workflow_dispatch:
 
 permissions:

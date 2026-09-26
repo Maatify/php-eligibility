@@ -241,11 +241,11 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         $all = $this->managementQuery->findByCriteria(new RuleCriteria($subject));
         self::assertCount(4, $all);
         self::assertSame(['country', 'country', 'customer_type', 'customer_type'], array_map(
-            static fn (Rule $rule): string => $rule->dimensionKey,
+            static fn(Rule $rule): string => $rule->dimensionKey,
             $all->items(),
         ));
         self::assertSame(['EG', 'SA', 'retail', 'wholesale'], array_map(
-            static fn (Rule $rule): string => $rule->dimensionValue,
+            static fn(Rule $rule): string => $rule->dimensionValue,
             $all->items(),
         ));
 
@@ -297,11 +297,11 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         $active = $this->activeRuleReader->findActiveForSubjects(new SubjectCollection(...$subjects));
         self::assertCount(2, $active);
         self::assertSame(['category', 'product'], array_map(
-            static fn (Rule $rule): string => $rule->subject->subjectType,
+            static fn(Rule $rule): string => $rule->subject->subjectType,
             $active->items(),
         ));
         self::assertSame(['5', '2'], array_map(
-            static fn (Rule $rule): string => $rule->subject->subjectId,
+            static fn(Rule $rule): string => $rule->subject->subjectId,
             $active->items(),
         ));
 
@@ -354,7 +354,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
                 $decision->reasonCode,
             );
             self::assertSame([$value], array_map(
-                static fn ($reference): string => $reference->dimensionValue,
+                static fn($reference): string => $reference->dimensionValue,
                 $decision->dimensionOutcomes->items()[0]->matchedRules->items(),
             ));
         }
@@ -373,25 +373,25 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         self::assertNotNull($found);
         self::assertSame(str_repeat('v', 255), $found->dimensionValue);
 
-        $this->assertInvalid(static fn (): CreateRuleCommand => new CreateRuleCommand(
+        $this->assertInvalid(static fn(): CreateRuleCommand => new CreateRuleCommand(
             new Subject(str_repeat('s', 65), 'id'),
             'key',
             'value',
             RuleEffectEnum::ALLOW,
         ));
-        $this->assertInvalid(static fn (): CreateRuleCommand => new CreateRuleCommand(
+        $this->assertInvalid(static fn(): CreateRuleCommand => new CreateRuleCommand(
             new Subject('type', str_repeat('i', 192)),
             'key',
             'value',
             RuleEffectEnum::ALLOW,
         ));
-        $this->assertInvalid(static fn (): CreateRuleCommand => new CreateRuleCommand(
+        $this->assertInvalid(static fn(): CreateRuleCommand => new CreateRuleCommand(
             new Subject('type', 'id'),
             str_repeat('k', 65),
             'value',
             RuleEffectEnum::ALLOW,
         ));
-        $this->assertInvalid(static fn (): CreateRuleCommand => new CreateRuleCommand(
+        $this->assertInvalid(static fn(): CreateRuleCommand => new CreateRuleCommand(
             new Subject('type', 'id'),
             'key',
             str_repeat('v', 256),

@@ -209,8 +209,7 @@ final class DecisionModelTest extends TestCase
         string $dimensionValue,
         RuleEffectEnum $effect,
         string $dimensionKey = 'country',
-    ): RuleReference
-    {
+    ): RuleReference {
         return RuleReference::fromRule(
             Rule::active(new Subject('product', '150'), $dimensionKey, $dimensionValue, $effect),
         );
