@@ -31,6 +31,7 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
 
     public function __construct(private readonly PDO $pdo) {}
 
+    /** Reads either active or inactive state and returns null only when the identity is absent. */
     public function findByIdentity(RuleIdentity $identity): ?Rule
     {
         $rows = $this->fetchRows(
@@ -51,6 +52,7 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
         return $row === null ? null : $this->hydrate($row);
     }
 
+    /** Applies optional lifecycle/dimension filters and the criteria's bounded result limit. */
     public function findByCriteria(RuleCriteria $criteria): RuleCollection
     {
         $conditions = [
@@ -88,6 +90,7 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
         return new RuleCollection(...$rules);
     }
 
+    /** Returns distinct active dimension keys for a Subject in canonical order. */
     public function findActiveDimensionKeys(ActiveDimensionKeysCriteria $query): ActiveDimensionKeyCollectionDTO
     {
         $rows = $this->fetchRows(

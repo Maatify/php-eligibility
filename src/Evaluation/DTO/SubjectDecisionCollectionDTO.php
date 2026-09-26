@@ -10,12 +10,17 @@ use IteratorAggregate;
 use JsonSerializable;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 
-/** @implements IteratorAggregate<int, SubjectDecisionDTO> */
+/**
+ * Immutable bulk result collection preserving the caller's Subject decision order.
+ *
+ * @implements IteratorAggregate<int, SubjectDecisionDTO>
+ */
 final readonly class SubjectDecisionCollectionDTO implements Countable, IteratorAggregate, JsonSerializable
 {
     /** @var list<SubjectDecisionDTO> */
     private array $items;
 
+    /** Stores one result per supplied Subject without changing the evaluation order. */
     public function __construct(SubjectDecisionDTO ...$results)
     {
         $items = array_values($results);

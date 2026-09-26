@@ -97,6 +97,10 @@ final class EligibilityManagementService implements EligibilityManagementService
         );
     }
 
+    /**
+     * Atomically reconciles one Subject + dimension with desired state while
+     * preserving unrelated dimensions and using lifecycle updates for existing identities.
+     */
     public function replaceDimensionRules(ReplaceDimensionRulesCommand $command): void
     {
         $this->transactionRunner->run(function () use ($command): void {
@@ -165,6 +169,7 @@ final class EligibilityManagementService implements EligibilityManagementService
         });
     }
 
+    /** Atomically removes the Subject's Rules and package-owned coordination metadata. */
     public function cleanupSubject(CleanupSubjectCommand $command): void
     {
         $this->transactionRunner->run(function () use ($command): void {

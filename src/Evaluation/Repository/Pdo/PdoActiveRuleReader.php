@@ -29,6 +29,7 @@ final class PdoActiveRuleReader implements ActiveRuleReaderInterface
 
     public function __construct(private readonly PDO $pdo) {}
 
+    /** Loads active Rules in bounded subject chunks; an empty input performs no query. */
     public function findActiveForSubjects(SubjectCollection $subjects): RuleCollection
     {
         $subjectItems = $subjects->items();

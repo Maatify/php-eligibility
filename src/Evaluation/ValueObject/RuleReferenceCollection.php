@@ -12,12 +12,17 @@ use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Common\CanonicalOrdering;
 use Maatify\Eligibility\Enum\RuleEffectEnum;
 
-/** @implements IteratorAggregate<int, RuleReference> */
+/**
+ * Immutable evaluation trace collection sorted by canonical Rule reference identity.
+ *
+ * @implements IteratorAggregate<int, RuleReference>
+ */
 final readonly class RuleReferenceCollection implements Countable, IteratorAggregate, JsonSerializable
 {
     /** @var list<RuleReference> */
     private array $items;
 
+    /** Stores trace references in deterministic order for decision evidence. */
     public function __construct(RuleReference ...$references)
     {
         $items = array_values($references);

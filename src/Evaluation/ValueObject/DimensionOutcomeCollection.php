@@ -11,12 +11,17 @@ use JsonSerializable;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Common\CanonicalOrdering;
 
-/** @implements IteratorAggregate<int, DimensionOutcome> */
+/**
+ * Immutable per-dimension result collection sorted by canonical dimension key.
+ *
+ * @implements IteratorAggregate<int, DimensionOutcome>
+ */
 final readonly class DimensionOutcomeCollection implements Countable, IteratorAggregate, JsonSerializable
 {
     /** @var list<DimensionOutcome> */
     private array $items;
 
+    /** Stores outcomes in deterministic order used by aggregate decision state and serialization. */
     public function __construct(DimensionOutcome ...$outcomes)
     {
         $items = array_values($outcomes);

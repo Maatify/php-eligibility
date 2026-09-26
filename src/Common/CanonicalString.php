@@ -25,6 +25,12 @@ final class CanonicalString
 
     private function __construct() {}
 
+    /**
+     * Accepts only a non-empty valid UTF-8 string without edge whitespace or
+     * scalar coercion; bounded callers apply their field-specific byte limit.
+     *
+     * @throws InvalidEligibilityInputException when the canonical boundary is violated.
+     */
     public static function validate(mixed $value, string $field): string
     {
         if (!is_string($value)) {

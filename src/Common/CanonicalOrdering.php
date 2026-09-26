@@ -16,6 +16,7 @@ final class CanonicalOrdering
 {
     private function __construct() {}
 
+    /** Compares two validated values by their exact UTF-8 byte sequence. */
     public static function compareStrings(mixed $left, mixed $right): int
     {
         return strcmp(
