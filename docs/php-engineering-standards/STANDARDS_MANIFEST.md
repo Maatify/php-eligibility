@@ -53,7 +53,7 @@ All eleven Candidate Standards were evaluated against the activation scope and t
 
 Applicable conditional rules:
 
-- The `Persistence Conditional Applicability` rules owned by `std-package-building` are **applicable**, because this package owns SQL persistence behavior: direct PDO repositories under `src/Rule/Repository/`, `schema/eligibility_rules.sql`, `ext-pdo` / `ext-pdo_mysql` requirements, the `maatify/persistence` dependency, and a real MySQL integration fixture. All persistence, schema, transaction, and persistence-testing obligations of that Standard are therefore in force. This adds no extra Standard.
+- The `Persistence Conditional Applicability` rules owned by `std-package-building` are **applicable**, because this package owns SQL persistence behavior: direct repositories under `src/Evaluation/Repository/` and `src/Management/Repository/`, technology-specific PDO implementations under `src/Evaluation/Repository/Pdo/` and `src/Management/Repository/Pdo/`, shared PDO support under `src/Repository/Pdo/`, `schema/eligibility_rules.sql`, `ext-pdo` / `ext-pdo_mysql` requirements, the `maatify/persistence` dependency, and a real MySQL integration fixture. All persistence, schema, transaction, and persistence-testing obligations of that Standard are therefore in force. This adds no extra Standard.
 - The `AI consumer discovery applicability` rule owned by `std-library-presentation` is **applicable**, because this repository is a standalone reusable PHP Composer library.
 
 Non-applicable conditional rules:
