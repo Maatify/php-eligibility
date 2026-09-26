@@ -28,6 +28,10 @@ use Maatify\Eligibility\ValueObject\Subject;
  */
 final class EligibilityRuleEvaluator
 {
+    /**
+     * Evaluates only active Rules for the requested Subject and applies the
+     * deny-first/allow-list semantics for every ruled dimension.
+     */
     public function evaluate(Subject $subject, Context $context, RuleCollection $rules): EligibilityDecision
     {
         /** @var array<string, list<Rule>> $rulesByDimension */

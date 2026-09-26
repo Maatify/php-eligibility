@@ -10,6 +10,12 @@ use Maatify\Eligibility\Enum\RuleEffectEnum;
 use Maatify\Eligibility\ValueObject\RuleIdentity;
 use Maatify\Eligibility\Common\CanonicalString;
 
+/**
+ * Immutable evaluation trace projection of a matched Rule.
+ *
+ * It preserves the Rule natural identity and effect needed to explain a
+ * dimension outcome without exposing persistence lifecycle details.
+ */
 final readonly class RuleReference implements JsonSerializable
 {
     public string $subjectType;
@@ -20,6 +26,7 @@ final readonly class RuleReference implements JsonSerializable
 
     public string $dimensionValue;
 
+    /** Constructs a trace reference from canonical identity components and effect. */
     public function __construct(
         mixed $subjectType,
         mixed $subjectId,
@@ -33,6 +40,7 @@ final readonly class RuleReference implements JsonSerializable
         $this->dimensionValue = CanonicalString::validateDimensionValue($dimensionValue);
     }
 
+    /** Projects a Rule into the public evaluation evidence shape. */
     public static function fromRule(Rule $rule): self
     {
         return new self(
