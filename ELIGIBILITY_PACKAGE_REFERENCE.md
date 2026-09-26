@@ -1143,7 +1143,7 @@ Host Input
   → Observable Result
 ```
 
-This workflow is normative at the responsibility and observable-behavior level. The implemented Public Runtime API inventory below is the authoritative record of the concrete RC1 PHP classes, signatures, adapters, and dependency wiring. Documentation MUST NOT invent classes or wiring that are absent from that inventory and the current source.
+This workflow is normative at the responsibility and observable-behavior level. The implemented Public Runtime API inventory below is the authoritative record of the current RC2 concrete PHP classes, FQCNs, signatures, adapters, and dependency wiring. RC1 references in this document preserve historical behavioral and release context; they do not identify the current concrete runtime inventory. Documentation MUST NOT invent classes or wiring that are absent from that inventory and the current source.
 
 1. The Host validates the external Subject and resolves its business Context. It constructs the canonical typed Subject and immutable Context using the exact string rules and Context shape defined in this reference. Host-owned semantic normalization, such as choosing an uppercase country code, occurs before the package boundary.
 2. The Host calls the public Eligibility API for one Subject or an ordered batch of Subjects. The public operation is conceptually `decide(Subject, Context)` or `decideMany(Subjects, Context)`; these labels describe the frozen capability and do not freeze concrete PHP names.
@@ -1171,7 +1171,8 @@ evaluator and application-service runtime.
 - `Maatify\Eligibility\Common\CanonicalString::validate(mixed $value, string $field): string` validates a generic canonical package string without transforming it. Its semantic bounded methods and constants are the single source of truth for the four RC1 canonical component limits; canonical ordering remains intentionally generic and unbounded.
 - `Maatify\Eligibility\ValueObject\Subject` represents `subjectType` and `subjectId`.
 - `Maatify\Eligibility\Evaluation\ValueObject\ContextValue`, `ContextValueCollection`, `ContextDimension`, and `Context` represent the immutable Context shape. `Context` exposes `getDimension(mixed $dimensionKey): ?ContextDimension` and `hasDimension(mixed $dimensionKey): bool`.
-- `Maatify\Eligibility\ValueObject\Rule`, `RuleIdentity`, `RuleCollection`, `RuleEffectEnum`, and `RuleLifecycleEnum` represent typed Rules, natural identity, effects, lifecycle, and canonical Rule collections. `RuleCollection` exposes active and inactive lifecycle state through each returned `Rule`.
+- `Maatify\Eligibility\ValueObject\Rule`, `RuleIdentity`, and `RuleCollection` represent typed Rules, natural identity, and canonical Rule collections. `RuleCollection` exposes active and inactive lifecycle state through each returned `Rule`.
+- `Maatify\Eligibility\Enum\RuleEffectEnum` and `Maatify\Eligibility\Enum\RuleLifecycleEnum` represent Rule effects and lifecycle states.
 - `Maatify\Eligibility\Evaluation\ValueObject\EligibilityDecision`, `DimensionOutcome`, `DimensionOutcomeCollection`, `RuleReference`, and `RuleReferenceCollection` represent immutable typed Decisions and complete matched-Rule traces.
 - `Maatify\Eligibility\Evaluation\Enum\DecisionReasonEnum` and `Maatify\Eligibility\Evaluation\Enum\DimensionReasonEnum` provide the machine-readable decision and dimension reason enums.
 - `Maatify\Eligibility\Exception\EligibilityExceptionInterface` is the single package marker. `InvalidEligibilityInputException` is the B1 typed validation error and uses the shared `maatify/exceptions` hierarchy.
