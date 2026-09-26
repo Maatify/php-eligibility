@@ -12,16 +12,21 @@ use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Common\CanonicalOrdering;
 use Maatify\Eligibility\Common\CanonicalString;
 
-/** @implements IteratorAggregate<int, string> */
+/**
+ * Immutable duplicate-free collection of active dimension keys in canonical order.
+ *
+ * @implements IteratorAggregate<int, string>
+ */
 final readonly class ActiveDimensionKeyCollectionDTO implements Countable, IteratorAggregate, JsonSerializable
 {
     /** @var list<string> */
     private array $items;
 
+    /** Validates keys, rejects duplicates, and sorts them for deterministic management output. */
     public function __construct(mixed ...$dimensionKeys)
     {
         $items = array_map(
-            static fn (mixed $dimensionKey): string => CanonicalString::validateDimensionKey($dimensionKey),
+            static fn(mixed $dimensionKey): string => CanonicalString::validateDimensionKey($dimensionKey),
             $dimensionKeys,
         );
 
@@ -35,7 +40,7 @@ final readonly class ActiveDimensionKeyCollectionDTO implements Countable, Itera
             }
         }
 
-        usort($items, static fn (string $left, string $right): int => CanonicalOrdering::compareStrings($left, $right));
+        usort($items, static fn(string $left, string $right): int => CanonicalOrdering::compareStrings($left, $right));
 
         $this->items = $items;
     }

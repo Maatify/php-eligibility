@@ -7,6 +7,9 @@ namespace Maatify\Eligibility\Exception;
 use Maatify\Eligibility\ValueObject\RuleIdentity;
 use Maatify\Exceptions\Exception\Conflict\GenericConflictMaatifyException;
 
+/**
+ * Signals that persistence already contains the requested natural Rule identity.
+ */
 final class RuleIdentityConflictException extends GenericConflictMaatifyException implements EligibilityExceptionInterface
 {
     private RuleIdentity $identity;
@@ -28,6 +31,7 @@ final class RuleIdentityConflictException extends GenericConflictMaatifyExceptio
         );
     }
 
+    /** Returns the conflicting identity without exposing a raw database exception as the contract. */
     public function identity(): RuleIdentity
     {
         return $this->identity;

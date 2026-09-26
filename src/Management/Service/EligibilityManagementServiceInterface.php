@@ -17,6 +17,9 @@ use Maatify\Eligibility\ValueObject\Rule;
 use Maatify\Eligibility\ValueObject\RuleCollection;
 use Maatify\Eligibility\ValueObject\RuleIdentity;
 
+/**
+ * Public management boundary for Rule persistence, inspection, and lifecycle state.
+ */
 interface EligibilityManagementServiceInterface
 {
     public function createRule(CreateRuleCommand $command): Rule;
@@ -37,7 +40,13 @@ interface EligibilityManagementServiceInterface
     /** @throws \Maatify\Eligibility\Exception\RuleNotFoundException */
     public function reactivateRule(ReactivateRuleCommand $command): void;
 
+    /**
+     * Atomically makes one Subject + dimension match the desired active Rule set.
+     * Existing identities are updated/reactivated, omitted active identities are
+     * deactivated, and unrelated dimensions remain untouched.
+     */
     public function replaceDimensionRules(ReplaceDimensionRulesCommand $command): void;
 
+    /** Removes all Rules and package-owned coordination metadata for the Subject atomically. */
     public function cleanupSubject(CleanupSubjectCommand $command): void;
 }

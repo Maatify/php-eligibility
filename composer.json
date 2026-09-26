@@ -39,12 +39,15 @@
         "php": "^8.4"
     },
     "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.75",
         "phpstan/phpstan": "^2.2",
         "phpunit/phpunit": "^12.0"
     },
     "scripts": {
         "analyse": "phpstan analyse --memory-limit=1G",
         "check:local": "bash tools/check-local.sh",
+        "check:style": "php-cs-fixer fix --dry-run --diff",
+        "format": "php-cs-fixer fix",
         "lint:php": "@php tools/php-lint.php",
         "test": "phpunit",
         "test:golden": "phpunit --testsuite golden",

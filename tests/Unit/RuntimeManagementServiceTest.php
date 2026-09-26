@@ -160,7 +160,7 @@ final class RuntimeManagementServiceTest extends TestCase
                 ['retail', RuleEffectEnum::DENY, RuleLifecycleEnum::ACTIVE],
             ],
             array_map(
-                static fn (Rule $rule): array => [$rule->dimensionValue, $rule->effect, $rule->lifecycle],
+                static fn(Rule $rule): array => [$rule->dimensionValue, $rule->effect, $rule->lifecycle],
                 $rules->items(),
             ),
         );

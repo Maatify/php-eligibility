@@ -6,6 +6,5 @@ namespace Maatify\Eligibility\Exception;
 
 use Maatify\Exceptions\Exception\Validation\InvalidArgumentMaatifyException;
 
-final class InvalidEligibilityInputException extends InvalidArgumentMaatifyException implements EligibilityExceptionInterface
-{
-}
+/** Signals rejected non-canonical or otherwise invalid public package input. */
+final class InvalidEligibilityInputException extends InvalidArgumentMaatifyException implements EligibilityExceptionInterface {}

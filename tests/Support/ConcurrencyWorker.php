@@ -99,8 +99,7 @@ function holdReplace(
     PdoRuleCommandRepository $repository,
     PdoSavepointTransactionRunner $transactionRunner,
     array $arguments,
-): void
-{
+): void {
     $subject = subjectFromArguments($arguments);
     $pdo->beginTransaction();
     try {
@@ -134,8 +133,7 @@ function replace(
     PdoRuleCommandRepository $repository,
     PdoSavepointTransactionRunner $transactionRunner,
     array $arguments,
-): void
-{
+): void {
     writeLine('STARTED');
     writeLine('ATTEMPTING_LOCK');
     (new EligibilityManagementService(

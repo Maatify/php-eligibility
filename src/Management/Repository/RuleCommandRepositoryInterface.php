@@ -11,6 +11,10 @@ use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
 use Maatify\Eligibility\ValueObject\Rule;
 
+/**
+ * Persistence command boundary for Rule creation, lifecycle mutation, and cleanup.
+ * Implementations translate storage identity conflicts into package failures.
+ */
 interface RuleCommandRepositoryInterface
 {
     /** Returns the canonical domain Rule accepted by persistence. */

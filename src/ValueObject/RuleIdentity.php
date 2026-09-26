@@ -7,6 +7,12 @@ namespace Maatify\Eligibility\ValueObject;
 use JsonSerializable;
 use Maatify\Eligibility\Common\CanonicalString;
 
+/**
+ * The canonical natural identity of one Rule.
+ *
+ * Rule effect and lifecycle are intentionally absent: changing either is a
+ * mutation of this same identity, not creation of a second Rule.
+ */
 final readonly class RuleIdentity implements JsonSerializable
 {
     public string $subjectType;
@@ -17,6 +23,7 @@ final readonly class RuleIdentity implements JsonSerializable
 
     public string $dimensionValue;
 
+    /** Validates all four identity components using the package's canonical byte bounds. */
     public function __construct(
         mixed $subjectType,
         mixed $subjectId,
@@ -29,6 +36,7 @@ final readonly class RuleIdentity implements JsonSerializable
         $this->dimensionValue = CanonicalString::validateDimensionValue($dimensionValue);
     }
 
+    /** Compares the complete natural identity using strict canonical string equality. */
     public function equals(self $other): bool
     {
         return $this->subjectType === $other->subjectType

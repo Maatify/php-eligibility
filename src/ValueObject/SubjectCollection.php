@@ -10,12 +10,20 @@ use IteratorAggregate;
 use JsonSerializable;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 
-/** @implements IteratorAggregate<int, Subject> */
+/**
+ * Immutable Subject collection preserving supplied input order.
+ *
+ * Duplicate Subject identities are rejected; this collection does not sort Subjects
+ * canonically, so iteration and serialization retain the constructor argument order.
+ *
+ * @implements IteratorAggregate<int, Subject>
+ */
 final readonly class SubjectCollection implements Countable, IteratorAggregate, JsonSerializable
 {
     /** @var list<Subject> */
     private array $items;
 
+    /** Rejects duplicate identities and preserves the supplied Subject order without canonical sorting. */
     public function __construct(Subject ...$subjects)
     {
         $items = array_values($subjects);
@@ -57,7 +65,7 @@ final readonly class SubjectCollection implements Countable, IteratorAggregate, 
     public function jsonSerialize(): array
     {
         return array_map(
-            static fn (Subject $subject): array => $subject->jsonSerialize(),
+            static fn(Subject $subject): array => $subject->jsonSerialize(),
             $this->items,
         );
     }

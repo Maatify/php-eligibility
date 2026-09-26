@@ -50,7 +50,7 @@ final class RuntimeEvaluationServiceTest extends TestCase
         self::assertTrue($decision->eligible);
         self::assertSame(DimensionReasonEnum::PASSED_ALLOW_LIST, $outcome->reasonCode);
         self::assertSame(['EG', 'SA'], array_map(
-            static fn ($reference): string => $reference->dimensionValue,
+            static fn($reference): string => $reference->dimensionValue,
             $outcome->matchedRules->items(),
         ));
     }
@@ -67,7 +67,7 @@ final class RuntimeEvaluationServiceTest extends TestCase
         self::assertTrue($decision->eligible);
         self::assertSame(DimensionReasonEnum::PASSED_ALLOW_LIST, $outcome->reasonCode);
         self::assertSame(['EG'], array_map(
-            static fn ($reference): string => $reference->dimensionValue,
+            static fn($reference): string => $reference->dimensionValue,
             $outcome->matchedRules->items(),
         ));
     }
@@ -127,7 +127,7 @@ final class RuntimeEvaluationServiceTest extends TestCase
         self::assertFalse($decision->eligible);
         self::assertSame(DimensionReasonEnum::DENIED_BY_RULE, $outcome->reasonCode);
         self::assertSame(['EG'], array_map(
-            static fn ($reference): string => $reference->dimensionValue,
+            static fn($reference): string => $reference->dimensionValue,
             $outcome->matchedRules->items(),
         ));
     }
@@ -145,7 +145,7 @@ final class RuntimeEvaluationServiceTest extends TestCase
         self::assertFalse($decision->eligible);
         self::assertSame(DimensionReasonEnum::DENIED_BY_RULE, $outcome->reasonCode);
         self::assertSame(['EG', 'SA'], array_map(
-            static fn ($reference): string => $reference->dimensionValue,
+            static fn($reference): string => $reference->dimensionValue,
             $outcome->matchedRules->items(),
         ));
     }
@@ -167,7 +167,7 @@ final class RuntimeEvaluationServiceTest extends TestCase
 
         self::assertFalse($decision->eligible);
         self::assertSame(['country', 'customer_type', 'segment'], array_map(
-            static fn ($outcome): string => $outcome->dimensionKey,
+            static fn($outcome): string => $outcome->dimensionKey,
             $outcomes,
         ));
         self::assertSame(DimensionReasonEnum::ALLOW_LIST_UNSATISFIED, $outcomes[0]->reasonCode);
@@ -208,7 +208,7 @@ final class RuntimeEvaluationServiceTest extends TestCase
 
         self::assertSame(1, $repository->bulkReadCount);
         self::assertSame([$second, $first, $third], array_map(
-            static fn ($result) => $result->subject,
+            static fn($result) => $result->subject,
             $batch->items(),
         ));
         $singleRepository = new InMemoryRuleRepository();

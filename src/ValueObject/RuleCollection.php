@@ -11,12 +11,17 @@ use JsonSerializable;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Common\CanonicalOrdering;
 
-/** @implements IteratorAggregate<int, Rule> */
+/**
+ * Immutable duplicate-free Rule collection sorted by canonical natural identity.
+ *
+ * @implements IteratorAggregate<int, Rule>
+ */
 final readonly class RuleCollection implements Countable, IteratorAggregate, JsonSerializable
 {
     /** @var list<Rule> */
     private array $items;
 
+    /** Rejects duplicate natural identities and stores Rules in deterministic order. */
     public function __construct(Rule ...$rules)
     {
         $items = array_values($rules);
@@ -71,7 +76,7 @@ final readonly class RuleCollection implements Countable, IteratorAggregate, Jso
     public function jsonSerialize(): array
     {
         return array_map(
-            static fn (Rule $rule): array => $rule->jsonSerialize(),
+            static fn(Rule $rule): array => $rule->jsonSerialize(),
             $this->items,
         );
     }

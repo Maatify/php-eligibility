@@ -11,6 +11,9 @@ use Maatify\Eligibility\ValueObject\Rule;
 use Maatify\Eligibility\ValueObject\RuleCollection;
 use Maatify\Eligibility\ValueObject\RuleIdentity;
 
+/**
+ * Management read boundary for identity, bounded criteria, and active-dimension queries.
+ */
 interface RuleManagementQueryInterface
 {
     /** Includes both active and inactive Rules. */

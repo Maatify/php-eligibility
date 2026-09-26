@@ -126,11 +126,11 @@ final class CanonicalBoundsTest extends TestCase
         self::assertSame(255, strlen($exactDimensionValue));
         self::assertSame($exactDimensionValue, new ContextValue($exactDimensionValue)->value);
 
-        $this->assertInvalid(static fn (): ContextDimension => new ContextDimension(
+        $this->assertInvalid(static fn(): ContextDimension => new ContextDimension(
             str_repeat('é', 33),
             new ContextValueCollection(new ContextValue('value')),
         ));
-        $this->assertInvalid(static fn (): ContextValue => new ContextValue(str_repeat('é', 128)));
+        $this->assertInvalid(static fn(): ContextValue => new ContextValue(str_repeat('é', 128)));
     }
 
     #[Test]
@@ -138,17 +138,17 @@ final class CanonicalBoundsTest extends TestCase
     {
         $subject = new Subject('product', '150');
 
-        $this->assertInvalid(static fn (): CreateRuleCommand => NonStrictConsumer::createRuleCommand(
+        $this->assertInvalid(static fn(): CreateRuleCommand => NonStrictConsumer::createRuleCommand(
             $subject,
             'country',
             str_repeat('v', CanonicalString::DIMENSION_VALUE_MAX_BYTES + 1),
         ));
-        $this->assertInvalid(static fn (): RuleCriteria => NonStrictConsumer::ruleCriteria(
+        $this->assertInvalid(static fn(): RuleCriteria => NonStrictConsumer::ruleCriteria(
             $subject,
             str_repeat('k', CanonicalString::DIMENSION_KEY_MAX_BYTES + 1),
             25,
         ));
-        $this->assertInvalid(static fn (): CreateRuleCommand => NonStrictConsumer::createRuleCommand(
+        $this->assertInvalid(static fn(): CreateRuleCommand => NonStrictConsumer::createRuleCommand(
             $subject,
             1,
             'EG',
@@ -162,16 +162,16 @@ final class CanonicalBoundsTest extends TestCase
         $values = new ContextValueCollection(new ContextValue('EG'));
         $keys = new ActiveDimensionKeyCollectionDTO('country');
 
-        $this->assertInvalid(static fn (): ?ContextDimension => $context->getDimension(
+        $this->assertInvalid(static fn(): ?ContextDimension => $context->getDimension(
             str_repeat('k', CanonicalString::DIMENSION_KEY_MAX_BYTES + 1),
         ));
-        $this->assertInvalid(static fn (): bool => $context->hasDimension(
+        $this->assertInvalid(static fn(): bool => $context->hasDimension(
             str_repeat('k', CanonicalString::DIMENSION_KEY_MAX_BYTES + 1),
         ));
-        $this->assertInvalid(static fn (): bool => $values->contains(
+        $this->assertInvalid(static fn(): bool => $values->contains(
             str_repeat('v', CanonicalString::DIMENSION_VALUE_MAX_BYTES + 1),
         ));
-        $this->assertInvalid(static fn (): bool => $keys->contains(
+        $this->assertInvalid(static fn(): bool => $keys->contains(
             str_repeat('k', CanonicalString::DIMENSION_KEY_MAX_BYTES + 1),
         ));
     }

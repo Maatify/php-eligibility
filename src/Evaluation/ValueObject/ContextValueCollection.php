@@ -12,12 +12,18 @@ use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Common\CanonicalOrdering;
 use Maatify\Eligibility\Common\CanonicalString;
 
-/** @implements IteratorAggregate<int, ContextValue> */
+/**
+ * Immutable non-empty set of ContextValue objects in canonical bytewise order.
+ * Duplicate values are rejected rather than silently deduplicated.
+ *
+ * @implements IteratorAggregate<int, ContextValue>
+ */
 final readonly class ContextValueCollection implements Countable, IteratorAggregate, JsonSerializable
 {
     /** @var list<ContextValue> */
     private array $items;
 
+    /** Requires at least one value and rejects duplicates before canonical sorting. */
     public function __construct(ContextValue ...$values)
     {
         if ($values === []) {
@@ -35,7 +41,7 @@ final readonly class ContextValueCollection implements Countable, IteratorAggreg
 
         usort(
             $items,
-            static fn (ContextValue $left, ContextValue $right): int => CanonicalOrdering::compareStrings(
+            static fn(ContextValue $left, ContextValue $right): int => CanonicalOrdering::compareStrings(
                 $left->value,
                 $right->value,
             ),
@@ -72,7 +78,7 @@ final readonly class ContextValueCollection implements Countable, IteratorAggreg
     public function values(): array
     {
         return array_map(
-            static fn (ContextValue $value): string => $value->value,
+            static fn(ContextValue $value): string => $value->value,
             $this->items,
         );
     }

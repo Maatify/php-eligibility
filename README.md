@@ -404,13 +404,49 @@ Eligibility-owned.
 
 Prerequisites: PHP `^8.4`, Composer, Docker (for the real MySQL fixture).
 
+The repository development and verification workflow requires Composer `2.10.x`;
+this is a tooling policy only and is not a runtime or consumer install
+requirement. Verify it before resolving dependencies:
+
+```bash
+composer --version | grep -Eq '^Composer version 2\.10\.'
+```
+
+Resolve the latest-compatible dependencies and run the local aggregate gate:
+
 ```bash
 composer update --no-interaction --prefer-dist --no-progress
-tools/check-local.sh                # Composer, platform, syntax, PHPStan, whitespace, audit, workflow lint, Unit, Golden
+tools/check-local.sh                # local gates, Unit, and Golden; does not run dependency-resolution matrices
 docker compose -f docker-compose.integration.yml up -d --wait
 tools/check-local.sh --with-integration   # adds real-MySQL Integration + Harness
 docker compose -f docker-compose.integration.yml down
 ```
+
+The latest-compatible Composer policy sequence corresponding to `ci-quality` is:
+
+```bash
+composer --version | grep -Eq '^Composer version 2\.10\.'
+composer validate --strict
+composer update --no-interaction --prefer-dist --no-progress
+composer check-platform-reqs
+composer dump-autoload --optimize --strict-psr
+composer audit --no-interaction --abandoned=fail
+```
+
+The lowest-supported dependency sequence corresponding to `ci-tests` must be
+run separately because it rewrites `vendor/`:
+
+```bash
+composer update --prefer-lowest --prefer-stable --no-interaction --prefer-dist --no-progress
+composer test:unit
+composer test:golden
+composer analyse
+```
+
+`tools/check-local.sh` requires Composer `2.10.x` and runs the local static,
+policy, Unit, and Golden gates, but it intentionally does not perform either
+dependency-resolution matrix. Run the latest-compatible and lowest-supported
+sequences above when validating full local CI parity.
 
 Generated files such as `vendor/`, `composer.lock` (this library does not
 track it), and PHPUnit/PHPStan caches are not committed.

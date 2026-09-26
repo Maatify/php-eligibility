@@ -237,7 +237,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                 ['SA', RuleEffectEnum::DENY],
             ],
             array_map(
-                static fn (\Maatify\Eligibility\ValueObject\Rule $rule): array => [$rule->dimensionValue, $rule->effect],
+                static fn(\Maatify\Eligibility\ValueObject\Rule $rule): array => [$rule->dimensionValue, $rule->effect],
                 $rules->items(),
             ),
         );
@@ -304,7 +304,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             self::assertSame(
                 [['OLD', RuleEffectEnum::ALLOW]],
                 array_map(
-                    static fn (\Maatify\Eligibility\ValueObject\Rule $rule): array => [
+                    static fn(\Maatify\Eligibility\ValueObject\Rule $rule): array => [
                         $rule->dimensionValue,
                         $rule->effect,
                     ],
@@ -335,7 +335,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                     ['B2', RuleEffectEnum::DENY],
                 ],
                 array_map(
-                    static fn (\Maatify\Eligibility\ValueObject\Rule $rule): array => [
+                    static fn(\Maatify\Eligibility\ValueObject\Rule $rule): array => [
                         $rule->dimensionValue,
                         $rule->effect,
                     ],
@@ -365,7 +365,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
 
         $rules = $this->managementQuery->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Enum\RuleLifecycleEnum::ACTIVE));
         self::assertSame(['B', 'B2'], array_map(
-            static fn (\Maatify\Eligibility\ValueObject\Rule $rule): string => $rule->dimensionValue,
+            static fn(\Maatify\Eligibility\ValueObject\Rule $rule): string => $rule->dimensionValue,
             $rules->items(),
         ));
         self::assertSame(5, $this->countAllRules());
@@ -608,8 +608,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         ?array $workerB,
         bool $preserveOriginalFailure = false,
         bool $allowNonZeroExit = false,
-    ): void
-    {
+    ): void {
         $cleanupFailure = null;
         foreach ([$workerA, $workerB] as $worker) {
             try {

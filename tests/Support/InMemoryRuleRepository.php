@@ -180,9 +180,7 @@ final class InMemoryRuleRepository implements
         return new RuleCollection(...$rules);
     }
 
-    public function deleteSubjectCoordination(Subject $subject): void
-    {
-    }
+    public function deleteSubjectCoordination(Subject $subject): void {}
 
     /** @return list<Rule> */
     public function allRules(): array

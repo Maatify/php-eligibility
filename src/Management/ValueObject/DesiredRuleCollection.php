@@ -11,12 +11,17 @@ use JsonSerializable;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Common\CanonicalOrdering;
 
-/** @implements IteratorAggregate<int, DesiredRule> */
+/**
+ * Immutable duplicate-free desired Rule state sorted by dimension value.
+ *
+ * @implements IteratorAggregate<int, DesiredRule>
+ */
 final readonly class DesiredRuleCollection implements Countable, IteratorAggregate, JsonSerializable
 {
     /** @var list<DesiredRule> */
     private array $items;
 
+    /** Rejects duplicate desired values and stores the replacement target deterministically. */
     public function __construct(DesiredRule ...$desiredRules)
     {
         $items = array_values($desiredRules);
@@ -33,7 +38,7 @@ final readonly class DesiredRuleCollection implements Countable, IteratorAggrega
 
         usort(
             $items,
-            static fn (DesiredRule $left, DesiredRule $right): int => CanonicalOrdering::compareStrings(
+            static fn(DesiredRule $left, DesiredRule $right): int => CanonicalOrdering::compareStrings(
                 $left->dimensionValue,
                 $right->dimensionValue,
             ),
@@ -63,7 +68,7 @@ final readonly class DesiredRuleCollection implements Countable, IteratorAggrega
     public function jsonSerialize(): array
     {
         return array_map(
-            static fn (DesiredRule $desiredRule): array => $desiredRule->jsonSerialize(),
+            static fn(DesiredRule $desiredRule): array => $desiredRule->jsonSerialize(),
             $this->items,
         );
     }

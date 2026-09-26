@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Evaluation\Enum;
 
+/** Per-dimension evaluation reason used with the outcome pass/fail invariant. */
 enum DimensionReasonEnum: string
 {
     case PASSED_ALLOW_LIST = 'PASSED_ALLOW_LIST';

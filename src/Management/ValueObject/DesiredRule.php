@@ -8,10 +8,12 @@ use JsonSerializable;
 use Maatify\Eligibility\Enum\RuleEffectEnum;
 use Maatify\Eligibility\Common\CanonicalString;
 
+/** Immutable desired active-state entry used by transactional dimension replacement. */
 final readonly class DesiredRule implements JsonSerializable
 {
     public string $dimensionValue;
 
+    /** Canonicalizes one desired dimension value while retaining its requested effect. */
     public function __construct(mixed $dimensionValue, public RuleEffectEnum $effect)
     {
         $this->dimensionValue = CanonicalString::validateDimensionValue($dimensionValue);

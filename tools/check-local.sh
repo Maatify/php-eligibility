@@ -3,15 +3,19 @@ set -euo pipefail
 
 # Local parity aggregate gate for maatify/php-eligibility.
 #
-# This is the repository-owned maintained command that mirrors the mandatory CI
-# gates which do not require an external service:
+# This is the repository-owned maintained command for the mandatory local gates
+# which do not require an external service. It requires Composer 2.10.x, matching
+# the Composer capability used by the authoritative CI quality gate, but it does
+# not resolve either the latest-compatible or lowest-supported dependency matrix.
 #
 #   composer validate, optimized strict autoload, platform requirements,
-#   PHP syntax lint, PHPStan level max, whitespace check, Composer security
-#   audit, workflow lint, Unit suite, Golden suite.
+#   PHP syntax lint, PHPStan level max, PER-CS style, whitespace check,
+#   Composer security audit, workflow lint, Unit suite, Golden suite.
 #
-# Before running, resolve development dependencies once:
+# Before running, verify Composer 2.10.x and resolve the latest-compatible
+# development dependencies once:
 #
+#   composer --version | grep -Eq '^Composer version 2\.10\.'
 #   composer update --no-interaction --prefer-dist --no-progress
 #
 # To also run the real-service gates locally, start the MySQL fixture first
@@ -42,16 +46,28 @@ run_step() {
 	"$@"
 }
 
+require_composer_210() {
+	local version
+	version="$(composer --version)"
+	printf '%s\n' "$version"
+	if ! printf '%s\n' "$version" | grep -Eq '^Composer version 2\.10\.'; then
+		echo "error: Composer 2.10.x is required for the repository development/verification workflow" >&2
+		exit 1
+	fi
+}
+
 if [[ ! -d vendor ]]; then
 	echo "error: vendor/ is missing. Run: composer update --no-interaction --prefer-dist --no-progress" >&2
 	exit 1
 fi
 
+run_step "Composer 2.10 capability" require_composer_210
 run_step "Composer validation" composer validate --strict
 run_step "Optimized strict PSR-4 autoload" composer dump-autoload --optimize --strict-psr
 run_step "Platform requirements" composer check-platform-reqs
 run_step "PHP syntax lint" php tools/php-lint.php
 run_step "PHPStan level max" composer analyse
+run_step "PER-CS 3.1 style check" composer check:style
 run_step "Whitespace check" tools/check-whitespace.sh
 run_step "Composer security audit" composer audit --no-interaction --abandoned=fail
 run_step "Workflow lint" tools/lint-workflows.sh

@@ -16,16 +16,22 @@ use Maatify\Eligibility\ValueObject\RuleIdentity;
 use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use PDO;
 
+/**
+ * Direct-PDO management query adapter.
+ *
+ * Identity reads include inactive Rules, while criteria reads apply the caller's
+ * optional lifecycle filter and bounded result limit; all returned collections
+ * are canonicalized by their value-object constructors.
+ */
 final class PdoRuleManagementQuery implements RuleManagementQueryInterface
 {
     use PdoRuleHydrationTrait;
 
     private const TABLE = 'maa_eligibility_rules';
 
-    public function __construct(private readonly PDO $pdo)
-    {
-    }
+    public function __construct(private readonly PDO $pdo) {}
 
+    /** Reads either active or inactive state and returns null only when the identity is absent. */
     public function findByIdentity(RuleIdentity $identity): ?Rule
     {
         $rows = $this->fetchRows(
@@ -46,6 +52,7 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
         return $row === null ? null : $this->hydrate($row);
     }
 
+    /** Applies optional lifecycle/dimension filters and the criteria's bounded result limit. */
     public function findByCriteria(RuleCriteria $criteria): RuleCollection
     {
         $conditions = [
@@ -83,6 +90,7 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
         return new RuleCollection(...$rules);
     }
 
+    /** Returns distinct active dimension keys for a Subject in canonical order. */
     public function findActiveDimensionKeys(ActiveDimensionKeysCriteria $query): ActiveDimensionKeyCollectionDTO
     {
         $rows = $this->fetchRows(

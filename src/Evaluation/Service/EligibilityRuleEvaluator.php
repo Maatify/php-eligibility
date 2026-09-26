@@ -18,10 +18,20 @@ use Maatify\Eligibility\Evaluation\ValueObject\Context;
 use Maatify\Eligibility\ValueObject\Subject;
 
 /**
- * @internal Pure evaluation logic shared by single and bulk service paths.
+ * Pure evaluation logic shared by single and bulk service paths.
+ *
+ * Only active Rules for the requested Subject participate. A matching DENY
+ * wins; otherwise an ALLOW list requires a matching supplied value, while a
+ * deny-only dimension passes when its Context dimension is absent.
+ *
+ * @internal
  */
 final class EligibilityRuleEvaluator
 {
+    /**
+     * Evaluates only active Rules for the requested Subject and applies the
+     * deny-first/allow-list semantics for every ruled dimension.
+     */
     public function evaluate(Subject $subject, Context $context, RuleCollection $rules): EligibilityDecision
     {
         /** @var array<string, list<Rule>> $rulesByDimension */

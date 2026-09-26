@@ -6,6 +6,13 @@ namespace Maatify\Eligibility\Common;
 
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 
+/**
+ * Validates the exact UTF-8 string representation used at package boundaries.
+ *
+ * Validation deliberately does not trim, normalize, change case, transliterate,
+ * or coerce scalar values. The bounded helpers additionally enforce the
+ * package's byte limits before a value enters a value object or persistence flow.
+ */
 final class CanonicalString
 {
     public const SUBJECT_TYPE_MAX_BYTES = 64;
@@ -16,10 +23,14 @@ final class CanonicalString
 
     public const DIMENSION_VALUE_MAX_BYTES = 255;
 
-    private function __construct()
-    {
-    }
+    private function __construct() {}
 
+    /**
+     * Accepts only a non-empty valid UTF-8 string without edge whitespace or
+     * scalar coercion; bounded callers apply their field-specific byte limit.
+     *
+     * @throws InvalidEligibilityInputException when the canonical boundary is violated.
+     */
     public static function validate(mixed $value, string $field): string
     {
         if (!is_string($value)) {

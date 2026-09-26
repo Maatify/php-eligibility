@@ -23,6 +23,13 @@ use Maatify\Eligibility\Repository\Pdo\PdoRuleHydrationTrait;
 use PDO;
 use PDOException;
 
+/**
+ * Direct-PDO Rule mutation and Subject-coordination adapter.
+ *
+ * Natural-identity uniqueness conflicts are translated to the package exception
+ * while unrelated PDO failures propagate. Lock creation is transaction-scoped
+ * and is used by the management service for atomic desired-state replacement.
+ */
 final class PdoRuleCommandRepository implements
     RuleCommandRepositoryInterface,
     RuleMutationSupportInterface
@@ -33,10 +40,9 @@ final class PdoRuleCommandRepository implements
 
     private const SUBJECT_LOCK_TABLE = 'maa_eligibility_subject_locks';
 
-    public function __construct(private readonly PDO $pdo)
-    {
-    }
+    public function __construct(private readonly PDO $pdo) {}
 
+    /** Persists a new active Rule and translates duplicate natural identity to a typed conflict. */
     public function create(CreateRuleCommand $command): Rule
     {
         $subjectType = CanonicalString::validateSubjectType($command->subject->subjectType);
@@ -78,6 +84,7 @@ final class PdoRuleCommandRepository implements
         );
     }
 
+    /** Mutates effect state and returns false only when the natural identity is absent. */
     public function updateEffect(UpdateRuleEffectCommand $command): bool
     {
         $identity = $this->boundedIdentity($command->identity);
@@ -90,6 +97,7 @@ final class PdoRuleCommandRepository implements
         );
     }
 
+    /** Marks the identity inactive without deleting it; false means the identity is absent. */
     public function deactivate(DeactivateRuleCommand $command): bool
     {
         $identity = $this->boundedIdentity($command->identity);
@@ -102,6 +110,7 @@ final class PdoRuleCommandRepository implements
         );
     }
 
+    /** Marks the identity active without creating a duplicate; false means it is absent. */
     public function reactivate(ReactivateRuleCommand $command): bool
     {
         $identity = $this->boundedIdentity($command->identity);
@@ -114,6 +123,7 @@ final class PdoRuleCommandRepository implements
         );
     }
 
+    /** Deletes all persisted Rules for the Subject; transaction ownership remains with the service. */
     public function cleanupSubject(CleanupSubjectCommand $command): void
     {
         $statement = $this->pdo->prepare(
@@ -125,6 +135,7 @@ final class PdoRuleCommandRepository implements
         ]);
     }
 
+    /** Creates or retains the package-owned Subject coordination row for the caller's transaction. */
     public function lockSubjectForMutation(Subject $subject): void
     {
         $statement = $this->pdo->prepare(
@@ -138,6 +149,7 @@ final class PdoRuleCommandRepository implements
         ]);
     }
 
+    /** Reads every Rule for one Subject + dimension without the bounded management result limit. */
     public function findAllForSubjectDimension(Subject $subject, string $dimensionKey): RuleCollection
     {
         $rows = $this->fetchRows(
@@ -160,6 +172,7 @@ final class PdoRuleCommandRepository implements
         return new RuleCollection(...$rules);
     }
 
+    /** Removes coordination metadata after Subject cleanup has completed successfully. */
     public function deleteSubjectCoordination(Subject $subject): void
     {
         $statement = $this->pdo->prepare(

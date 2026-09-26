@@ -7,6 +7,7 @@ namespace Maatify\Eligibility\Exception;
 use Maatify\Eligibility\ValueObject\RuleIdentity;
 use Maatify\Exceptions\Exception\NotFound\ResourceNotFoundMaatifyException;
 
+/** Signals that the requested natural Rule identity does not exist in persistence. */
 final class RuleNotFoundException extends ResourceNotFoundMaatifyException implements EligibilityExceptionInterface
 {
     private RuleIdentity $identity;
@@ -28,6 +29,7 @@ final class RuleNotFoundException extends ResourceNotFoundMaatifyException imple
         );
     }
 
+    /** Returns the identity that could not be found. */
     public function identity(): RuleIdentity
     {
         return $this->identity;

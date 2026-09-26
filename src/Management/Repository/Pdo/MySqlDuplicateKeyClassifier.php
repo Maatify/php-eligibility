@@ -9,10 +9,9 @@ namespace Maatify\Eligibility\Management\Repository\Pdo;
  */
 final class MySqlDuplicateKeyClassifier
 {
-    private function __construct()
-    {
-    }
+    private function __construct() {}
 
+    /** Identifies only the MySQL duplicate-key condition used for Rule identity translation. */
     public static function isDuplicate(\PDOException $exception): bool
     {
         $errorInfo = $exception->errorInfo;
