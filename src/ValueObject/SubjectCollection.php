@@ -11,7 +11,10 @@ use JsonSerializable;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 
 /**
- * Immutable Subject collection retaining deterministic canonical identity order.
+ * Immutable Subject collection preserving supplied input order.
+ *
+ * Duplicate Subject identities are rejected; this collection does not sort Subjects
+ * canonically, so iteration and serialization retain the constructor argument order.
  *
  * @implements IteratorAggregate<int, Subject>
  */
@@ -20,7 +23,7 @@ final readonly class SubjectCollection implements Countable, IteratorAggregate, 
     /** @var list<Subject> */
     private array $items;
 
-    /** Stores the supplied Subject identities in canonical order for bulk reads/results. */
+    /** Rejects duplicate identities and preserves the supplied Subject order without canonical sorting. */
     public function __construct(Subject ...$subjects)
     {
         $items = array_values($subjects);
