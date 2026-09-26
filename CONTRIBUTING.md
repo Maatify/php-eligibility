@@ -32,21 +32,54 @@ available through Packagist.
 
 Prerequisites: PHP `^8.4`, Composer, Docker for the real MySQL fixture.
 
+The repository development and verification workflow requires Composer `2.10.x`.
+This is a development-tooling policy only; it is not a package runtime or
+consumer install requirement.
+
+```bash
+composer --version | grep -Eq '^Composer version 2\.10\.'
+```
+
+Resolve the latest-compatible dependencies before the local aggregate gate:
+
 ```bash
 composer update --no-interaction --prefer-dist --no-progress
-composer check:local                 # non-service gates + Unit + Golden in one pass
+composer check:local                 # local gates + Unit + Golden; no dependency matrix
 docker compose -f docker-compose.integration.yml up -d --wait
 composer check:local -- --with-integration   # adds real-MySQL Integration + Harness
 docker compose -f docker-compose.integration.yml down
 ```
 
-`composer check:local` mirrors the required CI gates: Composer
-strict validation, optimized strict PSR-4 autoload, platform requirements,
-PHP syntax lint, PHPStan level max (no baseline, no suppressions), the
-PER-CS 3.1 style check, the whitespace gate, the Composer security audit, the
-workflow lint, the Unit suite, and the Golden suite. With `--with-integration` it adds the MySQL
-readiness check, the real-MySQL Integration suite run twice (repeatability),
-and the two-run Consumer Verification Harness.
+The latest-compatible local sequence matching the authoritative `ci-quality`
+Composer contract is:
+
+```bash
+composer --version | grep -Eq '^Composer version 2\.10\.'
+composer validate --strict
+composer update --no-interaction --prefer-dist --no-progress
+composer check-platform-reqs
+composer dump-autoload --optimize --strict-psr
+composer audit --no-interaction --abandoned=fail
+```
+
+The lowest-supported local sequence matching `ci-tests / lowest-deps` is:
+
+```bash
+composer update --prefer-lowest --prefer-stable --no-interaction --prefer-dist --no-progress
+composer test:unit
+composer test:golden
+composer analyse
+```
+
+Run the lowest-supported sequence separately because it rewrites `vendor/`.
+`composer check:local` requires Composer `2.10.x` and mirrors the local static,
+policy, Unit, and Golden gates: strict Composer validation, optimized strict
+PSR-4 autoload, platform requirements, PHP syntax lint, PHPStan level max (no
+baseline or suppressions), PER-CS 3.1, whitespace, fail-closed Composer audit,
+workflow lint, Unit, and Golden. It does not run either dependency-resolution
+matrix. With `--with-integration` it additionally runs MySQL readiness, the
+real-MySQL Integration suite twice, and the two-run Consumer Verification
+Harness.
 
 ## Test and Integration requirements
 
