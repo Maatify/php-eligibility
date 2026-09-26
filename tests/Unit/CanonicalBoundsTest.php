@@ -5,26 +5,26 @@ declare(strict_types=1);
 namespace Maatify\Eligibility\Tests\Unit;
 
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
-use Maatify\Eligibility\Management\Command\DesiredRule;
-use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\ValueObject\DesiredRule;
+use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
-use Maatify\Eligibility\Management\Query\RuleCriteria;
-use Maatify\Eligibility\Management\Result\ActiveDimensionKeyCollection;
-use Maatify\Eligibility\Evaluation\Decision\DimensionOutcome;
-use Maatify\Eligibility\Evaluation\Decision\DimensionReasonEnum;
-use Maatify\Eligibility\Evaluation\Decision\RuleReference;
-use Maatify\Eligibility\Evaluation\Decision\RuleReferenceCollection;
+use Maatify\Eligibility\Management\Criteria\RuleCriteria;
+use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyCollectionDTO;
+use Maatify\Eligibility\Evaluation\ValueObject\DimensionOutcome;
+use Maatify\Eligibility\Evaluation\Enum\DimensionReasonEnum;
+use Maatify\Eligibility\Evaluation\ValueObject\RuleReference;
+use Maatify\Eligibility\Evaluation\ValueObject\RuleReferenceCollection;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
-use Maatify\Eligibility\Rule\Rule;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Rule\RuleIdentity;
+use Maatify\Eligibility\ValueObject\Rule;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\ValueObject\RuleIdentity;
 use Maatify\Eligibility\Tests\Support\NonStrictConsumer;
-use Maatify\Eligibility\Common\Validation\CanonicalString;
-use Maatify\Eligibility\Evaluation\Value\Context;
-use Maatify\Eligibility\Evaluation\Value\ContextDimension;
-use Maatify\Eligibility\Evaluation\Value\ContextValue;
-use Maatify\Eligibility\Evaluation\Value\ContextValueCollection;
-use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Common\CanonicalString;
+use Maatify\Eligibility\Evaluation\ValueObject\Context;
+use Maatify\Eligibility\Evaluation\ValueObject\ContextDimension;
+use Maatify\Eligibility\Evaluation\ValueObject\ContextValue;
+use Maatify\Eligibility\Evaluation\ValueObject\ContextValueCollection;
+use Maatify\Eligibility\ValueObject\Subject;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -63,7 +63,7 @@ final class CanonicalBoundsTest extends TestCase
             DimensionReasonEnum::PASSED_ALLOW_LIST,
             new RuleReferenceCollection($reference),
         );
-        $activeKeys = new ActiveDimensionKeyCollection($dimensionKey);
+        $activeKeys = new ActiveDimensionKeyCollectionDTO($dimensionKey);
 
         self::assertSame($subjectType, $identity->subjectType);
         self::assertSame($subjectId, $rule->subject->subjectId);
@@ -160,7 +160,7 @@ final class CanonicalBoundsTest extends TestCase
     {
         $context = new Context(ContextDimension::fromStrings('country', 'EG'));
         $values = new ContextValueCollection(new ContextValue('EG'));
-        $keys = new ActiveDimensionKeyCollection('country');
+        $keys = new ActiveDimensionKeyCollectionDTO('country');
 
         $this->assertInvalid(static fn (): ?ContextDimension => $context->getDimension(
             str_repeat('k', CanonicalString::DIMENSION_KEY_MAX_BYTES + 1),

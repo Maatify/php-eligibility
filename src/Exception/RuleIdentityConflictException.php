@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Exception;
 
-use Maatify\Eligibility\Rule\RuleIdentity;
+use Maatify\Eligibility\ValueObject\RuleIdentity;
 use Maatify\Exceptions\Exception\Conflict\GenericConflictMaatifyException;
 
 final class RuleIdentityConflictException extends GenericConflictMaatifyException implements EligibilityExceptionInterface

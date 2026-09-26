@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Management\Command;
 
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Rule\RuleIdentity;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\ValueObject\RuleIdentity;
 
 final readonly class UpdateRuleEffectCommand
 {

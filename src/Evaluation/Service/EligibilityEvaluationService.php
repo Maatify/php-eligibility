@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Evaluation\Service;
 
-use Maatify\Eligibility\Evaluation\Engine\EligibilityRuleEvaluator;
-use Maatify\Eligibility\Evaluation\Contract\EligibilityEvaluationServiceInterface;
-use Maatify\Eligibility\Evaluation\Result\SubjectDecisionCollection;
-use Maatify\Eligibility\Evaluation\Result\SubjectDecisionResult;
-use Maatify\Eligibility\Evaluation\Decision\EligibilityDecision;
-use Maatify\Eligibility\Rule\Repository\ActiveRuleReaderInterface;
-use Maatify\Eligibility\Rule\RuleCollection;
-use Maatify\Eligibility\Evaluation\Value\Context;
-use Maatify\Eligibility\Common\Value\Subject;
-use Maatify\Eligibility\Common\Value\SubjectCollection;
+use Maatify\Eligibility\Evaluation\Service\EligibilityRuleEvaluator;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationServiceInterface;
+use Maatify\Eligibility\Evaluation\DTO\SubjectDecisionCollectionDTO;
+use Maatify\Eligibility\Evaluation\DTO\SubjectDecisionDTO;
+use Maatify\Eligibility\Evaluation\ValueObject\EligibilityDecision;
+use Maatify\Eligibility\Evaluation\Repository\ActiveRuleReaderInterface;
+use Maatify\Eligibility\ValueObject\RuleCollection;
+use Maatify\Eligibility\Evaluation\ValueObject\Context;
+use Maatify\Eligibility\ValueObject\Subject;
+use Maatify\Eligibility\ValueObject\SubjectCollection;
 
 final class EligibilityEvaluationService implements EligibilityEvaluationServiceInterface
 {
@@ -31,18 +31,18 @@ final class EligibilityEvaluationService implements EligibilityEvaluationService
         return $this->evaluator->evaluate($subject, $context, $rules);
     }
 
-    public function decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollection
+    public function decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollectionDTO
     {
         $rules = $this->activeRuleReader->findActiveForSubjects($subjects);
         $results = [];
 
         foreach ($subjects as $subject) {
-            $results[] = new SubjectDecisionResult(
+            $results[] = new SubjectDecisionDTO(
                 $subject,
                 $this->evaluator->evaluate($subject, $context, $rules),
             );
         }
 
-        return new SubjectDecisionCollection(...$results);
+        return new SubjectDecisionCollectionDTO(...$results);
     }
 }

@@ -7,22 +7,22 @@ namespace Maatify\Eligibility\Tests\Unit;
 use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
 use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
-use Maatify\Eligibility\Management\Command\DesiredRule;
-use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\ValueObject\DesiredRule;
+use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
 use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
-use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleCriteria;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
 use Maatify\Eligibility\Exception\RuleNotFoundException;
-use Maatify\Eligibility\Rule\Rule;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Rule\RuleIdentity;
-use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Eligibility\ValueObject\Rule;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\ValueObject\RuleIdentity;
+use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\InMemoryRuleRepository;
 use Maatify\Eligibility\Tests\Support\SynchronousTransactionRunner;
-use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\ValueObject\Subject;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -41,7 +41,7 @@ final class RuntimeManagementServiceTest extends TestCase
         self::assertSame(RuleLifecycleEnum::ACTIVE, $created->lifecycle);
         self::assertSame($created->jsonSerialize(), $inspected->jsonSerialize());
         self::assertSame(['country'], $service->inspectActiveDimensionKeys(
-            new ActiveDimensionKeysQuery($command->subject),
+            new ActiveDimensionKeysCriteria($command->subject),
         )->items());
     }
 

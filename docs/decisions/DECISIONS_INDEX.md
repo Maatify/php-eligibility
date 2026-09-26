@@ -20,21 +20,18 @@ substitute for a Decision Record, and not a substitute for
 ## Current Discovery State
 
 ```text
-Decision Records: 0
-Active Decisions: 0
+Decision Records: 1
+Active Decisions: 1
 Pending Owner Decisions: 0
 ```
 
-This repository currently holds **no durable engineering decision records**.
+This repository currently holds one durable engineering decision record.
 
-The registry is intentionally present and empty rather than absent, because
-`DECISION_GOVERNANCE_STANDARD_AR.md` requires this index to exist whenever the
-Decision Governance Standard applies to a governed repository, even when no decision
-entries exist yet.
+The registry is intentionally maintained as the discovery surface required by
+`DECISION_GOVERNANCE_STANDARD_AR.md`.
 
-`docs/decisions/` currently contains this index only. No other decision record file
-exists in this repository. Runtime code paths that contain the word `Decision`
-(for example `src/Evaluation/Decision/`) are package runtime artifacts governed by
+`docs/decisions/` contains this index and the active record below. Runtime code paths that contain the word `Decision`
+(for example `src/Evaluation/ValueObject/`) are package runtime artifacts governed by
 `ELIGIBILITY_PACKAGE_REFERENCE.md`; they are not governance decision records and are
 deliberately not indexed here.
 
@@ -65,7 +62,9 @@ Each future decision record must be reachable from a row below with, as applicab
 
 ## Decision Entries
 
-None yet.
+| Decision ID | Title | Status | Scope / Concern | Decision Record | Canonical Contract / Current Owner | Supersedes | Superseded By |
+|---|---|---|---|---|---|---|---|
+| `DEC-001` | RC2 Canonical Source Topology and Pre-Stable FQCN Migration | `ACTIVE` | php-eligibility RC2 source topology, namespace/FQCN placement, and pre-Stable structural compatibility boundary | `docs/decisions/DEC-001-rc2-canonical-source-topology-and-pre-stable-fqcn-migration.md` | `ELIGIBILITY_PACKAGE_REFERENCE.md` for package behavior; `DEC-001` for RC2 structural placement and compatibility boundary | None | None |
 
 ## Discovery Integrity
 

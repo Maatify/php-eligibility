@@ -7,24 +7,24 @@ namespace Maatify\Eligibility\Tests\Integration;
 use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
 use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
-use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleCriteria;
 use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
+use Maatify\Eligibility\Evaluation\Enum\DecisionReasonEnum;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
-use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
-use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
-use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
-use Maatify\Eligibility\Rule\Rule;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Rule\RuleIdentity;
-use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader;
+use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
+use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery;
+use Maatify\Eligibility\ValueObject\Rule;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\ValueObject\RuleIdentity;
+use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
-use Maatify\Eligibility\Evaluation\Value\Context;
-use Maatify\Eligibility\Evaluation\Value\ContextDimension;
-use Maatify\Eligibility\Common\Value\Subject;
-use Maatify\Eligibility\Common\Value\SubjectCollection;
+use Maatify\Eligibility\Evaluation\ValueObject\Context;
+use Maatify\Eligibility\Evaluation\ValueObject\ContextDimension;
+use Maatify\Eligibility\ValueObject\Subject;
+use Maatify\Eligibility\ValueObject\SubjectCollection;
 use PDO;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -274,7 +274,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
             new RuleIdentity('product', '150', 'country', 'SA'),
         )));
 
-        $keys = $this->managementQuery->findActiveDimensionKeys(new ActiveDimensionKeysQuery($subject));
+        $keys = $this->managementQuery->findActiveDimensionKeys(new ActiveDimensionKeysCriteria($subject));
 
         self::assertSame(['country', 'customer_type'], $keys->items());
     }

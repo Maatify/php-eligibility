@@ -10,18 +10,18 @@ use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
-use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Management\Query\RuleCriteria;
-use Maatify\Eligibility\Management\Result\ActiveDimensionKeyCollection;
-use Maatify\Eligibility\Management\Contract\EligibilityManagementServiceInterface;
+use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleCriteria;
+use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyCollectionDTO;
+use Maatify\Eligibility\Management\Service\EligibilityManagementServiceInterface;
 use Maatify\Eligibility\Exception\RuleNotFoundException;
-use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
-use Maatify\Eligibility\Rule\Repository\RuleManagementQueryInterface;
-use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
-use Maatify\Eligibility\Rule\Rule;
-use Maatify\Eligibility\Rule\RuleCollection;
-use Maatify\Eligibility\Rule\RuleIdentity;
-use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Eligibility\Management\Repository\RuleCommandRepositoryInterface;
+use Maatify\Eligibility\Management\Repository\RuleManagementQueryInterface;
+use Maatify\Eligibility\Management\Repository\RuleMutationSupportInterface;
+use Maatify\Eligibility\ValueObject\Rule;
+use Maatify\Eligibility\ValueObject\RuleCollection;
+use Maatify\Eligibility\ValueObject\RuleIdentity;
+use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 
 final class EligibilityManagementService implements EligibilityManagementServiceInterface
@@ -55,7 +55,7 @@ final class EligibilityManagementService implements EligibilityManagementService
         return $this->managementQuery->findByCriteria($criteria);
     }
 
-    public function inspectActiveDimensionKeys(ActiveDimensionKeysQuery $query): ActiveDimensionKeyCollection
+    public function inspectActiveDimensionKeys(ActiveDimensionKeysCriteria $query): ActiveDimensionKeyCollectionDTO
     {
         return $this->managementQuery->findActiveDimensionKeys($query);
     }

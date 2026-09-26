@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Management\Command;
 
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Common\Validation\CanonicalString;
-use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\Common\CanonicalString;
+use Maatify\Eligibility\ValueObject\Subject;
 
 final readonly class CreateRuleCommand
 {

@@ -8,6 +8,26 @@ The RC1 implementation MUST conform to the boundaries, invariants, decision sema
 
 This document freezes externally observable behavior without prematurely freezing internal class names, table names, column names, indexes, or framework-specific wiring.
 
+## RC2 source topology
+
+The RC2 source topology is:
+
+```text
+Source Topology: Multi Capability
+
+Capabilities:
+- Evaluation
+- Management
+```
+
+The package identity represents the `Eligibility` Domain boundary; no
+redundant `src/Eligibility/` directory exists. The canonical placement law is
+`Domain → Capability → Responsibility → Technology`. RC2 applies the direct
+Pre-Stable FQCN migration recorded in
+[`docs/decisions/DEC-001-rc2-canonical-source-topology-and-pre-stable-fqcn-migration.md`](docs/decisions/DEC-001-rc2-canonical-source-topology-and-pre-stable-fqcn-migration.md):
+RC1 names are historical release context, and RC2 provides no legacy aliases,
+wrappers, proxy classes, or other compatibility shims.
+
 ## Purpose
 
 `maatify/php-eligibility` is a framework-neutral package for answering one reusable business question:
@@ -73,7 +93,7 @@ Malformed UTF-8, null values, non-string values at typed package boundaries, emp
 RC1 does not restrict business values to ASCII. Persistence MUST preserve the exact validated UTF-8 sequence and MUST NOT silently normalize or truncate it.
 
 RC1 canonical package bounds are resolved and apply at every semantic package
-boundary, not only at SQL columns. `Maatify\Eligibility\Common\Validation\CanonicalString`
+boundary, not only at SQL columns. `Maatify\Eligibility\Common\CanonicalString`
 is the production source of truth and measures bytes with `strlen()` after valid
 UTF-8 validation:
 
@@ -1039,9 +1059,9 @@ hydrated and then normalized by the existing package collections to canonical
 bytewise ordering.
 
 The concrete direct-PDO adapters are
-`Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository`,
-`Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery`, and
-`Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader`. They are
+`Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository`,
+`Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery`, and
+`Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader`. They are
 constructed from the same PDO connection while keeping mutation, management
 query, evaluation-read, and internal mutation-support responsibilities
 separate. `PdoSavepointTransactionRunner` is also constructed from that same
@@ -1137,9 +1157,10 @@ The Consumer Verification Harness required by the adopted Testing and CI Standar
 
 ## Public Runtime API inventory
 
-This inventory records the public Runtime API currently implemented across the
-historical B1–B4 slices. The B1–B4 labels preserve slice provenance; the entries
-below describe the current code, not missing capabilities. B1 introduced the
+This inventory records the public Runtime API currently implemented in the RC2
+source tree across the historical B1–B4 slices. The B1–B4 labels preserve slice
+provenance; the entries below describe the current code, not missing
+capabilities. B1 introduced the
 model and validation types; B2 introduced commands, interfaces, results, and
 semantic exceptions; B3 introduced the concrete direct-PDO persistence
 implementation and canonical-bound extensions; B4 introduced the concrete
@@ -1147,16 +1168,17 @@ evaluator and application-service runtime.
 
 ### B1 model and validation types
 
-- `Maatify\Eligibility\Common\Validation\CanonicalString::validate(mixed $value, string $field): string` validates a generic canonical package string without transforming it. Its semantic bounded methods and constants are the single source of truth for the four RC1 canonical component limits; canonical ordering remains intentionally generic and unbounded.
-- `Maatify\Eligibility\Common\Value\Subject` represents `subjectType` and `subjectId`.
-- `Maatify\Eligibility\Evaluation\Value\ContextValue`, `ContextValueCollection`, `ContextDimension`, and `Context` represent the immutable Context shape. `Context` exposes `getDimension(mixed $dimensionKey): ?ContextDimension` and `hasDimension(mixed $dimensionKey): bool`.
-- `Maatify\Eligibility\Rule\Rule`, `RuleIdentity`, `RuleCollection`, `RuleEffectEnum`, and `RuleLifecycleEnum` represent typed Rules, natural identity, effects, lifecycle, and canonical Rule collections. `RuleCollection` exposes active and inactive lifecycle state through each returned `Rule`.
-- `Maatify\Eligibility\Evaluation\Decision\EligibilityDecision`, `DimensionOutcome`, `DimensionOutcomeCollection`, `RuleReference`, `RuleReferenceCollection`, `DecisionReasonEnum`, and `DimensionReasonEnum` represent immutable typed Decisions and complete matched-Rule traces.
+- `Maatify\Eligibility\Common\CanonicalString::validate(mixed $value, string $field): string` validates a generic canonical package string without transforming it. Its semantic bounded methods and constants are the single source of truth for the four RC1 canonical component limits; canonical ordering remains intentionally generic and unbounded.
+- `Maatify\Eligibility\ValueObject\Subject` represents `subjectType` and `subjectId`.
+- `Maatify\Eligibility\Evaluation\ValueObject\ContextValue`, `ContextValueCollection`, `ContextDimension`, and `Context` represent the immutable Context shape. `Context` exposes `getDimension(mixed $dimensionKey): ?ContextDimension` and `hasDimension(mixed $dimensionKey): bool`.
+- `Maatify\Eligibility\ValueObject\Rule`, `RuleIdentity`, `RuleCollection`, `RuleEffectEnum`, and `RuleLifecycleEnum` represent typed Rules, natural identity, effects, lifecycle, and canonical Rule collections. `RuleCollection` exposes active and inactive lifecycle state through each returned `Rule`.
+- `Maatify\Eligibility\Evaluation\ValueObject\EligibilityDecision`, `DimensionOutcome`, `DimensionOutcomeCollection`, `RuleReference`, and `RuleReferenceCollection` represent immutable typed Decisions and complete matched-Rule traces.
+- `Maatify\Eligibility\Evaluation\Enum\DecisionReasonEnum` and `Maatify\Eligibility\Evaluation\Enum\DimensionReasonEnum` provide the machine-readable decision and dimension reason enums.
 - `Maatify\Eligibility\Exception\EligibilityExceptionInterface` is the single package marker. `InvalidEligibilityInputException` is the B1 typed validation error and uses the shared `maatify/exceptions` hierarchy.
 
 ### B2 commands and query contracts
 
-- `Maatify\Eligibility\Common\Value\SubjectCollection` is the ordered, duplicate-free B2 batch value. It accepts an empty batch and exposes `count()`, iteration, `items(): list<Subject>`, and JSON serialization.
+- `Maatify\Eligibility\ValueObject\SubjectCollection` is the ordered, duplicate-free B2 batch value. It accepts an empty batch and exposes `count()`, iteration, `items(): list<Subject>`, and JSON serialization.
 - `CreateRuleCommand(Subject $subject, mixed $dimensionKey, mixed $dimensionValue, RuleEffectEnum $effect)` represents creation of a new active Rule. It has no initial lifecycle input.
 - `UpdateRuleEffectCommand(RuleIdentity $identity, RuleEffectEnum $effect)` represents an effect mutation.
 - `DeactivateRuleCommand(RuleIdentity $identity)` and `ReactivateRuleCommand(RuleIdentity $identity)` represent explicit lifecycle mutations.
@@ -1164,13 +1186,13 @@ evaluator and application-service runtime.
 - `ReplaceDimensionRulesCommand(Subject $subject, mixed $dimensionKey, DesiredRuleCollection $desiredRules)` represents complete desired active-set replacement intent.
 - `CleanupSubjectCommand(Subject $subject)` represents idempotent Subject cleanup intent.
 - `RuleCriteria(Subject $subject, mixed $dimensionKey = null, ?RuleLifecycleEnum $lifecycle = null, mixed $maxResults = 100)` represents a bounded management read. A dimension filter is optional, lifecycle filtering is optional, and `maxResults` must be an integer from `1` through `500`. This is a bounded read limit, not Host-global pagination or search.
-- `ActiveDimensionKeysQuery(Subject $subject)` represents active-dimension introspection for one Subject.
+- `ActiveDimensionKeysCriteria(Subject $subject)` represents active-dimension introspection for one Subject.
 
 ### B2 typed results and service boundaries
 
-- `ActiveDimensionKeyCollection` contains only canonical dimension-key strings, rejects duplicates, and returns them in ascending bytewise order.
-- `SubjectDecisionResult` associates one `Subject` with one `EligibilityDecision`. `SubjectDecisionCollection` rejects duplicate Subject identities, accepts an empty result, and preserves the supplied result order.
-- `EligibilityEvaluationServiceInterface` exposes `decide(Subject $subject, Context $context): EligibilityDecision` and `decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollection`. The interface is the public evaluation seam defined in the historical B2 slice and is implemented by the concrete `EligibilityEvaluationService` documented under the B4 runtime slice below.
+- `ActiveDimensionKeyCollectionDTO` contains only canonical dimension-key strings, rejects duplicates, and returns them in ascending bytewise order.
+- `SubjectDecisionDTO` associates one `Subject` with one `EligibilityDecision`. `SubjectDecisionCollectionDTO` rejects duplicate Subject identities, accepts an empty result, and preserves the supplied result order.
+- `EligibilityEvaluationServiceInterface` exposes `decide(Subject $subject, Context $context): EligibilityDecision` and `decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollectionDTO`. The interface is the public evaluation seam defined in the historical B2 slice and is implemented by the concrete `EligibilityEvaluationService` documented under the B4 runtime slice below.
 - `EligibilityManagementServiceInterface` exposes typed Rule creation, identity inspection, bounded Rule inspection, active-dimension inspection, effect/lifecycle mutations, replacement intent, and Subject cleanup. Its state-setting methods return `void` except `createRule(...): Rule`; `inspectRule(...): Rule` has a typed Rule-not-found contract.
 - `RuleCommandRepositoryInterface` is the replaceable command/mutation persistence contract. It exposes only canonical Rule creation, effect/lifecycle mutations, and Subject cleanup.
 - `RuleManagementQueryInterface` is the replaceable management-query persistence contract. It exposes natural-identity lookup, bounded management reads, and active-dimension lookup, including inactive Rules where criteria allow them.
@@ -1179,9 +1201,9 @@ evaluator and application-service runtime.
 
 ### B4 concrete runtime services
 
-- `Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService` implements `EligibilityEvaluationServiceInterface` and depends only on `ActiveRuleReaderInterface`. It loads active Rules through one reader bulk call for a batch and delegates both single and batch calls to the shared pure `Maatify\Eligibility\Evaluation\Engine\EligibilityRuleEvaluator`; `PdoActiveRuleReader` internally chunks large Subject collections at its configured bound, and the service preserves input order.
+- `Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService` implements `EligibilityEvaluationServiceInterface` and depends only on `ActiveRuleReaderInterface`. It loads active Rules through one reader bulk call for a batch and delegates both single and batch calls to the shared pure `Maatify\Eligibility\Evaluation\Service\EligibilityRuleEvaluator`; `PdoActiveRuleReader` internally chunks large Subject collections at its configured bound, and the service preserves input order.
 - `Maatify\Eligibility\Management\Service\EligibilityManagementService` implements `EligibilityManagementServiceInterface`. It maps missing identity mutation results to `RuleNotFoundException` and coordinates create, inspect, lifecycle/effect, replacement, and cleanup behavior without SQL. Its dependencies are explicit: `RuleCommandRepositoryInterface` for command mutations, `RuleManagementQueryInterface` for management reads, `RuleMutationSupportInterface` for atomic replacement/cleanup support, and `Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface` for shared transaction/savepoint execution.
-- `Maatify\Eligibility\Evaluation\Engine\EligibilityRuleEvaluator` is package-internal shared evaluation logic. It groups active Rules by dimension, evaluates every ruled dimension, applies DENY precedence, preserves the complete matching trace, and constructs the existing immutable Decision types in canonical order.
+- `Maatify\Eligibility\Evaluation\Service\EligibilityRuleEvaluator` is package-internal shared evaluation logic. It groups active Rules by dimension, evaluates every ruled dimension, applies DENY precedence, preserves the complete matching trace, and constructs the existing immutable Decision types in canonical order.
 
 ### B2 semantic exceptions
 
@@ -1198,14 +1220,14 @@ are listed separately below.
 
 ### B3 persistence implementation and bounds extensions
 
-- `Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository` is the concrete direct-PDO implementation of `RuleCommandRepositoryInterface` and `RuleMutationSupportInterface`. It provides both Eligibility-specific capabilities over the same PDO connection without owning generic transaction/savepoint mechanics.
-- `Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery` is the concrete direct-PDO implementation of `RuleManagementQueryInterface`. It provides exact identity reads, bounded management reads, lifecycle visibility, and active-dimension reads.
-- `Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader` is the concrete direct-PDO implementation of `ActiveRuleReaderInterface`. It provides the active-only bounded bulk read used by evaluation.
+- `Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository` is the concrete direct-PDO implementation of `RuleCommandRepositoryInterface` and `RuleMutationSupportInterface`. It provides both Eligibility-specific capabilities over the same PDO connection without owning generic transaction/savepoint mechanics.
+- `Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery` is the concrete direct-PDO implementation of `RuleManagementQueryInterface`. It provides exact identity reads, bounded management reads, lifecycle visibility, and active-dimension reads.
+- `Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader` is the concrete direct-PDO implementation of `ActiveRuleReaderInterface`. It provides the active-only bounded bulk read used by evaluation.
 - `PdoRuleHydrationTrait` is an internal implementation helper for shared PDO row binding and Rule hydration; it is not a public contract or business-service abstraction.
-- `Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface` is a package-internal mutation-support contract used by `EligibilityManagementService` for the complete Subject + dimension read, Subject coordination lock, and coordination cleanup; it is not an additional Host-facing service method.
+- `Maatify\Eligibility\Management\Repository\RuleMutationSupportInterface` is a package-internal mutation-support contract used by `EligibilityManagementService` for the complete Subject + dimension read, Subject coordination lock, and coordination cleanup; it is not an additional Host-facing service method.
 - The current implementation uses the package-owned `maa_eligibility_subject_locks` table as an explicit coordination row per Subject. Replacement and management cleanup create-or-lock this row inside their transaction before reading or mutating Rules, so an initially empty dimension is serialized without relying on database gap-lock behavior. Cleanup removes the coordination row for the cleaned Subject. The table has no Host foreign key or join.
 - When the Host already owns a transaction, the shared `PdoSavepointTransactionRunner` creates an operation-local savepoint, releases it on success, and rolls back to it on failure while leaving the Host transaction active. Savepoint cleanup is best-effort and never replaces the original operation Throwable. This uses transactional MySQL-compatible savepoint capability without declaring a minimum database product version.
-- The B3 slice introduced the bounded `Maatify\Eligibility\Common\Validation\CanonicalString` methods and constants; they are now the single source of truth for the four canonical byte bounds, and every semantic boundary routes through them.
+- The B3 slice introduced the bounded `Maatify\Eligibility\Common\CanonicalString` methods and constants; they are now the single source of truth for the four canonical byte bounds, and every semantic boundary routes through them.
 - The concrete evaluator and application-service implementations listed above are present, while the B2 interfaces remain the public replaceable seams for consumers and persistence adapters.
 
 ## RC1 exclusions

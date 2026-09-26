@@ -69,7 +69,7 @@ connection for every Eligibility adapter and the shared transaction runner.
 - Direct-PDO MySQL-compatible persistence adapters with package-owned tables,
   typed semantic failures, and shared transaction/savepoint composition.
 - Deterministic ordering for returned collections and input-order preservation
-  for `SubjectDecisionCollection`.
+  for `SubjectDecisionCollectionDTO`.
 
 ## What Eligibility does NOT provide
 
@@ -147,7 +147,7 @@ Evaluate one external Subject against the active Rules loaded for it.
 #### Public call and return type
 
 ```php
-use Maatify\Eligibility\Evaluation\Contract\EligibilityEvaluationServiceInterface;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationServiceInterface;
 
 $decision = $evaluation->decide($subject, $context);
 // EligibilityDecision
@@ -191,13 +191,13 @@ read path.
 #### Input, public call, and return type
 
 ```php
-use Maatify\Eligibility\Common\Value\SubjectCollection;
+use Maatify\Eligibility\ValueObject\SubjectCollection;
 
 $decisions = $evaluation->decideMany(
     new SubjectCollection($first, $second),
     $context,
 );
-// SubjectDecisionCollection
+// SubjectDecisionCollectionDTO
 ```
 
 The interface signature is:
@@ -206,12 +206,12 @@ The interface signature is:
 decideMany(
     SubjectCollection $subjects,
     Context $context
-): SubjectDecisionCollection
+): SubjectDecisionCollectionDTO
 ```
 
 #### Observable behavior
 
-The returned `SubjectDecisionCollection` preserves the accepted input Subject
+The returned `SubjectDecisionCollectionDTO` preserves the accepted input Subject
 order. An empty collection is valid and returns an empty result. Duplicate
 Subject identities are rejected, and the canonical path uses one bounded bulk
 load rather than a query per Subject.
@@ -300,9 +300,9 @@ direct SQL.
 
 - **Purpose:** Discover which dimensions currently have at least one active
   Rule for one Subject.
-- **Input:** `ActiveDimensionKeysQuery(Subject $subject)`.
+- **Input:** `ActiveDimensionKeysCriteria(Subject $subject)`.
 - **Public call:** `$management->inspectActiveDimensionKeys($query)`.
-- **Return type:** `ActiveDimensionKeyCollection`.
+- **Return type:** `ActiveDimensionKeyCollectionDTO`.
 - **Observable behavior:** Only active Rules contribute keys; returned keys are
   unique and in canonical bytewise order.
 - **Relevant typed failures:** Invalid Subject input raises
@@ -433,7 +433,7 @@ These are the types a consumer needs to understand to call the public API.
   value; effect and lifecycle are intentionally not part of identity.
 - **`RuleCriteria`** — bounded management read criteria for Subject, optional
   dimension key, optional lifecycle, and max result count.
-- **`ActiveDimensionKeysQuery`** — Subject query for active dimension keys.
+- **`ActiveDimensionKeysCriteria`** — Subject query for active dimension keys.
 - **`DesiredRule` / `DesiredRuleCollection`** — desired values and effects for
   one replacement; desired values must be unique and are canonically ordered.
 - **`ReplaceDimensionRulesCommand`** — Subject, dimension key, and complete
@@ -445,14 +445,14 @@ These are the types a consumer needs to understand to call the public API.
 - **`EligibilityDecision`** — `eligible`, `reasonCode`, and ordered dimension
   outcomes. `UNRESTRICTED` means eligible with no active Rule dimensions;
   `ELIGIBLE` and `DENIED` include dimension outcomes.
-- **`SubjectDecisionResult`** — one Subject paired with its
+- **`SubjectDecisionDTO`** — one Subject paired with its
   `EligibilityDecision`.
-- **`SubjectDecisionCollection`** — ordered distinct batch results matching the
+- **`SubjectDecisionCollectionDTO`** — ordered distinct batch results matching the
   supplied Subject order.
 - **`Rule`** — Subject, dimension key, dimension value, effect, and lifecycle;
   `naturalIdentity()` returns its `RuleIdentity`.
 - **`RuleCollection`** — unique Rules in canonical identity order.
-- **`ActiveDimensionKeyCollection`** — unique active dimension keys in
+- **`ActiveDimensionKeyCollectionDTO`** — unique active dimension keys in
   canonical order.
 
 The decision trace also contains dimension outcomes and matched Rule references
