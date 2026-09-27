@@ -465,6 +465,7 @@ run separately because it rewrites `vendor/`:
 
 ```bash
 composer update --prefer-lowest --prefer-stable --no-interaction --prefer-dist --no-progress
+composer check-platform-reqs
 composer test:unit
 composer test:golden
 composer analyse
