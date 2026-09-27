@@ -55,6 +55,8 @@ jobs:
           coverage: none
       - name: Resolve lowest supported dependencies
         run: composer update --prefer-lowest --prefer-stable --no-interaction --prefer-dist --no-progress
+      - name: Verify platform requirements with lowest dependencies
+        run: composer check-platform-reqs
       - name: Unit suite
         run: composer test:unit
       - name: Golden suite

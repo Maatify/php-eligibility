@@ -4,7 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [1.0.0-rc.2] - 2026-09-27
+## [1.0.0-rc.2] - 2026-09-28
+
+This entry describes the release payload prepared for `v1.0.0-rc.2`. This
+entry's heading, date, and release-tag link identify the intended release
+target; they are not publication evidence by themselves. Published state is
+established only when the exact version is externally resolvable and
+installable through the approved Composer distribution source.
 
 ### Added
 
@@ -61,6 +67,5 @@ change the package's Eligibility business or evaluation semantics.
 
 - B1 structural and invariant failures now use a typed Eligibility exception backed by the shared Maatify validation hierarchy, `RuleReference` now exposes the canonical direct fields, and the runtime PCRE extension contract is declared.
 
-[Unreleased]: https://github.com/Maatify/php-eligibility/compare/v1.0.0-rc.2...HEAD
 [1.0.0-rc.2]: https://github.com/Maatify/php-eligibility/releases/tag/v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/Maatify/php-eligibility/releases/tag/v1.0.0-rc.1

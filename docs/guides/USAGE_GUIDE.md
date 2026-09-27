@@ -22,14 +22,16 @@ defines the meaning of Subject types and Context dimensions, wires the package's
 PDO adapters, manages the package-owned schema, and maps the typed result to its
 own API or UI behavior.
 
-This guide describes the **Pre-Stable `v1.0.0-rc.2` Release Candidate**:
+This guide describes the **target Pre-Stable `v1.0.0-rc.2` source/release
+line**:
 
 - package: `maatify/php-eligibility`
-- release: `v1.0.0-rc.2`
-- stability: Pre-Stable Release Candidate
+- target release: `v1.0.0-rc.2`
+- stability: Pre-Stable source/release line
 - intended distribution channel: [Packagist](https://packagist.org/packages/maatify/php-eligibility)
-- external RC2 publication: determined by the exact version tag and approved
-  Composer distribution source, not by this guide
+- Published state: repository source alone does not establish it; exact
+  external availability is determined by the exact version tag through the
+  approved Composer distribution source
 - Published Stable: none
 
 For local development, install dependencies with Composer before running the
@@ -86,7 +88,8 @@ connection for every Eligibility adapter and the shared transaction runner.
 - It does not provide controllers, HTTP responses, UI messages, translations,
   framework bindings, ORM integration, or a query builder.
 - It does not infer behavior between different Subjects or dimensions.
-- It is a Pre-Stable Release Candidate and does not define a Stable release line.
+- It targets a Pre-Stable source/release line and does not define a Stable
+  release line.
 
 ## Host responsibilities
 
@@ -408,13 +411,15 @@ direct SQL.
   collection deactivates all active Rules for that dimension without hard
   deletion. Repeating the same desired set is idempotent.
 - **Relevant typed failures:** Invalid command or duplicate desired values raise
-  `InvalidEligibilityInputException`. A duplicate natural identity is converted
-  to `RuleIdentityConflictException` only when the concrete persistence boundary
-  has the documented driver-specific duplicate evidence. The public exception
-  inventory contains `RuleConcurrencyConflictException`, and the current RC2
-  concrete PDO paths do not automatically throw or classify arbitrary
-  concurrency/driver failures as that exception. Unknown storage failures
-  propagate unchanged.
+  `InvalidEligibilityInputException`. At the package-owned PDO
+  command/mutation boundary, documented exact driver error number `1062`
+  converts to `RuleIdentityConflictException`, while documented exact driver
+  error numbers `1205` and `1213` convert to
+  `RuleConcurrencyConflictException`. Each typed conversion preserves the
+  original `PDOException` as `previous`. Every other unknown or unclassified
+  PDO/storage failure propagates unchanged. Generic SQLSTATE values such as
+  `HY000` or `40001` alone are not classification evidence, and the boundary
+  does not blanket-wrap `PDOException` or `Throwable`.
 - **Transaction/concurrency:** `EligibilityManagementService` depends on
   `SavepointTransactionRunnerInterface`; production PDO wiring supplies
   `PdoSavepointTransactionRunner`. The service locks the Subject coordination
@@ -561,10 +566,12 @@ Package-defined failures implement
   or a lifecycle/effect mutation.
 - `RuleIdentityConflictException` — a create would duplicate a natural Rule
   identity; the original driver exception is preserved where applicable.
-- `RuleConcurrencyConflictException` — a public exception class in the package
-  inventory. The current RC2 concrete PDO paths do not use it to classify
-  arbitrary concurrency or driver failures; unknown external failures are not
-  converted automatically.
+- `RuleConcurrencyConflictException` — a documented exact MySQL/MariaDB driver
+  error number `1205` or `1213` at the package-owned PDO command/mutation
+  boundary. The original `PDOException` is preserved as `previous`. This does
+  not classify arbitrary concurrency or driver failures; generic SQLSTATE
+  values such as `HY000` or `40001` alone are not evidence, and the PDO
+  boundary does not blanket-wrap `PDOException` or `Throwable`.
 - `InvalidPersistedRuleStateException` — package-owned malformed persisted
   Eligibility Rule state. It covers Rule hydration corruption (a non-array
   row shape, non-string column keys, a missing or non-string required persisted
@@ -579,7 +586,11 @@ Package-defined failures implement
   `previous` when wrapping occurs; the summary mismatch has no wrapped
   Throwable by itself.
 
-Unknown external `PDOException` or other `Throwable` values propagate unchanged.
+An exact documented driver error number `1062` is classified as
+`RuleIdentityConflictException`; exact documented driver error numbers `1205`
+and `1213` are classified as `RuleConcurrencyConflictException`. Every other
+unknown or unclassified external `PDOException`, PDO/storage failure, or other
+`Throwable` propagates unchanged.
 Consumers may catch the package marker for a package-level boundary, or catch a
 specific exception when the application needs different recovery behavior.
 

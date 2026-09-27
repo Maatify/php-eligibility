@@ -1190,10 +1190,15 @@ the package-internal `RuleMutationSupportInterface`; that internal contract is
 not part of ordinary consumer wiring.
 The command adapter's internal auto-increment `BIGINT UNSIGNED` primary key is infrastructure-only
 and is not part of `Rule`, `RuleIdentity`, `RuleReference`, Decisions, or the
-public contracts. The PDO adapter converts only MySQL/MariaDB driver error code `1062` to
-`RuleIdentityConflictException` and preserves the original `PDOException` as
-`previous`; unknown storage failures propagate unchanged. No Eligibility table
-has a Host foreign key or Host join.
+public contracts. At the PDO boundary, documented driver error number `1062`
+converts to `RuleIdentityConflictException`, while documented driver error
+numbers `1205` and `1213` convert to `RuleConcurrencyConflictException`.
+Each typed conversion preserves the original `PDOException` as
+`$exception->getPrevious()`. Every other unknown or unclassified PDO/storage
+failure propagates unchanged. This classification does not blanket-wrap PDO
+or `Throwable`, classify generic SQLSTATE classes or codes such as `23xxx`,
+`HY000`, or `40001`, or infer a semantic conflict without a documented
+driver error number. No Eligibility table has a Host foreign key or Host join.
 
 The final RC2 schema and adapter MUST preserve these principles:
 
@@ -1343,9 +1348,16 @@ construction path is part of this current RC2 contract.
 - `RuleConcurrencyConflictException` extends the shared `GenericConflictMaatifyException` hierarchy for an unresolved Rule uniqueness/concurrency condition.
 - `InvalidPersistedRuleStateException` extends the shared `SystemMaatifyException` hierarchy (System category, HTTP 500, unsafe, `ErrorCodeEnum::MAATIFY_ERROR`). It signals package-owned malformed persisted Rule state: Rule hydration corruption such as a non-array row shape, non-string column keys, a missing or non-string required persisted column, an invalid persisted canonical Subject/dimension component, or a persisted `effect`/`lifecycle` value not represented by `RuleEffectEnum`/`RuleLifecycleEnum`; and lifecycle-summary persisted inconsistency where an independent total differs from active plus inactive because a persisted lifecycle value is unrecognized. It preserves the original `InvalidEligibilityInputException` or `ValueError` as `previous` where the conversion is caused by one of those.
 
-All four semantic exceptions implement `EligibilityExceptionInterface`. The PDO
-boundary classifies only proven MySQL/MariaDB duplicate-key driver code `1062` at the
-repository boundary; other PDO/storage failures propagate unchanged.
+All four semantic exceptions implement `EligibilityExceptionInterface`. At the
+PDO repository boundary, documented driver error number `1062` is classified
+as `RuleIdentityConflictException`, and documented driver error numbers
+`1205` and `1213` are classified as `RuleConcurrencyConflictException`.
+Each typed conversion preserves the original `PDOException` as
+`$exception->getPrevious()`. Every other unknown or unclassified PDO/storage
+failure propagates unchanged. The boundary does not blanket-wrap PDO or
+`Throwable`, classify generic SQLSTATE classes or codes such as `23xxx`,
+`HY000`, or `40001`, or infer a semantic conflict without a documented
+driver error number.
 `PdoRuleHydrationTrait` classifies the hydration-corruption conditions above as
 `InvalidPersistedRuleStateException` rather than leaking a native
 `UnexpectedValueException`/`ValueError`, preserving the original validation

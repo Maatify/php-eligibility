@@ -6,7 +6,7 @@
 
 **Package status:**<br>
 [![Release state](https://img.shields.io/badge/Status-Release%20Candidate-orange)](#status)
-[![Version](https://img.shields.io/badge/Version-v1.0.0--rc.2-orange)](#status)
+[![Version](https://img.shields.io/packagist/v/maatify/php-eligibility?include_prereleases&label=Version&color=orange)](https://packagist.org/packages/maatify/php-eligibility)
 [![PHP](https://img.shields.io/badge/PHP-%5E8.4-8892BF)](composer.json)
 [![License](https://img.shields.io/badge/License-proprietary-lightgrey)](LICENSE)
 [![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-success)](phpstan.neon)
@@ -16,7 +16,7 @@
 [![Monthly Downloads](https://img.shields.io/packagist/dm/maatify/php-eligibility?label=Monthly%20Downloads)](https://packagist.org/packages/maatify/php-eligibility)
 [![Total Downloads](https://img.shields.io/packagist/dt/maatify/php-eligibility?label=Total%20Downloads)](https://packagist.org/packages/maatify/php-eligibility)
 [![Maatify Ecosystem](https://img.shields.io/badge/Maatify-Ecosystem-blueviolet)](https://github.com/Maatify)
-[![Install](https://img.shields.io/badge/Install-composer%20require%20maatify%2Fphp--eligibility-blue)](https://packagist.org/packages/maatify/php-eligibility)
+[![Install](https://img.shields.io/packagist/v/maatify/php-eligibility?include_prereleases&label=Install&color=blue)](https://packagist.org/packages/maatify/php-eligibility)
 
 **Documentation:**<br>
 [![Changelog](https://img.shields.io/badge/Changelog-View-blue)](CHANGELOG.md)
@@ -49,18 +49,19 @@ The package knows external identities only. It does not know the database
 model, lifecycle, or implementation of the domains that own those identities.
 
 The canonical public/runtime/behavioral contract and complete Public Runtime API
-inventory for the **Pre-Stable `v1.0.0-rc.2` Release Candidate** are in
+inventory for the **target Pre-Stable `v1.0.0-rc.2` source/release line** are in
 [ELIGIBILITY_PACKAGE_REFERENCE.md](ELIGIBILITY_PACKAGE_REFERENCE.md).
 The package identity is `maatify/php-eligibility`; Packagist is its intended
 distribution channel: [package page](https://packagist.org/packages/maatify/php-eligibility).
 
 ## Status
 
-- **Release state:** Pre-Stable `v1.0.0-rc.2` Release Candidate.
-- **Target source/release line:** `v1.0.0-rc.2`.
-- **External RC2 publication:** Not established by repository source; external
-  availability is determined by the exact `v1.0.0-rc.2` tag and an approved
-  Composer distribution source.
+- **Target pre-release / source-release line:** `v1.0.0-rc.2`.
+- **Release state:** This repository currently targets the Pre-Stable
+  `v1.0.0-rc.2` source/release line, in the intended Stable `1.0` line.
+- **Publication boundary:** Repository source alone does not establish
+  Published state; exact external availability is determined by the exact
+  `v1.0.0-rc.2` tag through the approved Composer distribution source.
 - **Published Stable:** None.
 - **Package identity:** `maatify/php-eligibility`.
 - **Intended distribution channel:** [Packagist](https://packagist.org/packages/maatify/php-eligibility).
@@ -115,8 +116,8 @@ executed MariaDB verification.
 
 ## Installation
 
-The exact install command for the Pre-Stable `v1.0.0-rc.2` Release Candidate
-is:
+The exact Composer command for the target Pre-Stable `v1.0.0-rc.2`
+source/release line is:
 
 ```bash
 composer require maatify/php-eligibility:1.0.0-rc.2@RC
@@ -130,7 +131,7 @@ publication evidence.
 
 For development access only, use a local checkout of the current `main` branch
 through a Composer path repository. This development path is separate from the
-`v1.0.0-rc.2` Release Candidate. From your consumer project:
+target Pre-Stable `v1.0.0-rc.2` source/release line. From your consumer project:
 
 ```bash
 git clone https://github.com/Maatify/php-eligibility.git .tools/php-eligibility
@@ -465,6 +466,7 @@ run separately because it rewrites `vendor/`:
 
 ```bash
 composer update --prefer-lowest --prefer-stable --no-interaction --prefer-dist --no-progress
+composer check-platform-reqs
 composer test:unit
 composer test:golden
 composer analyse
@@ -481,8 +483,8 @@ track it), and PHPUnit/PHPStan caches are not committed.
 ## License
 
 This package is released under a **proprietary Maatify license**. See
-[LICENSE](LICENSE). The Pre-Stable `v1.0.0-rc.2` Release Candidate is prepared
-for its intended [Packagist distribution channel](https://packagist.org/packages/maatify/php-eligibility).
+[LICENSE](LICENSE). The target Pre-Stable `v1.0.0-rc.2` source/release line is
+prepared for its intended [Packagist distribution channel](https://packagist.org/packages/maatify/php-eligibility).
 
 ## Author
 

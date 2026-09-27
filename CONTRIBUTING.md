@@ -1,13 +1,14 @@
 # Contributing Guide
 
-Thank you for contributing to `maatify/php-eligibility`. This package is the
-Pre-Stable `v1.0.0-rc.2` Release Candidate in the intended Stable `1.0` line.
-Its package identity is `maatify/php-eligibility`; Packagist is the intended
-distribution channel.
+Thank you for contributing to `maatify/php-eligibility`. This repository
+currently targets the Pre-Stable `v1.0.0-rc.2` source/release line in the
+intended Stable `1.0` line. Its package identity is `maatify/php-eligibility`;
+Packagist is the intended distribution channel.
 
-The target source/release line is `v1.0.0-rc.2`. External RC2 publication is
-determined by the exact version tag and an approved Composer distribution
-source, not by this guide. No Published Stable release exists.
+Repository source alone does not establish Published state; exact external
+availability is determined by the exact `v1.0.0-rc.2` version tag through the
+approved Composer distribution source, not by this guide. No Published Stable
+release exists.
 
 ## Package identity and boundaries
 
@@ -28,7 +29,7 @@ source, not by this guide. No Published Stable release exists.
 - Code changes: open a pull request; see expectations below.
 - Documentation/presentation improvements: PRs are welcome, but they must not
   change runtime contracts and must stay accurate to the actual state
-  (including the current Pre-Stable RC2 Release Candidate state).
+  (including the current Pre-Stable `v1.0.0-rc.2` source/release-line state).
 - Vulnerability reports: use the private route documented in
   [SECURITY.md](SECURITY.md), never a public issue.
 
@@ -72,6 +73,7 @@ The lowest-supported local sequence matching `ci-tests / lowest-deps` is:
 
 ```bash
 composer update --prefer-lowest --prefer-stable --no-interaction --prefer-dist --no-progress
+composer check-platform-reqs
 composer test:unit
 composer test:golden
 composer analyse

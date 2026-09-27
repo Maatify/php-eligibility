@@ -26,6 +26,14 @@ use Maatify\Persistence\Pdo\Pagination\PageResult;
  */
 interface EligibilityManagementServiceInterface
 {
+    /**
+     * Persists one new active Rule represented by the command. An existing
+     * natural identity surfaces RuleIdentityConflictException when the
+     * package-owned classification applies; a classified unresolved package
+     * concurrency condition surfaces RuleConcurrencyConflictException. Unknown
+     * or unclassified external storage failures propagate unchanged under the
+     * package failure-boundary contract.
+     */
     public function createRule(CreateRuleCommand $command): Rule;
 
     /** @throws \Maatify\Eligibility\Exception\RuleNotFoundException */

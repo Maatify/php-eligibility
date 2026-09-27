@@ -11,6 +11,9 @@ use Maatify\Eligibility\Common\CanonicalString;
  *
  * Inputs are validated rather than coerced, so ordering cannot introduce a
  * different identity from the one accepted by the package boundary.
+ *
+ * @internal Package implementation primitive for deterministic collection ordering;
+ * consumers should use the typed collections and results that own observable order.
  */
 final class CanonicalOrdering
 {

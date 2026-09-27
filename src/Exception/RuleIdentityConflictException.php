@@ -14,6 +14,13 @@ final class RuleIdentityConflictException extends GenericConflictMaatifyExceptio
 {
     private RuleIdentity $identity;
 
+    /**
+     * Creates a conflict for the supplied natural Rule identity.
+     *
+     * The semantic exception message is derived from that identity, which is
+     * retained for identity(), and any supplied underlying cause is preserved
+     * as the exception's previous cause.
+     */
     public function __construct(RuleIdentity $identity, ?\Throwable $previous = null)
     {
         $this->identity = $identity;

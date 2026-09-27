@@ -8,8 +8,17 @@
 | Title | RC2 Canonical Source Topology and Pre-Stable FQCN Migration |
 | Status | `ACTIVE` |
 | Scope / Concern | php-eligibility RC2 source topology, namespace/FQCN placement, and pre-Stable structural compatibility boundary |
-| Owner approval context | Owner-approved RC2 architecture and compatibility direction for WU-RC2-02 |
+| Decision Authority / Deciders | Project Owner — approved RC2 architecture and compatibility direction for WU-RC2-02 |
 | Canonical Contract / Current Owner | `ELIGIBILITY_PACKAGE_REFERENCE.md` for package behavior; this record for RC2 structural placement and compatibility boundary |
+
+## Context
+
+RC2 needed one explicit source-placement and compatibility contract before
+further capability work could proceed. The package identity already represents
+the Eligibility Domain, while the runtime responsibilities are split between
+Evaluation and Management. Because the package is still Pre-Stable, correcting
+public FQCN placement directly is preferable to preserving obsolete structural
+names through a parallel compatibility layer.
 
 ## Decision
 
@@ -47,6 +56,14 @@ and `Repository`; Management owns `Command`, `Criteria`, `ValueObject`, `DTO`,
 directly under `src/ValueObject/` and `src/Enum/`; shared PDO hydration support
 is placed at `src/Repository/Pdo/`; and common primitives are placed at
 `src/Common/`.
+
+## Rationale
+
+A Multi Capability topology keeps responsibility ownership visible without
+introducing a redundant `src/Eligibility/` layer that repeats the package
+identity. Applying the corrected topology directly in RC2 keeps one canonical
+public structure and avoids aliases, wrappers, or duplicate old/new APIs that
+would make the Pre-Stable contract harder to reason about and maintain.
 
 ## Compatibility Boundary
 

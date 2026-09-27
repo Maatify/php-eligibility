@@ -15,6 +15,12 @@ final readonly class RuleLifecycleSummaryCriteria
 {
     public ?string $dimensionKey;
 
+    /**
+     * Selects lifecycle counts for the Subject. A null dimension key, including
+     * the default, summarizes all Rules; a non-null key is canonically
+     * validated and narrows the summary to that exact dimension. Invalid
+     * non-null input raises InvalidEligibilityInputException.
+     */
     public function __construct(
         public Subject $subject,
         mixed $dimensionKey = null,
