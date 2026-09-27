@@ -137,6 +137,21 @@ final class RuntimeManagementServiceTest extends TestCase
     }
 
     #[Test]
+    public function inspectRulesRejectsDimensionKeySortWithoutExplicitAscDirection(): void
+    {
+        $repository = new InMemoryRuleRepository();
+        $service = $this->service($repository);
+        $subject = new Subject('product', '150');
+
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        $service->inspectRules(
+            new RuleCriteria($subject),
+            new PageRequest(sortBy: 'dimension_key', sortDirection: null),
+        );
+    }
+
+    #[Test]
     public function inspectRulesAcceptsTheCanonicalExplicitSortEquivalent(): void
     {
         $repository = new InMemoryRuleRepository();

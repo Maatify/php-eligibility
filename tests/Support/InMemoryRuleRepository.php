@@ -32,10 +32,13 @@ use Maatify\Persistence\Pdo\Pagination\SortDirectionEnum;
 /**
  * Deterministic test double for the shared in-memory persistence state.
  *
- * Pagination here is a deliberately minimal slice/count for explicit unit
- * scenarios only; it is not a reusable pagination engine. Real page/per-page
- * normalization, sort-resolution, and metadata semantics are proven against
- * the PDO adapter in Integration evidence.
+ * Paginated reads always return one fixed page containing the complete
+ * filtered/ordered result, ignoring the supplied `PageRequest` page/per-page
+ * fields entirely. This double intentionally does not implement page
+ * normalization, per-page normalization, out-of-range handling, offset
+ * calculation, or real total-pages/has-next/has-previous computation; those
+ * mechanics are owned by `maatify/persistence` and are proven only against
+ * the real PDO adapter in Integration evidence.
  */
 final class InMemoryRuleRepository implements
     RuleCommandRepositoryInterface,
@@ -81,6 +84,7 @@ final class InMemoryRuleRepository implements
         return $this->rules[$this->identityKey($identity)] ?? null;
     }
 
+    /** @param PageRequest $pageRequest Unused: this double always returns one fixed page of the complete result. */
     public function findByCriteria(RuleCriteria $criteria, PageRequest $pageRequest): PageResult
     {
         $total = 0;
@@ -107,7 +111,7 @@ final class InMemoryRuleRepository implements
 
         $ordered = (new RuleCollection(...$matching))->items();
 
-        return $this->paginate($ordered, $total, $pageRequest);
+        return $this->fixedSinglePageResult($ordered, $total);
     }
 
     public function findActiveForSubjects(SubjectCollection $subjects): RuleCollection
@@ -130,6 +134,7 @@ final class InMemoryRuleRepository implements
         return new RuleCollection(...$rules);
     }
 
+    /** @param PageRequest $pageRequest Unused: this double always returns one fixed page of the complete result. */
     public function findActiveDimensionKeys(
         ActiveDimensionKeysCriteria $query,
         PageRequest $pageRequest,
@@ -152,7 +157,7 @@ final class InMemoryRuleRepository implements
             $ordered,
         );
 
-        return $this->paginate($dtos, count($dtos), $pageRequest);
+        return $this->fixedSinglePageResult($dtos, count($dtos));
     }
 
     public function summarizeLifecycle(RuleLifecycleSummaryCriteria $criteria): RuleLifecycleSummaryDTO
@@ -238,38 +243,32 @@ final class InMemoryRuleRepository implements
     }
 
     /**
+     * Wraps a complete, already-filtered-and-ordered list as one fixed page
+     * containing everything: page 1 of 1 (or 0 pages when empty), with no
+     * page/per-page normalization, no offset arithmetic, and no computed
+     * has-next/has-previous — both are always `false` because there is only
+     * ever this one page. Deliberately not a pagination engine.
+     *
      * @template T of array<array-key, mixed>|object
      * @param list<T> $orderedItems
      * @return PageResult<T>
      */
-    private function paginate(array $orderedItems, int $total, PageRequest $pageRequest): PageResult
+    private function fixedSinglePageResult(array $orderedItems, int $total): PageResult
     {
         $filtered = count($orderedItems);
-        $requestedPerPage = is_int($pageRequest->perPage) ? $pageRequest->perPage : null;
-        $perPage = $requestedPerPage === null || $requestedPerPage < 1 ? 20 : $requestedPerPage;
-
         if ($filtered === 0) {
-            return new PageResult([], 1, $perPage, $total, 0, 0, false, false, 'dimension_key', SortDirectionEnum::ASC);
+            return new PageResult([], 1, 20, $total, 0, 0, false, false, 'dimension_key', SortDirectionEnum::ASC);
         }
-
-        $totalPages = (int) ceil($filtered / $perPage);
-        $requestedPage = is_int($pageRequest->page) ? $pageRequest->page : null;
-        $page = $requestedPage === null || $requestedPage < 1 ? 1 : $requestedPage;
-        if ($page > $totalPages) {
-            $page = 1;
-        }
-
-        $data = array_slice($orderedItems, ($page - 1) * $perPage, $perPage);
 
         return new PageResult(
-            $data,
-            $page,
-            $perPage,
+            $orderedItems,
+            1,
+            $filtered,
             $total,
             $filtered,
-            $totalPages,
-            $page < $totalPages,
-            $page > 1,
+            1,
+            false,
+            false,
             'dimension_key',
             SortDirectionEnum::ASC,
         );

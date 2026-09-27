@@ -647,6 +647,105 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
     }
 
     #[Test]
+    #[DataProvider('nonCanonicalRuleSortRequests')]
+    public function findByCriteriaRejectsNonCanonicalSortRequestsAtTheRepositoryBoundary(
+        ?string $sortBy,
+        ?string $sortDirection,
+    ): void {
+        $subject = new Subject('product', '150');
+        $this->repository->create($this->command('product', '150', 'country', 'EG'));
+
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject),
+            new PageRequest(sortBy: $sortBy, sortDirection: $sortDirection),
+        );
+    }
+
+    #[Test]
+    #[DataProvider('nonCanonicalRuleSortRequests')]
+    public function findActiveDimensionKeysRejectsNonCanonicalSortRequestsAtTheRepositoryBoundary(
+        ?string $sortBy,
+        ?string $sortDirection,
+    ): void {
+        $subject = new Subject('product', '150');
+        $this->repository->create($this->command('product', '150', 'country', 'EG'));
+
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        $this->managementQuery->findActiveDimensionKeys(
+            new ActiveDimensionKeysCriteria($subject),
+            new PageRequest(sortBy: $sortBy, sortDirection: $sortDirection),
+        );
+    }
+
+    /** @return iterable<string, array{?string, ?string}> */
+    public static function nonCanonicalRuleSortRequests(): iterable
+    {
+        yield 'dimension_value ASC' => ['dimension_value', 'ASC'];
+        yield 'dimension_value DESC' => ['dimension_value', 'DESC'];
+        yield 'dimension_key DESC' => ['dimension_key', 'DESC'];
+        yield 'dimension_key with null direction' => ['dimension_key', null];
+        yield 'null sortBy with ASC direction' => [null, 'ASC'];
+    }
+
+    #[Test]
+    public function repositoryBoundaryAcceptsOnlyTheTwoCanonicalSortRequestShapes(): void
+    {
+        $subject = new Subject('product', '150');
+        $this->repository->create($this->command('product', '150', 'country', 'EG'));
+
+        self::assertCount(1, $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject),
+            new PageRequest(),
+        )->data);
+        self::assertCount(1, $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject),
+            new PageRequest(sortBy: 'dimension_key', sortDirection: 'ASC'),
+        )->data);
+        self::assertCount(1, $this->managementQuery->findActiveDimensionKeys(
+            new ActiveDimensionKeysCriteria($subject),
+            new PageRequest(),
+        )->data);
+        self::assertCount(1, $this->managementQuery->findActiveDimensionKeys(
+            new ActiveDimensionKeysCriteria($subject),
+            new PageRequest(sortBy: 'dimension_key', sortDirection: 'ASC'),
+        )->data);
+    }
+
+    #[Test]
+    public function canonicalOrderingRemainsDeterministicWhenDimensionValuesRepeatAcrossDimensions(): void
+    {
+        $subject = new Subject('product', '150');
+        $this->repository->create($this->command('product', '150', 'beta', 'X'));
+        $this->repository->create($this->command('product', '150', 'alpha', 'X'));
+        $this->repository->create($this->command('product', '150', 'alpha', 'Y'));
+
+        $page = $this->managementQuery->findByCriteria(new RuleCriteria($subject), new PageRequest());
+
+        self::assertSame(3, $page->total);
+        self::assertSame(3, $page->filtered);
+        self::assertSame(
+            [['alpha', 'X'], ['alpha', 'Y'], ['beta', 'X']],
+            array_map(
+                static fn(Rule $rule): array => [$rule->dimensionKey, $rule->dimensionValue],
+                $page->data,
+            ),
+        );
+
+        // The repeated dimension_value "X" under two different dimension_keys
+        // is exactly why an explicit `dimension_value`-primary sort would be
+        // non-deterministic/ambiguous; the contract rejects that request
+        // instead of silently exposing it.
+        $this->expectException(InvalidEligibilityInputException::class);
+        $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject),
+            new PageRequest(sortBy: 'dimension_value', sortDirection: 'ASC'),
+        );
+    }
+
+    #[Test]
     public function lifecycleSummaryProvesRealPersistenceAggregatesAndSubjectIsolation(): void
     {
         $subject = new Subject('product', '150');
@@ -681,6 +780,39 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         self::assertSame(1, $otherSummary->totalRules);
         self::assertSame(1, $otherSummary->activeRules);
         self::assertSame(0, $otherSummary->inactiveRules);
+    }
+
+    #[Test]
+    public function invalidPersistedLifecycleByteMakesLifecycleSummaryClassifyPersistedStateFailureRatherThanUndercount(): void
+    {
+        $subject = new Subject('product', '150');
+        $this->repository->create($this->command('product', '150', 'country', 'EG'));
+        self::assertTrue($this->repository->deactivate(new DeactivateRuleCommand(
+            new RuleIdentity('product', '150', 'country', 'EG'),
+        )));
+        $this->repository->create($this->command('product', '150', 'country', 'SA'));
+        $this->insertRawRow('product', '150', 'country', 'KW', RuleEffectEnum::ALLOW->value, 'invalid');
+
+        try {
+            $this->managementQuery->summarizeLifecycle(new RuleLifecycleSummaryCriteria($subject));
+            self::fail(
+                'Expected InvalidPersistedRuleStateException instead of a silently undercounted summary '
+                . 'for an unrecognized persisted lifecycle byte.',
+            );
+        } catch (InvalidPersistedRuleStateException $exception) {
+            self::assertInstanceOf(EligibilityExceptionInterface::class, $exception);
+            self::assertInstanceOf(MaatifyException::class, $exception);
+        }
+
+        // The dimension-scoped summary excluding the corrupted row's dimension
+        // is unaffected: valid summaries continue to PASS.
+        $this->repository->create($this->command('product', '150', 'customer_type', 'retail'));
+        $validSummary = $this->managementQuery->summarizeLifecycle(
+            new RuleLifecycleSummaryCriteria($subject, 'customer_type'),
+        );
+        self::assertSame(1, $validSummary->totalRules);
+        self::assertSame(1, $validSummary->activeRules);
+        self::assertSame(0, $validSummary->inactiveRules);
     }
 
     #[Test]

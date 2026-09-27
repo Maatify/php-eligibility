@@ -6,6 +6,7 @@ namespace Maatify\Eligibility\Management\Repository\Pdo;
 
 use Maatify\Eligibility\Common\CanonicalString;
 use Maatify\Eligibility\Enum\RuleLifecycleEnum;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Exception\InvalidPersistedRuleStateException;
 use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
 use Maatify\Eligibility\Management\Criteria\RuleCriteria;
@@ -78,6 +79,8 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
      */
     public function findByCriteria(RuleCriteria $criteria, PageRequest $pageRequest): PageResult
     {
+        self::assertCanonicalRuleSort($pageRequest);
+
         $baseParams = [
             'subject_type' => CanonicalString::validateSubjectType($criteria->subject->subjectType),
             'subject_id' => CanonicalString::validateSubjectId($criteria->subject->subjectId),
@@ -133,6 +136,8 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
         ActiveDimensionKeysCriteria $criteria,
         PageRequest $pageRequest,
     ): PageResult {
+        self::assertCanonicalRuleSort($pageRequest);
+
         $params = [
             'subject_type' => CanonicalString::validateSubjectType($criteria->subject->subjectType),
             'subject_id' => CanonicalString::validateSubjectId($criteria->subject->subjectId),
@@ -166,7 +171,12 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
         );
     }
 
-    /** Computes the Rule lifecycle count summary for the supplied criteria scope in one aggregate query. */
+    /**
+     * Computes the Rule lifecycle count summary for the supplied criteria scope
+     * in one aggregate query, and classifies an inconsistent independent total
+     * (for example caused by an unrecognized persisted lifecycle byte) as
+     * malformed persisted state rather than silently undercounting it.
+     */
     public function summarizeLifecycle(RuleLifecycleSummaryCriteria $criteria): RuleLifecycleSummaryDTO
     {
         $conditions = ['`subject_type` = ?', '`subject_id` = ?'];
@@ -182,6 +192,7 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
 
         $rows = $this->fetchRows(
             'SELECT '
+            . 'COUNT(*) AS `total_count`, '
             . 'SUM(CASE WHEN `lifecycle` = ? THEN 1 ELSE 0 END) AS `active_count`, '
             . 'SUM(CASE WHEN `lifecycle` = ? THEN 1 ELSE 0 END) AS `inactive_count` '
             . 'FROM `' . self::TABLE . '` WHERE ' . implode(' AND ', $conditions),
@@ -193,14 +204,33 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
         );
 
         $row = $rows[0] ?? [];
-        $active = $this->nullableAggregateCount($row, 'active_count');
-        $inactive = $this->nullableAggregateCount($row, 'inactive_count');
+        $totalCount = $this->exactNonNegativeIntegerColumn($row, 'total_count');
+        $active = $this->exactNonNegativeIntegerColumn($row, 'active_count');
+        $inactive = $this->exactNonNegativeIntegerColumn($row, 'inactive_count');
 
-        return new RuleLifecycleSummaryDTO($active + $inactive, $active, $inactive);
+        if ($totalCount !== $active + $inactive) {
+            throw new InvalidPersistedRuleStateException(sprintf(
+                'Persisted Rule lifecycle state is inconsistent for the requested scope: '
+                . 'independent total %d does not equal active (%d) plus inactive (%d). '
+                . 'This indicates an unrecognized persisted lifecycle value.',
+                $totalCount,
+                $active,
+                $inactive,
+            ));
+        }
+
+        return new RuleLifecycleSummaryDTO($totalCount, $active, $inactive);
     }
 
-    /** @param array<string, mixed> $row */
-    private function nullableAggregateCount(array $row, string $column): int
+    /**
+     * Reads one required aggregate column and accepts only an exact
+     * non-negative integer representation (a native int, or a string of
+     * decimal digits only); decimal, scientific, or negative representations
+     * are rejected rather than silently coerced.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function exactNonNegativeIntegerColumn(array $row, string $column): int
     {
         $value = $row[$column] ?? null;
         if ($value === null) {
@@ -208,15 +238,43 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
         }
 
         if (is_int($value)) {
+            if ($value < 0) {
+                throw new InvalidPersistedRuleStateException(
+                    sprintf('Aggregate column `%s` must not be negative.', $column),
+                );
+            }
+
             return $value;
         }
 
-        if (is_string($value) && is_numeric($value)) {
+        if (is_string($value) && preg_match('/^[0-9]+$/', $value) === 1) {
             return (int) $value;
         }
 
         throw new InvalidPersistedRuleStateException(
-            sprintf('Expected numeric aggregate column `%s`.', $column),
+            sprintf('Expected an exact non-negative integer aggregate column `%s`.', $column),
+        );
+    }
+
+    /**
+     * Enforces the frozen public sort-request contract at the repository
+     * boundary: `null`/`null` (canonical order) or the explicit equivalent
+     * `dimension_key` + `ASC`. `dimension_value` is an internal tie-breaker
+     * only and MUST NOT be accepted as an explicit public primary sort; any
+     * other explicit request is invalid Eligibility Management input.
+     */
+    private static function assertCanonicalRuleSort(PageRequest $pageRequest): void
+    {
+        if ($pageRequest->sortBy === null && $pageRequest->sortDirection === null) {
+            return;
+        }
+
+        if ($pageRequest->sortBy === self::RULE_SORT_KEY && $pageRequest->sortDirection === 'ASC') {
+            return;
+        }
+
+        throw new InvalidEligibilityInputException(
+            'Unsupported Rule management sort request; only canonical ascending dimension_key order is supported.',
         );
     }
 

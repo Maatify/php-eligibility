@@ -96,7 +96,11 @@ final class EligibilityManagementService implements EligibilityManagementService
 
     /**
      * Rejects any explicit sort request other than the canonical `dimension_key`
-     * ascending order accepted by the public pagination contract.
+     * ascending order accepted by the public pagination contract: both fields
+     * `null` (implicit canonical order), or the explicit equivalent pair
+     * `sortBy = dimension_key` and `sortDirection = ASC`. This mirrors the
+     * same guard enforced at the `RuleManagementQueryInterface` PDO boundary
+     * so the contract does not depend on the Service alone.
      */
     private function assertCanonicalDimensionKeySort(PageRequest $pageRequest): void
     {
@@ -104,7 +108,7 @@ final class EligibilityManagementService implements EligibilityManagementService
             return;
         }
 
-        if ($pageRequest->sortBy === 'dimension_key' && ($pageRequest->sortDirection === null || $pageRequest->sortDirection === 'ASC')) {
+        if ($pageRequest->sortBy === 'dimension_key' && $pageRequest->sortDirection === 'ASC') {
             return;
         }
 

@@ -104,10 +104,17 @@ final class CanonicalAcceptanceEvidenceMap
                 self::evidence(EligibilityRuntimeIntegrationTest::class, 'replacementUsesCompleteUnboundedDimensionStateAndIsIdempotent', 'integration'),
             ]),
             self::scenario(57, 'Paginated active-dimension discovery returns distinct active dimension keys in canonical order across a page boundary, excluding inactive-only dimensions.', PdoRuleRepositoryIntegrationTest::class, 'activeDimensionKeysPaginateAcrossAPageBoundaryAndAreSubjectIsolated', 'integration'),
-            self::scenario(58, 'An unsupported explicit Rule pagination sort request is rejected as typed Eligibility input rather than silently falling back.', RuntimeManagementServiceTest::class, 'inspectRulesRejectsUnsupportedExplicitSortRequests', 'unit'),
-            self::scenarioWithEvidence(59, 'Malformed persisted Rule state (invalid effect bytes or an invalid canonical component) is classified as a typed persisted-state exception that preserves the original cause.', [
+            self::scenarioWithEvidence(58, 'An unsupported explicit Rule pagination sort request is rejected as typed Eligibility input at both the Service and the public Repository boundary, rather than silently falling back; dimension_value is never accepted as a public primary sort.', [
+                self::evidence(RuntimeManagementServiceTest::class, 'inspectRulesRejectsUnsupportedExplicitSortRequests', 'unit'),
+                self::evidence(RuntimeManagementServiceTest::class, 'inspectRulesRejectsDimensionKeySortWithoutExplicitAscDirection', 'unit'),
+                self::evidence(PdoRuleRepositoryIntegrationTest::class, 'findByCriteriaRejectsNonCanonicalSortRequestsAtTheRepositoryBoundary', 'integration'),
+                self::evidence(PdoRuleRepositoryIntegrationTest::class, 'findActiveDimensionKeysRejectsNonCanonicalSortRequestsAtTheRepositoryBoundary', 'integration'),
+                self::evidence(PdoRuleRepositoryIntegrationTest::class, 'canonicalOrderingRemainsDeterministicWhenDimensionValuesRepeatAcrossDimensions', 'integration'),
+            ]),
+            self::scenarioWithEvidence(59, 'Malformed persisted Rule state (invalid effect bytes, an invalid canonical component, or an inconsistent independent lifecycle total) is classified as a typed persisted-state exception that preserves the original cause where applicable, rather than being silently undercounted.', [
                 self::evidence(PdoRuleRepositoryIntegrationTest::class, 'invalidPersistedEffectBytesAreClassifiedAsPersistedStateFailures', 'integration'),
                 self::evidence(PdoRuleRepositoryIntegrationTest::class, 'invalidPersistedCanonicalComponentIsClassifiedAsPersistedStateFailure', 'integration'),
+                self::evidence(PdoRuleRepositoryIntegrationTest::class, 'invalidPersistedLifecycleByteMakesLifecycleSummaryClassifyPersistedStateFailureRatherThanUndercount', 'integration'),
             ]),
         ];
     }
