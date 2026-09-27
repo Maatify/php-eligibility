@@ -57,6 +57,7 @@ Composer contract is:
 ```bash
 composer --version | grep -Eq '^Composer version 2\.10\.'
 composer validate --strict
+composer check:composer-policy
 composer update --no-interaction --prefer-dist --no-progress
 composer check-platform-reqs
 composer dump-autoload --optimize --strict-psr

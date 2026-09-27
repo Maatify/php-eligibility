@@ -8,8 +8,8 @@ set -euo pipefail
 # the Composer capability used by the authoritative CI quality gate, but it does
 # not resolve either the latest-compatible or lowest-supported dependency matrix.
 #
-#   composer validate, optimized strict autoload, platform requirements,
-#   PHP syntax lint, PHPStan level max, PER-CS style, whitespace check,
+#   composer validate, Composer policy contract, optimized strict autoload,
+#   platform requirements, PHP syntax lint, PHPStan level max, PER-CS style, whitespace check,
 #   Composer security audit, workflow lint, Unit suite, Golden suite.
 #
 # Before running, verify Composer 2.10.x and resolve the latest-compatible
