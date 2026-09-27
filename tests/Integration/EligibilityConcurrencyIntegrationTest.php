@@ -438,6 +438,79 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         self::assertSame(1, $this->countAllRules());
     }
 
+    #[Test]
+    public function concurrentCrossSubjectLockingProducesGenuineMySqlDeadlockClassification(): void
+    {
+        $subjectA = new Subject('product', '900');
+        $subjectB = new Subject('product', '901');
+        $workerA = null;
+        $workerB = null;
+        $primaryFailure = null;
+        $victimLabel = null;
+        $winnerLabel = null;
+        try {
+            $workerA = $this->startWorker([
+                'cross-lock-deadlock',
+                $subjectA->subjectType,
+                $subjectA->subjectId,
+                $subjectB->subjectType,
+                $subjectB->subjectId,
+            ]);
+            self::assertSame('LOCKED', $this->readLine($workerA, 'worker A own-subject lock'));
+
+            $workerB = $this->startWorker([
+                'cross-lock-deadlock',
+                $subjectB->subjectType,
+                $subjectB->subjectId,
+                $subjectA->subjectType,
+                $subjectA->subjectId,
+            ]);
+            self::assertSame('LOCKED', $this->readLine($workerB, 'worker B own-subject lock'));
+
+            $this->signal($workerA, 'CROSS_LOCK');
+            $this->signal($workerB, 'CROSS_LOCK');
+
+            $pending = ['A' => $workerA, 'B' => $workerB];
+            [$firstLabel, $firstLine] = $this->readLineFromEither($pending, 'first worker deadlock result');
+            unset($pending[$firstLabel]);
+            [$secondLabel, $secondLine] = $this->readLineFromEither($pending, 'second worker deadlock result');
+
+            $outcomes = [$firstLabel => $firstLine, $secondLabel => $secondLine];
+            foreach ($outcomes as $label => $line) {
+                if ($line === 'RESULT:CONCURRENCY:PDOException:1213') {
+                    $victimLabel = $label;
+                } elseif ($line === 'RESULT:SUCCESS') {
+                    $winnerLabel = $label;
+                }
+            }
+
+            self::assertNotNull($victimLabel, sprintf(
+                'Expected exactly one worker to report a genuine MySQL deadlock (driver 1213) '
+                . 'classified as RuleConcurrencyConflictException with a PDOException previous; observed: %s',
+                json_encode($outcomes, JSON_THROW_ON_ERROR),
+            ));
+            self::assertNotNull($winnerLabel, sprintf(
+                'Expected exactly one worker to win the circular lock wait and complete the cross-subject lock; observed: %s',
+                json_encode($outcomes, JSON_THROW_ON_ERROR),
+            ));
+            self::assertNotSame($victimLabel, $winnerLabel);
+
+            $winnerWorker = $winnerLabel === 'A' ? $workerA : $workerB;
+            self::assertSame(
+                'DONE',
+                $this->readLine($winnerWorker, sprintf('winning worker %s commit confirmation', $winnerLabel)),
+            );
+        } catch (\Throwable $exception) {
+            $primaryFailure = $exception;
+            throw $exception;
+        } finally {
+            $this->closeWorkers($workerA, $workerB, $primaryFailure !== null);
+        }
+
+        self::assertSame(2, $this->countSubjectLocks($subjectA, $subjectB));
+        self::assertSame(0, $this->countAllRules());
+    }
+
     /** @param list<array{0: string, 1: string}> $desired */
     private function encodeDesired(array $desired): string
     {
@@ -457,6 +530,21 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         }
 
         return (int) $statement->fetchColumn();
+    }
+
+    private function countSubjectLocks(Subject ...$subjects): int
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT COUNT(*) FROM `maa_eligibility_subject_locks` WHERE `subject_type` = ? AND `subject_id` = ?',
+        );
+
+        $count = 0;
+        foreach ($subjects as $subject) {
+            $statement->execute([$subject->subjectType, $subject->subjectId]);
+            $count += (int) $statement->fetchColumn();
+        }
+
+        return $count;
     }
 
     /**
@@ -563,6 +651,87 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             }
             if ($chunk !== '') {
                 $buffer .= $chunk;
+            }
+        }
+    }
+
+    /**
+     * Reads the next line from whichever of several workers produces one
+     * first, without assuming which worker resolves first. Used to observe a
+     * genuine MySQL deadlock result where the victim is not deterministic.
+     *
+     * @param array<string, array{process: resource, stdin: resource, stdout: resource, stderr: resource}> $workers
+     * @return array{0: string, 1: string}
+     */
+    private function readLineFromEither(array $workers, string $event): array
+    {
+        $deadline = ConcurrencyTimeout::deadline();
+
+        while (true) {
+            foreach ($workers as $label => $worker) {
+                $pipe = $worker['stdout'];
+                $pipeId = get_resource_id($pipe);
+                $buffer = $this->stdoutBuffers[$pipeId] ?? '';
+                $lineEnd = strpos($buffer, PHP_EOL);
+                if ($lineEnd !== false) {
+                    $line = substr($buffer, 0, $lineEnd);
+                    $this->stdoutBuffers[$pipeId] = substr($buffer, $lineEnd + strlen(PHP_EOL));
+
+                    return [$label, trim($line)];
+                }
+
+                if (feof($pipe)) {
+                    $this->stdoutBuffers[$pipeId] = $buffer;
+                    $this->failWorkersWait($workers, sprintf(
+                        'Concurrency worker %s closed its output while waiting for %s.',
+                        $label,
+                        $event,
+                    ));
+                }
+            }
+
+            if (ConcurrencyTimeout::expired($deadline)) {
+                $this->failWorkersWait($workers, sprintf(
+                    'Timed out waiting for %s after %d seconds.',
+                    $event,
+                    ConcurrencyTimeout::SECONDS,
+                ));
+            }
+
+            [$seconds, $microseconds] = ConcurrencyTimeout::selectTimeout($deadline);
+            $read = [];
+            foreach ($workers as $worker) {
+                $read[] = $worker['stdout'];
+            }
+            $write = null;
+            $except = null;
+            $ready = @stream_select($read, $write, $except, $seconds, $microseconds);
+            if ($ready === false) {
+                $this->failWorkersWait($workers, sprintf(
+                    'Could not wait for %s because worker output polling failed.',
+                    $event,
+                ));
+            }
+            if ($ready === 0) {
+                $this->failWorkersWait($workers, sprintf(
+                    'Timed out waiting for %s after %d seconds.',
+                    $event,
+                    ConcurrencyTimeout::SECONDS,
+                ));
+            }
+
+            foreach ($read as $readyPipe) {
+                $pipeId = get_resource_id($readyPipe);
+                $chunk = fread($readyPipe, 8192);
+                if ($chunk === false) {
+                    $this->failWorkersWait($workers, sprintf(
+                        'Could not read %s from the concurrency workers.',
+                        $event,
+                    ));
+                }
+                if ($chunk !== '') {
+                    $this->stdoutBuffers[$pipeId] = ($this->stdoutBuffers[$pipeId] ?? '') . $chunk;
+                }
             }
         }
     }
@@ -715,6 +884,22 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         $diagnostic = $this->readAvailable($worker['stderr']);
         if ($diagnostic !== '') {
             $message .= ' stderr: ' . $diagnostic;
+        }
+
+        self::fail($message);
+    }
+
+    /**
+     * @param array<string, array{process: resource, stdin: resource, stdout: resource, stderr: resource}> $workers
+     * @return never
+     */
+    private function failWorkersWait(array $workers, string $message): never
+    {
+        foreach ($workers as $label => $worker) {
+            $diagnostic = $this->readAvailable($worker['stderr']);
+            if ($diagnostic !== '') {
+                $message .= sprintf(' worker %s stderr: %s', $label, $diagnostic);
+            }
         }
 
         self::fail($message);

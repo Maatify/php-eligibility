@@ -57,6 +57,7 @@ try {
         'hold-replace' => holdReplace($pdo, $repository, $transactionRunner, $arguments),
         'replace' => replace($pdo, $repository, $transactionRunner, $arguments),
         'replace-lock-timeout' => replaceWithShortLockTimeout($pdo, $repository, $transactionRunner, $arguments),
+        'cross-lock-deadlock' => crossLockDeadlock($pdo, $repository, $arguments),
         default => throw new InvalidArgumentException('Unknown concurrency worker mode.'),
     };
 } catch (Throwable $exception) {
@@ -192,6 +193,67 @@ function replaceWithShortLockTimeout(
             $previous !== null ? $previous::class : 'NONE',
             $driverCodeLabel,
         ));
+    }
+}
+
+/**
+ * Opens an outer PDO transaction and locks its own Subject first through the
+ * real package repository mutation path, then attempts to lock the other
+ * worker's Subject. When both workers are pointed at each other's Subject,
+ * this forms a genuine MySQL circular lock wait: the deadlock detector kills
+ * exactly one transaction with driver error 1213, which the production
+ * repository classifies into the typed concurrency exception, while the
+ * other worker's attempt succeeds and commits both coordination locks.
+ *
+ * @param list<string> $arguments
+ */
+function crossLockDeadlock(PDO $pdo, PdoRuleCommandRepository $repository, array $arguments): void
+{
+    if (count($arguments) !== 5) {
+        throw new InvalidArgumentException('Cross-lock deadlock worker arguments are invalid.');
+    }
+
+    $own = new Subject($arguments[1], $arguments[2]);
+    $other = new Subject($arguments[3], $arguments[4]);
+
+    $pdo->beginTransaction();
+    try {
+        $repository->lockSubjectForMutation($own);
+        writeLine('LOCKED');
+        awaitSignal();
+
+        try {
+            $repository->lockSubjectForMutation($other);
+            writeLine('RESULT:SUCCESS');
+            $pdo->commit();
+            writeLine('DONE');
+        } catch (RuleConcurrencyConflictException $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            $previous = $exception->getPrevious();
+            $driverCodeLabel = 'NONE';
+            if ($previous instanceof PDOException) {
+                $errorInfo = $previous->errorInfo;
+                $driverCode = is_array($errorInfo) ? ($errorInfo[1] ?? null) : null;
+                if (is_int($driverCode) || is_string($driverCode)) {
+                    $driverCodeLabel = (string) $driverCode;
+                }
+            }
+
+            writeLine(sprintf(
+                'RESULT:CONCURRENCY:%s:%s',
+                $previous !== null ? $previous::class : 'NONE',
+                $driverCodeLabel,
+            ));
+        }
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $exception;
     }
 }
 
