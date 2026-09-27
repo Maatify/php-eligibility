@@ -1,4 +1,4 @@
--- Maatify Eligibility RC1 package schema.
+-- Maatify Eligibility RC2 package schema.
 --
 -- Ownership: Eligibility owns this table and all Rules stored in it.
 -- Compatibility: MySQL-compatible persistence semantics through PDO; this
