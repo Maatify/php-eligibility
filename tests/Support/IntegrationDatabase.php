@@ -13,11 +13,11 @@ final class IntegrationDatabase
 
     public static function connect(): PDO
     {
-        $host = self::environment('ELIGIBILITY_TEST_DB_HOST', '127.0.0.1');
+        $host = self::environment('ELIGIBILITY_TEST_DB_HOST');
         $port = self::port();
-        $database = self::environment('ELIGIBILITY_TEST_DB_NAME', 'maatify_eligibility_test');
-        $username = self::environment('ELIGIBILITY_TEST_DB_USER', 'eligibility_test');
-        $password = self::environment('ELIGIBILITY_TEST_DB_PASSWORD', 'eligibility_test');
+        $database = self::environment('ELIGIBILITY_TEST_DB_NAME');
+        $username = self::environment('ELIGIBILITY_TEST_DB_USER');
+        $password = self::environment('ELIGIBILITY_TEST_DB_PASSWORD');
 
         return new PDO(
             sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $host, $port, $database),
@@ -46,16 +46,19 @@ final class IntegrationDatabase
         $pdo->exec('DELETE FROM `maa_eligibility_subject_locks`');
     }
 
-    private static function environment(string $name, string $default): string
+    private static function environment(string $name): string
     {
         $value = getenv($name);
+        if (!is_string($value) || $value === '') {
+            throw new RuntimeException(sprintf('Missing required Integration database environment variable: %s', $name));
+        }
 
-        return is_string($value) && $value !== '' ? $value : $default;
+        return $value;
     }
 
     private static function port(): int
     {
-        $value = self::environment('ELIGIBILITY_TEST_DB_PORT', '13306');
+        $value = self::environment('ELIGIBILITY_TEST_DB_PORT');
         if (filter_var($value, FILTER_VALIDATE_INT) === false) {
             throw new RuntimeException('ELIGIBILITY_TEST_DB_PORT must be an integer.');
         }

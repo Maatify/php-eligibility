@@ -28,6 +28,11 @@ if (!is_file($autoloadPath)) {
 require $autoloadPath;
 
 $packageName = 'maatify/php-eligibility';
+$installedVersion = InstalledVersions::getPrettyVersion($packageName);
+if ($installedVersion !== 'dev-rc2-current-source') {
+    fail('Current-source Harness identity is not dev-rc2-current-source: ' . (string) $installedVersion);
+}
+echo "CURRENT_SOURCE_IDENTITY=PASS\n";
 $packagePath = InstalledVersions::getInstallPath($packageName);
 if (!is_string($packagePath) || $packagePath === '' || !is_dir($packagePath)) {
     fail('The Eligibility package was not installed as a Composer dependency.');
@@ -35,6 +40,7 @@ if (!is_string($packagePath) || $packagePath === '' || !is_dir($packagePath)) {
 if (is_link($packagePath)) {
     fail('The Eligibility package was installed as a symlink; copied path installation is required.');
 }
+echo "COPIED_PACKAGE=PASS\n";
 
 $packageRealPath = realpath($packagePath);
 $sourceRealPath = realpath($packagePath . '/src');
@@ -61,7 +67,8 @@ if ($schema === false) {
 $pdo = connectToRealMysql();
 $pdo->exec($schema);
 
-$runId = environment('ELIGIBILITY_HARNESS_RUN_ID', 'manual');
+$runId = getenv('ELIGIBILITY_HARNESS_RUN_ID');
+$runId = is_string($runId) && $runId !== '' ? $runId : 'manual';
 $subject = new Subject('consumer_harness', $runId);
 $factory = new PdoEligibilityRuntimeFactory($pdo);
 $management = $factory->createManagementService();
@@ -73,6 +80,8 @@ if ($management->inspectRules(new RuleCriteria($subject), new PageRequest())->fi
     fail('Consumer state was not clean before the public workflow started.');
 }
 echo "REAL_MYSQL_PRE_RESIDUE=PASS\n";
+
+runPublicConcurrencyProof($consumerRoot, $runId);
 
 $management->createRule(new CreateRuleCommand(
     $subject,
@@ -149,16 +158,16 @@ echo "CONSUMER_HARNESS_RUN=" . $runId . " RESULT=PASS\n";
 
 function connectToRealMysql(): PDO
 {
-    $host = environment('ELIGIBILITY_HARNESS_DB_HOST', '127.0.0.1');
-    $portValue = environment('ELIGIBILITY_HARNESS_DB_PORT', '13306');
+    $host = environment('ELIGIBILITY_HARNESS_DB_HOST');
+    $portValue = environment('ELIGIBILITY_HARNESS_DB_PORT');
     if (filter_var($portValue, FILTER_VALIDATE_INT) === false) {
         fail('ELIGIBILITY_HARNESS_DB_PORT must be an integer.');
     }
 
     return new PDO(
-        sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $host, (int) $portValue, environment('ELIGIBILITY_HARNESS_DB_NAME', 'maatify_eligibility_test')),
-        environment('ELIGIBILITY_HARNESS_DB_USER', 'eligibility_test'),
-        environment('ELIGIBILITY_HARNESS_DB_PASSWORD', 'eligibility_test'),
+        sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $host, (int) $portValue, environment('ELIGIBILITY_HARNESS_DB_NAME')),
+        environment('ELIGIBILITY_HARNESS_DB_USER'),
+        environment('ELIGIBILITY_HARNESS_DB_PASSWORD'),
         [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_EMULATE_PREPARES => false,
@@ -166,11 +175,121 @@ function connectToRealMysql(): PDO
     );
 }
 
-function environment(string $name, string $default): string
+function environment(string $name): string
 {
     $value = getenv($name);
+    if (!is_string($value) || $value === '') {
+        fail('Missing required Harness database environment variable: ' . $name);
+    }
 
-    return is_string($value) && $value !== '' ? $value : $default;
+    return $value;
+}
+
+function runPublicConcurrencyProof(string $consumerRoot, string $runId): void
+{
+    $subject = 'concurrency-' . $runId;
+    /** @var array<string, string> $environment */
+    $environment = getenv();
+    $environment['ELIGIBILITY_HARNESS_CONCURRENCY_SUBJECT'] = $subject;
+    $worker = $consumerRoot . '/bin/concurrency-worker.php';
+    $a = startWorker($worker, 'a', $environment);
+    try {
+        awaitLine($a, 'CREATED', 20);
+        echo "PUBLIC_CONCURRENCY_WORKER_A=CREATED\n";
+        $b = startWorker($worker, 'b', $environment);
+        try {
+            awaitLine($b, 'STARTED', 20);
+            fwrite($a['stdin'], "COMMIT\n");
+            fflush($a['stdin']);
+            awaitLine($a, 'DONE', 20);
+            awaitLine($b, 'RESULT:DUPLICATE', 20);
+            finishWorker($a);
+            finishWorker($b);
+        } finally {
+            terminateWorker($b);
+        }
+    } finally {
+        terminateWorker($a);
+    }
+    $proofManagement = (new PdoEligibilityRuntimeFactory(connectToRealMysql()))->createManagementService();
+    $proofSubject = new Subject('consumer_harness', $subject);
+    $proofRules = $proofManagement->inspectRules(new RuleCriteria($proofSubject, 'concurrency_dimension'), new PageRequest());
+    if ($proofRules->filtered !== 1) {
+        fail('Public concurrency proof did not leave exactly one Rule identity.');
+    }
+    $proofManagement->inspectRule(new RuleIdentity(
+        $proofSubject->subjectType,
+        $proofSubject->subjectId,
+        'concurrency_dimension',
+        'same-value',
+    ));
+    $proofManagement->cleanupSubject(new CleanupSubjectCommand($proofSubject));
+    echo "PUBLIC_CONCURRENCY=PASS\n";
+}
+
+/** @param array<string, string> $environment
+ *  @return array{process: resource, stdin: resource, stdout: resource, stderr: resource, buffer: string}
+ */
+function startWorker(string $worker, string $role, array $environment): array
+{
+    /** @var array<int, resource> $pipes */
+    $pipes = [];
+    $process = proc_open([PHP_BINARY, $worker, $role], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__), $environment);
+    if (!is_resource($process)) {
+        fail('Could not start public concurrency worker.');
+    }
+    stream_set_blocking($pipes[1], false);
+    stream_set_blocking($pipes[2], false);
+    return ['process' => $process, 'stdin' => $pipes[0], 'stdout' => $pipes[1], 'stderr' => $pipes[2], 'buffer' => ''];
+}
+
+/** @param array{process: resource, stdin: resource, stdout: resource, stderr: resource, buffer: string} $worker */
+function awaitLine(array &$worker, string $expected, int $seconds): void
+{
+    $deadline = microtime(true) + $seconds;
+    while (microtime(true) < $deadline) {
+        $read = [$worker['stdout'], $worker['stderr']];
+        $write = null;
+        $except = null;
+        if (stream_select($read, $write, $except, 0, 200000) === false) {
+            fail('Concurrency worker stream selection failed.');
+        }
+        foreach ($read as $stream) {
+            $chunk = stream_get_contents($stream);
+            if ($chunk !== false && $chunk !== '') {
+                $worker['buffer'] .= $chunk;
+            }
+        }
+        if (str_contains($worker['buffer'], $expected . PHP_EOL)) {
+            return;
+        }
+        if (str_contains($worker['buffer'], 'WORKER_ERROR=')) {
+            fail($worker['buffer']);
+        }
+    }
+    fail('Timed out waiting for concurrency worker signal: ' . $expected);
+}
+
+/** @param array{process: resource, stdin: resource, stdout: resource, stderr: resource, buffer: string} $worker */
+function finishWorker(array &$worker): void
+{
+    fclose($worker['stdin']);
+    $code = proc_close($worker['process']);
+    if ($code !== 0) {
+        fail('Concurrency worker failed with exit code ' . $code . ': ' . $worker['buffer']);
+    }
+}
+
+/** @param array{process: resource, stdin: resource, stdout: resource, stderr: resource, buffer: string} $worker */
+function terminateWorker(array &$worker): void
+{
+    if (is_resource($worker['process'])) {
+        @proc_terminate($worker['process']);
+        @fclose($worker['stdin']);
+        @fclose($worker['stdout']);
+        @fclose($worker['stderr']);
+        @proc_close($worker['process']);
+    }
 }
 
 /** @phpstan-impure */

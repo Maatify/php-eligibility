@@ -1272,7 +1272,7 @@ This workflow is normative at the responsibility and observable-behavior level. 
 
 Rule management follows the same boundary: the Host submits typed management commands/criteria through the public package contracts, the Domain Service coordinates the mutation or read, and the package-owned persistence boundary produces the typed management result or documented typed failure. Application/domain code MUST NOT require direct SQL access.
 
-The Consumer Verification Harness required by the adopted Testing and CI Standards exists and is part of the maintained RC1 verification contract. It installs and consumes the package through production Composer autoload, exercises the public contracts against the real MySQL persistence boundary, and verifies clean consumer and database states before and after the workflow. The maintained harness executes twice from clean consumer/database states and reports both runs as a current verification gate.
+The Consumer Verification Harness required by the adopted Testing and CI Standards exists and is part of the maintained current-source verification contract. It installs and consumes the package through production Composer autoload, exercises the public contracts against the real MySQL persistence boundary, proves independent-process natural-identity concurrency, and verifies clean consumer and database states before and after the workflow. The maintained Harness executes twice from clean consumer/database states using the synthetic development identity `dev-rc2-current-source`; this is not Published RC1 or Published RC2 verification. Local Integration, CI Integration, Harness, and database-backed example smoke share the repository-owned Compose lifecycle documented by DEC-005.
 
 ## Public Runtime API inventory
 

@@ -8,8 +8,8 @@ set -euo pipefail
 # the Composer capability used by the authoritative CI quality gate, but it does
 # not resolve either the latest-compatible or lowest-supported dependency matrix.
 #
-#   composer validate, optimized strict autoload, platform requirements,
-#   PHP syntax lint, PHPStan level max, PER-CS style, whitespace check,
+#   composer validate, Composer policy contract, optimized strict autoload,
+#   platform requirements, PHP syntax lint, PHPStan level max, PER-CS style, whitespace check,
 #   Composer security audit, workflow lint, Unit suite, Golden suite.
 #
 # Before running, verify Composer 2.10.x and resolve the latest-compatible
@@ -18,12 +18,9 @@ set -euo pipefail
 #   composer --version | grep -Eq '^Composer version 2\.10\.'
 #   composer update --no-interaction --prefer-dist --no-progress
 #
-# To also run the real-service gates locally, start the MySQL fixture first
-# and pass --with-integration. A real PDO readiness check
-# (tools/mysql-ready.php) runs before the suites, mirroring ci-integration:
-#
-#   docker compose -f docker-compose.integration.yml up -d --wait
-#   tools/check-local.sh --with-integration
+# To also run the real-service gates locally, pass --with-integration. Each
+# command owns a fresh Compose project, dynamic loopback endpoint, readiness
+# probe, and teardown; no manual service lifecycle is required.
 
 with_integration=false
 for arg in "$@"; do
@@ -63,6 +60,7 @@ fi
 
 run_step "Composer 2.10 capability" require_composer_210
 run_step "Composer validation" composer validate --strict
+run_step "Composer policy contract" composer check:composer-policy
 run_step "Optimized strict PSR-4 autoload" composer dump-autoload --optimize --strict-psr
 run_step "Platform requirements" composer check-platform-reqs
 run_step "PHP syntax lint" php tools/php-lint.php
@@ -75,10 +73,10 @@ run_step "Unit suite" composer test:unit
 run_step "Golden suite" composer test:golden
 
 if [[ "$with_integration" == true ]]; then
-	run_step "MySQL fixture readiness" php tools/mysql-ready.php
 	run_step "Integration suite" composer test:integration
 	run_step "Integration suite repeatability run" composer test:integration
 	run_step "Consumer Verification Harness" composer test:harness
+	run_step "Runnable examples" composer test:examples
 fi
 
 printf '\nLocal aggregate gate passed.\n'

@@ -29,22 +29,28 @@ jobs:
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.4'
-          composer-version: '2.10.2'
+          tools: composer:2.10.3
           coverage: none
       - name: Verify Composer 2.10 capability
         run: |
           composer --version
-          composer --version | grep -Eq '^Composer version 2\.10\.'
+          composer --version | grep -Eq '^Composer version 2\.10\.3 '
       - name: Validate composer.json
         run: composer validate --strict
+      - name: Verify Composer policy contract
+        run: env -u COMPOSER_NO_AUDIT composer check:composer-policy
       - name: Resolve current compatible dependencies
-        run: composer update --no-interaction --prefer-dist --no-progress
+        run: |
+          env -u COMPOSER_NO_AUDIT composer update \
+            --no-interaction \
+            --prefer-dist \
+            --no-progress
       - name: Verify platform requirements
         run: composer check-platform-reqs
       - name: Validate optimized strict PSR-4 autoload
         run: composer dump-autoload --optimize --strict-psr
       - name: Composer security audit
-        run: composer audit --no-interaction --abandoned=fail
+        run: env -u COMPOSER_NO_AUDIT composer audit --no-interaction --abandoned=fail
 
   static-analysis:
     name: Static analysis (PHP 8.4)
