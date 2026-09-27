@@ -11,7 +11,9 @@ use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
 use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
 use Maatify\Eligibility\Management\Criteria\RuleCriteria;
-use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyCollectionDTO;
+use Maatify\Eligibility\Management\Criteria\RuleLifecycleSummaryCriteria;
+use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyDTO;
+use Maatify\Eligibility\Management\DTO\RuleLifecycleSummaryDTO;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
 use Maatify\Eligibility\Evaluation\Repository\ActiveRuleReaderInterface;
 use Maatify\Eligibility\Management\Repository\RuleCommandRepositoryInterface;
@@ -23,9 +25,17 @@ use Maatify\Eligibility\ValueObject\RuleIdentity;
 use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\ValueObject\Subject;
 use Maatify\Eligibility\ValueObject\SubjectCollection;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
+use Maatify\Persistence\Pdo\Pagination\SortDirectionEnum;
 
 /**
  * Deterministic test double for the shared in-memory persistence state.
+ *
+ * Pagination here is a deliberately minimal slice/count for explicit unit
+ * scenarios only; it is not a reusable pagination engine. Real page/per-page
+ * normalization, sort-resolution, and metadata semantics are proven against
+ * the PDO adapter in Integration evidence.
  */
 final class InMemoryRuleRepository implements
     RuleCommandRepositoryInterface,
@@ -71,26 +81,33 @@ final class InMemoryRuleRepository implements
         return $this->rules[$this->identityKey($identity)] ?? null;
     }
 
-    public function findByCriteria(RuleCriteria $criteria): RuleCollection
+    public function findByCriteria(RuleCriteria $criteria, PageRequest $pageRequest): PageResult
     {
-        $rules = [];
+        $total = 0;
+        $matching = [];
         foreach ($this->rules as $rule) {
             if (!$this->sameSubject($rule->subject, $criteria->subject)) {
                 continue;
             }
+
+            $total++;
+
             if ($criteria->dimensionKey !== null && $rule->dimensionKey !== $criteria->dimensionKey) {
                 continue;
             }
             if ($criteria->lifecycle !== null && $rule->lifecycle !== $criteria->lifecycle) {
                 continue;
             }
+            if ($criteria->effect !== null && $rule->effect !== $criteria->effect) {
+                continue;
+            }
 
-            $rules[] = $rule;
+            $matching[] = $rule;
         }
 
-        $ordered = new RuleCollection(...$rules);
+        $ordered = (new RuleCollection(...$matching))->items();
 
-        return new RuleCollection(...array_slice($ordered->items(), 0, $criteria->maxResults));
+        return $this->paginate($ordered, $total, $pageRequest);
     }
 
     public function findActiveForSubjects(SubjectCollection $subjects): RuleCollection
@@ -113,19 +130,51 @@ final class InMemoryRuleRepository implements
         return new RuleCollection(...$rules);
     }
 
-    public function findActiveDimensionKeys(ActiveDimensionKeysCriteria $query): ActiveDimensionKeyCollectionDTO
-    {
+    public function findActiveDimensionKeys(
+        ActiveDimensionKeysCriteria $query,
+        PageRequest $pageRequest,
+    ): PageResult {
+        /** @var array<string, true> $keys */
         $keys = [];
         foreach ($this->rules as $rule) {
             if (
                 $rule->lifecycle === RuleLifecycleEnum::ACTIVE
                 && $this->sameSubject($rule->subject, $query->subject)
             ) {
-                $keys[] = $rule->dimensionKey;
+                $keys[$rule->dimensionKey] = true;
             }
         }
 
-        return new ActiveDimensionKeyCollectionDTO(...array_values(array_unique($keys)));
+        $ordered = array_keys($keys);
+        usort($ordered, static fn(string $left, string $right): int => strcmp($left, $right));
+        $dtos = array_map(
+            static fn(string $dimensionKey): ActiveDimensionKeyDTO => new ActiveDimensionKeyDTO($dimensionKey),
+            $ordered,
+        );
+
+        return $this->paginate($dtos, count($dtos), $pageRequest);
+    }
+
+    public function summarizeLifecycle(RuleLifecycleSummaryCriteria $criteria): RuleLifecycleSummaryDTO
+    {
+        $active = 0;
+        $inactive = 0;
+        foreach ($this->rules as $rule) {
+            if (!$this->sameSubject($rule->subject, $criteria->subject)) {
+                continue;
+            }
+            if ($criteria->dimensionKey !== null && $rule->dimensionKey !== $criteria->dimensionKey) {
+                continue;
+            }
+
+            if ($rule->lifecycle === RuleLifecycleEnum::ACTIVE) {
+                $active++;
+            } else {
+                $inactive++;
+            }
+        }
+
+        return new RuleLifecycleSummaryDTO($active + $inactive, $active, $inactive);
     }
 
     public function updateEffect(UpdateRuleEffectCommand $command): bool
@@ -186,6 +235,44 @@ final class InMemoryRuleRepository implements
     public function allRules(): array
     {
         return array_values($this->rules);
+    }
+
+    /**
+     * @template T of array<array-key, mixed>|object
+     * @param list<T> $orderedItems
+     * @return PageResult<T>
+     */
+    private function paginate(array $orderedItems, int $total, PageRequest $pageRequest): PageResult
+    {
+        $filtered = count($orderedItems);
+        $requestedPerPage = is_int($pageRequest->perPage) ? $pageRequest->perPage : null;
+        $perPage = $requestedPerPage === null || $requestedPerPage < 1 ? 20 : $requestedPerPage;
+
+        if ($filtered === 0) {
+            return new PageResult([], 1, $perPage, $total, 0, 0, false, false, 'dimension_key', SortDirectionEnum::ASC);
+        }
+
+        $totalPages = (int) ceil($filtered / $perPage);
+        $requestedPage = is_int($pageRequest->page) ? $pageRequest->page : null;
+        $page = $requestedPage === null || $requestedPage < 1 ? 1 : $requestedPage;
+        if ($page > $totalPages) {
+            $page = 1;
+        }
+
+        $data = array_slice($orderedItems, ($page - 1) * $perPage, $perPage);
+
+        return new PageResult(
+            $data,
+            $page,
+            $perPage,
+            $total,
+            $filtered,
+            $totalPages,
+            $page < $totalPages,
+            $page > 1,
+            'dimension_key',
+            SortDirectionEnum::ASC,
+        );
     }
 
     private function setLifecycle(RuleIdentity $identity, RuleLifecycleEnum $lifecycle): bool

@@ -96,6 +96,19 @@ final class CanonicalAcceptanceEvidenceMap
                 self::evidence(EligibilityConcurrencyIntegrationTest::class, 'concurrentReplacementOnInitiallyEmptyDimensionSerializesWholeState', 'concurrency'),
                 self::evidence(EligibilityConcurrencyIntegrationTest::class, 'concurrentReplacementOnExistingDimensionDoesNotMixDesiredSets', 'concurrency'),
             ]),
+            self::scenario(53, 'Paginated Rule management reads prove complete, duplicate-free identity coverage above 500 Rules across pages.', EligibilityRuntimeIntegrationTest::class, 'replacementUsesCompleteUnboundedDimensionStateAndIsIdempotent', 'integration'),
+            self::scenario(54, 'Rule pagination supports default and explicit page/per-page requests, with per-page normalization delegated to the shared paginator.', PdoRuleRepositoryIntegrationTest::class, 'paginatedManagementReadsSupportDefaultsExplicitPagesAndPerPageNormalization', 'integration'),
+            self::scenario(55, 'Rule Criteria effect filtering narrows Management reads independently of and combined with lifecycle filtering.', PdoRuleRepositoryIntegrationTest::class, 'criteriaReturnsBothLifecyclesWithFiltersAndCanonicalOrdering', 'integration'),
+            self::scenarioWithEvidence(56, 'Rule lifecycle summary reports internally consistent active/inactive counts for a Subject and an optional dimension scope, including the 500+ Rule state.', [
+                self::evidence(PdoRuleRepositoryIntegrationTest::class, 'lifecycleSummaryProvesRealPersistenceAggregatesAndSubjectIsolation', 'integration'),
+                self::evidence(EligibilityRuntimeIntegrationTest::class, 'replacementUsesCompleteUnboundedDimensionStateAndIsIdempotent', 'integration'),
+            ]),
+            self::scenario(57, 'Paginated active-dimension discovery returns distinct active dimension keys in canonical order across a page boundary, excluding inactive-only dimensions.', PdoRuleRepositoryIntegrationTest::class, 'activeDimensionKeysPaginateAcrossAPageBoundaryAndAreSubjectIsolated', 'integration'),
+            self::scenario(58, 'An unsupported explicit Rule pagination sort request is rejected as typed Eligibility input rather than silently falling back.', RuntimeManagementServiceTest::class, 'inspectRulesRejectsUnsupportedExplicitSortRequests', 'unit'),
+            self::scenarioWithEvidence(59, 'Malformed persisted Rule state (invalid effect bytes or an invalid canonical component) is classified as a typed persisted-state exception that preserves the original cause.', [
+                self::evidence(PdoRuleRepositoryIntegrationTest::class, 'invalidPersistedEffectBytesAreClassifiedAsPersistedStateFailures', 'integration'),
+                self::evidence(PdoRuleRepositoryIntegrationTest::class, 'invalidPersistedCanonicalComponentIsClassifiedAsPersistedStateFailure', 'integration'),
+            ]),
         ];
     }
 

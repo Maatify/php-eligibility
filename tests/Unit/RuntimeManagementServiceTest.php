@@ -14,7 +14,9 @@ use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
 use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
 use Maatify\Eligibility\Management\Criteria\RuleCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleLifecycleSummaryCriteria;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Exception\RuleNotFoundException;
 use Maatify\Eligibility\ValueObject\Rule;
 use Maatify\Eligibility\Enum\RuleEffectEnum;
@@ -23,6 +25,7 @@ use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\InMemoryRuleRepository;
 use Maatify\Eligibility\Tests\Support\SynchronousTransactionRunner;
 use Maatify\Eligibility\ValueObject\Subject;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -40,9 +43,16 @@ final class RuntimeManagementServiceTest extends TestCase
 
         self::assertSame(RuleLifecycleEnum::ACTIVE, $created->lifecycle);
         self::assertSame($created->jsonSerialize(), $inspected->jsonSerialize());
-        self::assertSame(['country'], $service->inspectActiveDimensionKeys(
+        $activeDimensionKeys = $service->inspectActiveDimensionKeys(
             new ActiveDimensionKeysCriteria($command->subject),
-        )->items());
+            new PageRequest(),
+        );
+        self::assertSame(['country'], array_map(
+            static fn($dto): string => $dto->dimensionKey,
+            $activeDimensionKeys->data,
+        ));
+        self::assertSame(1, $activeDimensionKeys->total);
+        self::assertSame(1, $activeDimensionKeys->filtered);
     }
 
     #[Test]
@@ -90,11 +100,88 @@ final class RuntimeManagementServiceTest extends TestCase
         );
         $service = $this->service($repository);
 
-        self::assertCount(2, $service->inspectRules(new RuleCriteria($subject)));
-        self::assertCount(1, $service->inspectRules(new RuleCriteria(
+        $all = $service->inspectRules(new RuleCriteria($subject), new PageRequest());
+        self::assertCount(2, $all->data);
+        self::assertSame(2, $all->total);
+        self::assertSame(2, $all->filtered);
+
+        $inactiveOnly = $service->inspectRules(new RuleCriteria(
             $subject,
             lifecycle: RuleLifecycleEnum::INACTIVE,
-        )));
+        ), new PageRequest());
+        self::assertCount(1, $inactiveOnly->data);
+        self::assertSame(2, $inactiveOnly->total);
+        self::assertSame(1, $inactiveOnly->filtered);
+
+        $denyOnly = $service->inspectRules(new RuleCriteria(
+            $subject,
+            effect: RuleEffectEnum::DENY,
+        ), new PageRequest());
+        self::assertCount(1, $denyOnly->data);
+        self::assertSame('SA', $denyOnly->data[0]->dimensionValue);
+    }
+
+    #[Test]
+    public function inspectRulesRejectsUnsupportedExplicitSortRequests(): void
+    {
+        $repository = new InMemoryRuleRepository();
+        $service = $this->service($repository);
+        $subject = new Subject('product', '150');
+
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        $service->inspectRules(
+            new RuleCriteria($subject),
+            new PageRequest(sortBy: 'dimension_value', sortDirection: 'ASC'),
+        );
+    }
+
+    #[Test]
+    public function inspectRulesAcceptsTheCanonicalExplicitSortEquivalent(): void
+    {
+        $repository = new InMemoryRuleRepository();
+        $repository->seed($this->rule('EG', RuleEffectEnum::ALLOW));
+        $service = $this->service($repository);
+        $subject = new Subject('product', '150');
+
+        $result = $service->inspectRules(
+            new RuleCriteria($subject),
+            new PageRequest(sortBy: 'dimension_key', sortDirection: 'ASC'),
+        );
+
+        self::assertCount(1, $result->data);
+    }
+
+    #[Test]
+    public function inspectRuleLifecycleSummaryReportsCountsForTheSubject(): void
+    {
+        $repository = new InMemoryRuleRepository();
+        $subject = new Subject('product', '150');
+        $repository->seed(
+            $this->rule('EG', RuleEffectEnum::ALLOW),
+            $this->rule('SA', RuleEffectEnum::DENY)->withLifecycle(RuleLifecycleEnum::INACTIVE),
+            $this->rule('retail', RuleEffectEnum::ALLOW, 'customer_type'),
+        );
+        $service = $this->service($repository);
+
+        $summary = $service->inspectRuleLifecycleSummary(new RuleLifecycleSummaryCriteria($subject));
+        self::assertSame(3, $summary->totalRules);
+        self::assertSame(2, $summary->activeRules);
+        self::assertSame(1, $summary->inactiveRules);
+
+        $dimensionSummary = $service->inspectRuleLifecycleSummary(
+            new RuleLifecycleSummaryCriteria($subject, 'country'),
+        );
+        self::assertSame(2, $dimensionSummary->totalRules);
+        self::assertSame(1, $dimensionSummary->activeRules);
+        self::assertSame(1, $dimensionSummary->inactiveRules);
+
+        $emptySummary = $service->inspectRuleLifecycleSummary(
+            new RuleLifecycleSummaryCriteria(new Subject('product', 'missing')),
+        );
+        self::assertSame(0, $emptySummary->totalRules);
+        self::assertSame(0, $emptySummary->activeRules);
+        self::assertSame(0, $emptySummary->inactiveRules);
     }
 
     #[Test]
@@ -150,7 +237,7 @@ final class RuntimeManagementServiceTest extends TestCase
         $service->replaceDimensionRules($replacement);
         $service->replaceDimensionRules($replacement);
 
-        $rules = $service->inspectRules(new RuleCriteria($subject));
+        $rules = $service->inspectRules(new RuleCriteria($subject), new PageRequest());
         self::assertSame(
             [
                 ['EG', RuleEffectEnum::DENY, RuleLifecycleEnum::ACTIVE],
@@ -161,7 +248,7 @@ final class RuntimeManagementServiceTest extends TestCase
             ],
             array_map(
                 static fn(Rule $rule): array => [$rule->dimensionValue, $rule->effect, $rule->lifecycle],
-                $rules->items(),
+                $rules->data,
             ),
         );
         self::assertSame(
@@ -231,8 +318,8 @@ final class RuntimeManagementServiceTest extends TestCase
         $service->cleanupSubject(new CleanupSubjectCommand($subject));
         $service->cleanupSubject(new CleanupSubjectCommand($subject));
 
-        self::assertCount(0, $service->inspectRules(new RuleCriteria($subject)));
-        self::assertCount(1, $service->inspectRules(new RuleCriteria($other)));
+        self::assertCount(0, $service->inspectRules(new RuleCriteria($subject), new PageRequest())->data);
+        self::assertCount(1, $service->inspectRules(new RuleCriteria($other), new PageRequest())->data);
     }
 
     private function rule(

@@ -32,8 +32,7 @@ final class NonStrictConsumer
     public static function ruleCriteria(
         Subject $subject,
         mixed $dimensionKey,
-        mixed $maxResults,
     ): RuleCriteria {
-        return new RuleCriteria($subject, $dimensionKey, null, $maxResults);
+        return new RuleCriteria($subject, $dimensionKey);
     }
 }

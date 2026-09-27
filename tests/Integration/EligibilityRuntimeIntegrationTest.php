@@ -11,6 +11,7 @@ use Maatify\Eligibility\Management\ValueObject\DesiredRule;
 use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Management\Criteria\RuleCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleLifecycleSummaryCriteria;
 use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
 use Maatify\Eligibility\Evaluation\Enum\DecisionReasonEnum;
@@ -29,6 +30,7 @@ use Maatify\Eligibility\Evaluation\ValueObject\ContextDimension;
 use Maatify\Eligibility\ValueObject\Subject;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use PDO;
 
@@ -107,7 +109,7 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         $this->management->deactivateRule(new \Maatify\Eligibility\Management\Command\DeactivateRuleCommand(
             new RuleIdentity('product', '150', 'country', 'EG'),
         ));
-        self::assertCount(2, $this->management->inspectRules(new RuleCriteria($subject)));
+        self::assertCount(2, $this->management->inspectRules(new RuleCriteria($subject), new PageRequest())->data);
         self::assertSame(DecisionReasonEnum::ELIGIBLE, $this->evaluation->decide(
             $subject,
             new Context(ContextDimension::fromStrings('customer_type', 'retail')),
@@ -163,6 +165,38 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         self::assertSame(RuleEffectEnum::DENY, $this->managementQuery->findByIdentity(
             new RuleIdentity('bulk', '500', 'country', 'v000'),
         )?->effect);
+
+        $summary = $this->management->inspectRuleLifecycleSummary(new RuleLifecycleSummaryCriteria($subject, 'country'));
+        self::assertSame(502, $summary->totalRules);
+        self::assertSame(2, $summary->activeRules);
+        self::assertSame(500, $summary->inactiveRules);
+
+        $expectedIdentities = ['new'];
+        for ($index = 0; $index <= 500; $index++) {
+            $expectedIdentities[] = sprintf('v%03d', $index);
+        }
+        sort($expectedIdentities, SORT_STRING);
+
+        $observedIdentities = [];
+        $page = 1;
+        do {
+            $pageResult = $this->management->inspectRules(
+                new RuleCriteria($subject, 'country'),
+                new PageRequest(page: $page, perPage: 50),
+            );
+            self::assertSame(503, $pageResult->total);
+            self::assertSame(502, $pageResult->filtered);
+            foreach ($pageResult->data as $rule) {
+                $observedIdentities[] = $rule->dimensionValue;
+            }
+            $page++;
+        } while ($pageResult->hasNext);
+
+        self::assertSame(502, count($observedIdentities));
+        self::assertSame(502, count(array_unique($observedIdentities)));
+        $sortedObserved = $observedIdentities;
+        sort($sortedObserved, SORT_STRING);
+        self::assertSame($expectedIdentities, $sortedObserved);
     }
 
     #[Test]
@@ -434,9 +468,9 @@ final class EligibilityRuntimeIntegrationTest extends TestCase
         $this->management->cleanupSubject(new CleanupSubjectCommand($subject));
         $this->management->cleanupSubject(new CleanupSubjectCommand($subject));
 
-        self::assertCount(0, $this->management->inspectRules(new RuleCriteria($subject)));
+        self::assertCount(0, $this->management->inspectRules(new RuleCriteria($subject), new PageRequest())->data);
         self::assertSame(0, $this->countCoordinationRows($subject));
-        self::assertCount(1, $this->management->inspectRules(new RuleCriteria($otherSubject)));
+        self::assertCount(1, $this->management->inspectRules(new RuleCriteria($otherSubject), new PageRequest())->data);
         self::assertSame(1, $this->countCoordinationRows($otherSubject));
     }
 

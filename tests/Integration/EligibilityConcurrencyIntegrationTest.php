@@ -25,6 +25,7 @@ use Maatify\Eligibility\ValueObject\Subject;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use PDO;
 
@@ -212,7 +213,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             self::assertSame('REPLACED', $this->readLine($workerA, 'worker A replacement result'));
 
             $observerQuery = new PdoRuleManagementQuery($observer);
-            self::assertCount(0, $observerQuery->findByCriteria(new RuleCriteria($subject)));
+            self::assertCount(0, $observerQuery->findByCriteria(new RuleCriteria($subject), new PageRequest())->data);
 
             $this->signal($workerA, 'COMMIT');
             self::assertSame('DONE', $this->readLine($workerA, 'worker A commit result'));
@@ -230,7 +231,10 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             }
         }
 
-        $rules = $this->managementQuery->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Enum\RuleLifecycleEnum::ACTIVE));
+        $rules = $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Enum\RuleLifecycleEnum::ACTIVE),
+            new PageRequest(),
+        );
         self::assertSame(
             [
                 ['KW', RuleEffectEnum::ALLOW],
@@ -238,7 +242,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             ],
             array_map(
                 static fn(\Maatify\Eligibility\ValueObject\Rule $rule): array => [$rule->dimensionValue, $rule->effect],
-                $rules->items(),
+                $rules->data,
             ),
         );
     }
@@ -300,7 +304,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                 $subject,
                 'country',
                 lifecycle: RuleLifecycleEnum::ACTIVE,
-            ));
+            ), new PageRequest());
             self::assertSame(
                 [['OLD', RuleEffectEnum::ALLOW]],
                 array_map(
@@ -308,7 +312,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                         $rule->dimensionValue,
                         $rule->effect,
                     ],
-                    $committedBefore->items(),
+                    $committedBefore->data,
                 ),
             );
             self::assertSame(DecisionReasonEnum::ELIGIBLE, $observerEvaluation->decide(
@@ -328,7 +332,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                 $subject,
                 'country',
                 lifecycle: RuleLifecycleEnum::ACTIVE,
-            ));
+            ), new PageRequest());
             self::assertSame(
                 [
                     ['B', RuleEffectEnum::ALLOW],
@@ -339,7 +343,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                         $rule->dimensionValue,
                         $rule->effect,
                     ],
-                    $committedAfter->items(),
+                    $committedAfter->data,
                 ),
             );
             self::assertSame(DecisionReasonEnum::ELIGIBLE, $observerEvaluation->decide(
@@ -363,10 +367,13 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             }
         }
 
-        $rules = $this->managementQuery->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Enum\RuleLifecycleEnum::ACTIVE));
+        $rules = $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Enum\RuleLifecycleEnum::ACTIVE),
+            new PageRequest(),
+        );
         self::assertSame(['B', 'B2'], array_map(
             static fn(\Maatify\Eligibility\ValueObject\Rule $rule): string => $rule->dimensionValue,
-            $rules->items(),
+            $rules->data,
         ));
         self::assertSame(5, $this->countAllRules());
     }

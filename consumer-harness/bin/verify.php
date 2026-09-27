@@ -21,6 +21,7 @@ use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\Evaluation\ValueObject\Context;
 use Maatify\Eligibility\Evaluation\ValueObject\ContextDimension;
 use Maatify\Eligibility\ValueObject\Subject;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 
 $consumerRoot = dirname(__DIR__);
@@ -81,7 +82,7 @@ $evaluation = new EligibilityEvaluationService($activeRuleReader);
 
 assertTableEmpty($pdo, 'maa_eligibility_rules', 'Before workflow');
 assertTableEmpty($pdo, 'maa_eligibility_subject_locks', 'Before workflow');
-if ($management->inspectRules(new RuleCriteria($subject))->count() !== 0) {
+if ($management->inspectRules(new RuleCriteria($subject), new PageRequest())->filtered !== 0) {
     fail('Consumer state was not clean before the public workflow started.');
 }
 echo "REAL_MYSQL_PRE_RESIDUE=PASS\n";
@@ -117,8 +118,8 @@ $management->replaceDimensionRules(new ReplaceDimensionRulesCommand(
     new DesiredRuleCollection(new DesiredRule('KW', RuleEffectEnum::ALLOW)),
 ));
 
-$rules = $management->inspectRules(new RuleCriteria($subject, 'country'));
-assertSameValue(2, $rules->count(), 'Public management lifecycle read count');
+$rules = $management->inspectRules(new RuleCriteria($subject, 'country'), new PageRequest());
+assertSameValue(2, $rules->filtered, 'Public management lifecycle read count');
 assertSameValue(
     RuleLifecycleEnum::INACTIVE,
     $management->inspectRule(new RuleIdentity(
@@ -147,7 +148,7 @@ $replaced = $evaluation->decide($subject, new Context(
 assertSameValue(DecisionReasonEnum::ELIGIBLE, $replaced->reasonCode, 'Replaced public evaluation');
 
 $management->cleanupSubject(new CleanupSubjectCommand($subject));
-if ($management->inspectRules(new RuleCriteria($subject))->count() !== 0) {
+if ($management->inspectRules(new RuleCriteria($subject), new PageRequest())->filtered !== 0) {
     fail('Public cleanup did not remove all Rules for the consumer Subject.');
 }
 assertTableEmpty($pdo, 'maa_eligibility_rules', 'After workflow');

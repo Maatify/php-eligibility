@@ -275,43 +275,79 @@ direct SQL.
   Rules remain management-visible but are ignored by evaluation.
 - **Runnable example:** [`management-lifecycle.php`](../../examples/management-lifecycle.php).
 
-### Read Rules by criteria
+### Read Rules by criteria (paginated)
 
-- **Purpose:** Read a bounded collection for one Subject, optionally filtered
-  by dimension key and lifecycle.
+- **Purpose:** Read a paginated collection for one Subject, optionally
+  filtered by dimension key, lifecycle, and effect.
 - **Input:** `RuleCriteria(Subject $subject, ?dimensionKey,
-  ?RuleLifecycleEnum $lifecycle, int $maxResults)`; `maxResults` is 1–500 and
-  defaults to 100.
-- **Public call:** `$management->inspectRules($criteria)`.
-- **Return type:** `RuleCollection`.
-- **Observable behavior:** Results are canonically ordered. Without a lifecycle
-  filter, both active and inactive Rules can be returned. The bound is applied
-  by the management query.
+  ?RuleLifecycleEnum $lifecycle, ?RuleEffectEnum $effect)` plus a
+  `Maatify\Persistence\Pdo\Pagination\PageRequest` (page, per-page, sort).
+- **Public call:** `$management->inspectRules($criteria, $pageRequest)`.
+- **Return type:** `Maatify\Persistence\Pdo\Pagination\PageResult<Rule>`
+  (`data`, `page`, `perPage`, `total`, `filtered`, `totalPages`, `hasNext`,
+  `hasPrevious`, `sortBy`, `sortDirection`).
+- **Observable behavior:** `total` counts every persisted Rule for the Subject
+  before the optional `RuleCriteria` filters; `filtered` counts Rules after
+  those filters. Results follow the canonical fixed order: `dimension_key`
+  ascending, then `dimension_value` ascending. Page/per-page normalization
+  (default per-page 20, bounds 1–200) is delegated to `maatify/persistence`.
+  `PageRequest.sortBy`/`sortDirection` accept only `null` (canonical order) or
+  the explicit equivalent `dimension_key` ascending; any other explicit sort
+  request raises `InvalidEligibilityInputException` rather than being
+  silently ignored.
+- **Relevant typed failures:** Invalid criteria or an unsupported explicit sort
+  request raises `InvalidEligibilityInputException`; a malformed persisted Rule
+  row raises `InvalidPersistedRuleStateException`; unknown storage failures
+  propagate unchanged.
+- **Transaction/concurrency:** Read-only; no package-owned transaction is
+  opened.
+- **Host responsibility:** Use the paginated result for management or
+  inspection; do not treat it as a replacement for the active bulk evaluation
+  reader, and do not build Host-global pagination on top of it.
+- **Runnable example:** [`management-lifecycle.php`](../../examples/management-lifecycle.php).
+
+### Find active dimension keys (paginated)
+
+- **Purpose:** Discover which dimensions currently have at least one active
+  Rule for one Subject.
+- **Input:** `ActiveDimensionKeysCriteria(Subject $subject)` plus a
+  `PageRequest`.
+- **Public call:** `$management->inspectActiveDimensionKeys($query, $pageRequest)`.
+- **Return type:** `PageResult<ActiveDimensionKeyDTO>`.
+- **Observable behavior:** Only active Rules contribute keys; returned keys are
+  distinct and in canonical ascending bytewise order. `total` and `filtered`
+  are always equal for this query, because no optional domain filter exists
+  beyond the active-visibility contract itself. Only the canonical ascending
+  `dimension_key` sort is supported; any other explicit sort request raises
+  `InvalidEligibilityInputException`.
+- **Relevant typed failures:** Invalid Subject input or an unsupported explicit
+  sort request raises `InvalidEligibilityInputException`; a malformed
+  persisted dimension key raises `InvalidPersistedRuleStateException`; unknown
+  storage failures propagate unchanged.
+- **Transaction/concurrency:** Read-only; no package-owned transaction is
+  opened.
+- **Host responsibility:** Interpret the keys according to Host-owned business
+  definitions.
+- **Runnable example:** [`management-lifecycle.php`](../../examples/management-lifecycle.php).
+
+### Read the Rule lifecycle summary
+
+- **Purpose:** Get an aggregate active/inactive Rule count for one Subject,
+  optionally scoped to one exact dimension, without loading every Rule into
+  PHP.
+- **Input:** `RuleLifecycleSummaryCriteria(Subject $subject, ?dimensionKey)`.
+- **Public call:** `$management->inspectRuleLifecycleSummary($criteria)`.
+- **Return type:** `RuleLifecycleSummaryDTO` (`totalRules`, `activeRules`,
+  `inactiveRules`; `totalRules === activeRules + inactiveRules`).
+- **Observable behavior:** The aggregate is computed in the database. An empty
+  Subject/dimension scope returns exactly `0`/`0`/`0`.
 - **Relevant typed failures:** Invalid criteria raises
   `InvalidEligibilityInputException`; unknown storage failures propagate
   unchanged.
 - **Transaction/concurrency:** Read-only; no package-owned transaction is
   opened.
-- **Host responsibility:** Use the bounded result for management or inspection;
-  do not treat it as a replacement for the active bulk evaluation reader.
-- **Runnable example:** [`management-lifecycle.php`](../../examples/management-lifecycle.php).
-
-### Find active dimension keys
-
-- **Purpose:** Discover which dimensions currently have at least one active
-  Rule for one Subject.
-- **Input:** `ActiveDimensionKeysCriteria(Subject $subject)`.
-- **Public call:** `$management->inspectActiveDimensionKeys($query)`.
-- **Return type:** `ActiveDimensionKeyCollectionDTO`.
-- **Observable behavior:** Only active Rules contribute keys; returned keys are
-  unique and in canonical bytewise order.
-- **Relevant typed failures:** Invalid Subject input raises
-  `InvalidEligibilityInputException`; unknown storage failures propagate
-  unchanged.
-- **Transaction/concurrency:** Read-only; no package-owned transaction is
-  opened.
-- **Host responsibility:** Interpret the keys according to Host-owned business
-  definitions.
+- **Host responsibility:** Use this for lightweight operational counts instead
+  of paginating through every Rule just to count lifecycle state.
 - **Runnable example:** [`management-lifecycle.php`](../../examples/management-lifecycle.php).
 
 ### Update a Rule effect
@@ -431,9 +467,13 @@ These are the types a consumer needs to understand to call the public API.
   `RuleEffectEnum` for one new active Rule.
 - **`RuleIdentity`** — Subject type, Subject ID, dimension key, and dimension
   value; effect and lifecycle are intentionally not part of identity.
-- **`RuleCriteria`** — bounded management read criteria for Subject, optional
-  dimension key, optional lifecycle, and max result count.
+- **`RuleCriteria`** — paginated management read criteria for Subject,
+  optional dimension key, optional lifecycle, and optional effect.
 - **`ActiveDimensionKeysCriteria`** — Subject query for active dimension keys.
+- **`RuleLifecycleSummaryCriteria`** — Subject and optional exact dimension key
+  scope for the lifecycle count summary.
+- **`Maatify\Persistence\Pdo\Pagination\PageRequest`** — page, per-page, and
+  optional sort input shared by both paginated Management reads.
 - **`DesiredRule` / `DesiredRuleCollection`** — desired values and effects for
   one replacement; desired values must be unique and are canonically ordered.
 - **`ReplaceDimensionRulesCommand`** — Subject, dimension key, and complete
@@ -452,8 +492,14 @@ These are the types a consumer needs to understand to call the public API.
 - **`Rule`** — Subject, dimension key, dimension value, effect, and lifecycle;
   `naturalIdentity()` returns its `RuleIdentity`.
 - **`RuleCollection`** — unique Rules in canonical identity order.
-- **`ActiveDimensionKeyCollectionDTO`** — unique active dimension keys in
-  canonical order.
+- **`Maatify\Persistence\Pdo\Pagination\PageResult<T>`** — one page of paginated
+  Management results (`data`, `page`, `perPage`, `total`, `filtered`,
+  `totalPages`, `hasNext`, `hasPrevious`, `sortBy`, `sortDirection`); used for
+  both `inspectRules()` (`PageResult<Rule>`) and `inspectActiveDimensionKeys()`
+  (`PageResult<ActiveDimensionKeyDTO>`).
+- **`ActiveDimensionKeyDTO`** — one canonical active dimension key.
+- **`RuleLifecycleSummaryDTO`** — `totalRules`/`activeRules`/`inactiveRules`
+  count summary; `totalRules === activeRules + inactiveRules`.
 
 The decision trace also contains dimension outcomes and matched Rule references
 through the public decision model. Consumers should use the machine-readable
@@ -522,6 +568,14 @@ Package-defined failures implement
   inventory. The current RC1 concrete PDO paths do not use it to classify
   arbitrary concurrency or driver failures; unknown external failures are not
   converted automatically.
+- `InvalidPersistedRuleStateException` — a persisted Rule row could not be
+  classified under Eligibility's own invariants: a non-array row shape, a
+  missing or non-string required persisted column, an invalid persisted
+  canonical Subject/dimension component, or a persisted `effect`/`lifecycle`
+  value not represented by `RuleEffectEnum`/`RuleLifecycleEnum`. It extends the
+  shared `maatify/exceptions` `SystemMaatifyException` (System category,
+  HTTP 500, unsafe) and preserves the original `InvalidEligibilityInputException`
+  or `ValueError` as `previous`.
 
 Unknown external `PDOException` or other `Throwable` values propagate unchanged.
 Consumers may catch the package marker for a package-level boundary, or catch a

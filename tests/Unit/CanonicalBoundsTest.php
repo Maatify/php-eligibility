@@ -9,7 +9,7 @@ use Maatify\Eligibility\Management\ValueObject\DesiredRule;
 use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Management\Criteria\RuleCriteria;
-use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyCollectionDTO;
+use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyDTO;
 use Maatify\Eligibility\Evaluation\ValueObject\DimensionOutcome;
 use Maatify\Eligibility\Evaluation\Enum\DimensionReasonEnum;
 use Maatify\Eligibility\Evaluation\ValueObject\RuleReference;
@@ -63,7 +63,7 @@ final class CanonicalBoundsTest extends TestCase
             DimensionReasonEnum::PASSED_ALLOW_LIST,
             new RuleReferenceCollection($reference),
         );
-        $activeKeys = new ActiveDimensionKeyCollectionDTO($dimensionKey);
+        $activeKeys = new ActiveDimensionKeyDTO($dimensionKey);
 
         self::assertSame($subjectType, $identity->subjectType);
         self::assertSame($subjectId, $rule->subject->subjectId);
@@ -74,7 +74,7 @@ final class CanonicalBoundsTest extends TestCase
         self::assertSame($dimensionValue, $contextValues->values()[0]);
         self::assertSame($dimensionKey, $context->getDimension($dimensionKey)?->dimensionKey);
         self::assertSame($dimensionKey, $outcome->dimensionKey);
-        self::assertTrue($activeKeys->contains($dimensionKey));
+        self::assertSame($dimensionKey, $activeKeys->dimensionKey);
     }
 
     #[Test]
@@ -146,7 +146,6 @@ final class CanonicalBoundsTest extends TestCase
         $this->assertInvalid(static fn(): RuleCriteria => NonStrictConsumer::ruleCriteria(
             $subject,
             str_repeat('k', CanonicalString::DIMENSION_KEY_MAX_BYTES + 1),
-            25,
         ));
         $this->assertInvalid(static fn(): CreateRuleCommand => NonStrictConsumer::createRuleCommand(
             $subject,
@@ -160,7 +159,6 @@ final class CanonicalBoundsTest extends TestCase
     {
         $context = new Context(ContextDimension::fromStrings('country', 'EG'));
         $values = new ContextValueCollection(new ContextValue('EG'));
-        $keys = new ActiveDimensionKeyCollectionDTO('country');
 
         $this->assertInvalid(static fn(): ?ContextDimension => $context->getDimension(
             str_repeat('k', CanonicalString::DIMENSION_KEY_MAX_BYTES + 1),
@@ -171,7 +169,7 @@ final class CanonicalBoundsTest extends TestCase
         $this->assertInvalid(static fn(): bool => $values->contains(
             str_repeat('v', CanonicalString::DIMENSION_VALUE_MAX_BYTES + 1),
         ));
-        $this->assertInvalid(static fn(): bool => $keys->contains(
+        $this->assertInvalid(static fn(): ActiveDimensionKeyDTO => new ActiveDimensionKeyDTO(
             str_repeat('k', CanonicalString::DIMENSION_KEY_MAX_BYTES + 1),
         ));
     }
