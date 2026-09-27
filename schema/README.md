@@ -1,11 +1,11 @@
 # Eligibility schema
 
-This directory contains the RC1 executable schema for package-owned Rule
+This directory contains the RC2 executable schema for package-owned Rule
 persistence and Subject-specific coordination metadata.
 
 ## Compatibility contract (D2)
 
-RC1 uses **MySQL-compatible database-server semantics through direct PDO**. The
+RC2 uses **MySQL-compatible database-server semantics through direct PDO**. The
 database compatibility contract is capability-based, not product-version-based:
 no minimum MySQL version and no minimum MariaDB version is declared. A compatible
 database server must provide transactional InnoDB-style package-owned table

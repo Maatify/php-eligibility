@@ -5,7 +5,8 @@ It explains what the package provides, which public API surface to choose, what
 to send, what to receive, and which responsibilities remain with the Host.
 
 The root [Package Reference](../../ELIGIBILITY_PACKAGE_REFERENCE.md) remains
-the canonical normative RC1 contract. This guide does not replace it or repeat
+the canonical RC2 public/runtime/behavioral contract and complete Public Runtime
+API inventory. This guide does not replace it or repeat
 its full acceptance matrix.
 
 ## Overview
@@ -21,12 +22,12 @@ defines the meaning of Subject types and Context dimensions, wires the package's
 PDO adapters, manages the package-owned schema, and maps the typed result to its
 own API or UI behavior.
 
-This guide describes the **Pre-Stable `v1.0.0-rc.1` Release Candidate**:
+This guide describes the **Pre-Stable `v1.0.0-rc.2` Release Candidate**:
 
 - package: `maatify/php-eligibility`
-- release: `v1.0.0-rc.1`
+- release: `v1.0.0-rc.2`
 - stability: Pre-Stable Release Candidate
-- distribution: [Packagist](https://packagist.org/packages/maatify/php-eligibility)
+- intended distribution channel: [Packagist](https://packagist.org/packages/maatify/php-eligibility)
 
 For local development, install dependencies with Composer before running the
 examples:
@@ -114,6 +115,7 @@ Use the smallest public surface that matches the task:
 | Create a Rule | [Create a Rule](#create-a-rule) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Read one Rule | [Read one Rule](#read-one-rule) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Read Rules by criteria | [Read Rules by criteria](#read-rules-by-criteria) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
+| Read Rule lifecycle summary | [Read the Rule lifecycle summary](#read-the-rule-lifecycle-summary) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Find active dimension keys | [Find active dimension keys](#find-active-dimension-keys) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Change a Rule effect | [Update a Rule effect](#update-a-rule-effect) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Deactivate a Rule | [Deactivate a Rule](#deactivate-and-reactivate-a-rule) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
@@ -406,7 +408,7 @@ direct SQL.
   `InvalidEligibilityInputException`. A duplicate natural identity is converted
   to `RuleIdentityConflictException` only when the concrete persistence boundary
   has the documented driver-specific duplicate evidence. The public exception
-  inventory contains `RuleConcurrencyConflictException`, but the current RC1
+  inventory contains `RuleConcurrencyConflictException`, and the current RC2
   concrete PDO paths do not automatically throw or classify arbitrary
   concurrency/driver failures as that exception. Unknown storage failures
   propagate unchanged.
@@ -507,7 +509,7 @@ presentation text in the Host.
 
 ## Production PDO wiring
 
-The RC1 persistence implementation is direct PDO. The recommended production
+The RC2 persistence implementation is direct PDO. The recommended production
 construction path accepts a Host-created PDO and uses the package factory:
 
 ```php
@@ -557,7 +559,7 @@ Package-defined failures implement
 - `RuleIdentityConflictException` — a create would duplicate a natural Rule
   identity; the original driver exception is preserved where applicable.
 - `RuleConcurrencyConflictException` — a public exception class in the package
-  inventory. The current RC1 concrete PDO paths do not use it to classify
+  inventory. The current RC2 concrete PDO paths do not use it to classify
   arbitrary concurrency or driver failures; unknown external failures are not
   converted automatically.
 - `InvalidPersistedRuleStateException` — package-owned malformed persisted

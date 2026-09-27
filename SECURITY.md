@@ -5,9 +5,13 @@
 
 ## Supported Versions
 
-`maatify/php-eligibility` is the **Pre-Stable `v1.0.0-rc.1` Release Candidate**
-distributed through Packagist. It is a pre-release and does not establish a
-supported Stable line on its own.
+`maatify/php-eligibility` is the **Pre-Stable `v1.0.0-rc.2` Release Candidate**
+prepared for the Packagist distribution channel. It is a pre-release and does
+not establish a supported Stable line on its own.
+
+External RC2 publication is not performed by this documentation change. There
+is no Published Stable release, and this Release Candidate creates no Stable
+SLA or support commitment.
 
 ## Reporting a Vulnerability
 
