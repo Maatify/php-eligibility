@@ -8,8 +8,18 @@
 | Title | RC2 Persisted-State Exception Contract |
 | Status | `ACTIVE` |
 | Scope / Concern | php-eligibility RC2 package-defined exception hierarchy/marker ownership, and classification of package-owned malformed persisted Rule state during Rule hydration or lifecycle-summary reads |
-| Owner approval context | Owner-approved RC2 architecture and scope for WU-RC2-04A — Management / Admin Integration & Operational Read Closure |
+| Decision Authority / Deciders | Project Owner — approved RC2 architecture and scope for WU-RC2-04A — Management / Admin Integration & Operational Read Closure |
 | Canonical Contract / Current Owner | `ELIGIBILITY_PACKAGE_REFERENCE.md` for the full package exception contract; this record for the continuing-effect persisted-state classification and propagation-boundary decisions below |
+
+## Context
+
+RC2 persistence can encounter malformed bytes or values in package-owned Rule
+state during hydration or lifecycle-summary reads. Allowing those conditions to
+surface as unrelated native validation exceptions, or to produce an
+undercounted lifecycle summary, would make a package-owned persisted-state
+failure ambiguous. At the same time, unknown database and infrastructure
+failures remain outside Eligibility's semantic ownership and must retain their
+original diagnostic identity.
 
 ## Decision
 
@@ -70,6 +80,16 @@ implement the Eligibility marker. Shared `maatify/persistence` exceptions
 (for example pagination failures) remain external dependency failures unless
 Eligibility owns a distinct semantic classification for the specific
 condition, and are not forced into the Eligibility marker either.
+
+## Rationale
+
+A dedicated persisted-state exception gives consumers one stable
+Eligibility-owned classification for corruption of state whose invariants the
+package itself defines. Preserving the original validation failure as
+`previous` retains diagnostic detail. Not blanket-wrapping unknown
+`PDOException` or shared-dependency failures keeps the semantic boundary
+honest and avoids falsely classifying external infrastructure failures as
+Eligibility domain failures.
 
 ## Compatibility Boundary
 
