@@ -73,6 +73,10 @@ final readonly class Context implements Countable, IteratorAggregate, JsonSerial
         return null;
     }
 
+    /**
+     * Returns false only for a valid but absent dimension key; invalid input
+     * raises InvalidEligibilityInputException during canonical validation.
+     */
     public function hasDimension(mixed $dimensionKey): bool
     {
         return $this->getDimension($dimensionKey) !== null;

@@ -59,21 +59,45 @@ final class CanonicalString
         return $value;
     }
 
+    /**
+     * Validates a Subject type using the strict canonical contract and a
+     * maximum length of 64 bytes. Invalid or over-limit input throws
+     * InvalidEligibilityInputException; no coercion, normalization, trimming,
+     * case conversion, or whitespace-edge acceptance is performed.
+     */
     public static function validateSubjectType(mixed $value, string $field = 'subjectType'): string
     {
         return self::validateBounded($value, $field, self::SUBJECT_TYPE_MAX_BYTES);
     }
 
+    /**
+     * Validates a Subject ID using the strict canonical contract and a maximum
+     * length of 191 bytes. Invalid or over-limit input throws
+     * InvalidEligibilityInputException; no coercion, normalization, trimming,
+     * case conversion, or whitespace-edge acceptance is performed.
+     */
     public static function validateSubjectId(mixed $value, string $field = 'subjectId'): string
     {
         return self::validateBounded($value, $field, self::SUBJECT_ID_MAX_BYTES);
     }
 
+    /**
+     * Validates a dimension key using the strict canonical contract and a
+     * maximum length of 64 bytes. Invalid or over-limit input throws
+     * InvalidEligibilityInputException; no coercion, normalization, trimming,
+     * case conversion, or whitespace-edge acceptance is performed.
+     */
     public static function validateDimensionKey(mixed $value, string $field = 'dimensionKey'): string
     {
         return self::validateBounded($value, $field, self::DIMENSION_KEY_MAX_BYTES);
     }
 
+    /**
+     * Validates a dimension value using the strict canonical contract and a
+     * maximum length of 255 bytes. Invalid or over-limit input throws
+     * InvalidEligibilityInputException; no coercion, normalization, trimming,
+     * case conversion, or whitespace-edge acceptance is performed.
+     */
     public static function validateDimensionValue(mixed $value, string $field = 'dimensionValue'): string
     {
         return self::validateBounded($value, $field, self::DIMENSION_VALUE_MAX_BYTES);

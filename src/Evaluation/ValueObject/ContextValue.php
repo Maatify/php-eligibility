@@ -17,6 +17,11 @@ final readonly class ContextValue implements JsonSerializable, \Stringable
 {
     public string $value;
 
+    /**
+     * Validates the input using the exact canonical dimension-value contract
+     * and preserves it without semantic normalization; invalid input raises
+     * InvalidEligibilityInputException.
+     */
     public function __construct(mixed $value)
     {
         $this->value = CanonicalString::validateDimensionValue($value, 'contextValue');
