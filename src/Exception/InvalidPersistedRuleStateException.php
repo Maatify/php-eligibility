@@ -10,8 +10,9 @@ use Maatify\Exceptions\Exception\System\SystemMaatifyException;
 use Throwable;
 
 /**
- * Signals that a persisted Rule row could not be classified under Eligibility's
- * own invariants (structural shape, canonical component, effect, or lifecycle).
+ * Signals package-owned malformed persisted Eligibility Rule state under the
+ * package's own invariants, including Rule hydration corruption and
+ * lifecycle-summary aggregate inconsistency.
  *
  * This is a package-owned semantic classification of malformed persisted state;
  * it is distinct from an unknown/external storage failure, which propagates

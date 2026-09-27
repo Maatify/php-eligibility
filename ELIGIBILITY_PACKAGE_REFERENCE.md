@@ -1326,11 +1326,15 @@ evaluator and application-service runtime.
 All four semantic exceptions implement `EligibilityExceptionInterface`. B3
 classifies only proven MySQL/MariaDB duplicate-key driver code `1062` at the
 repository boundary; other PDO/storage failures propagate unchanged.
-`PdoRuleHydrationTrait` classifies the malformed-persisted-state conditions
-above as `InvalidPersistedRuleStateException` rather than a native
-`UnexpectedValueException`/`ValueError`; it does not blanket-catch
-`\Throwable`, and an unknown `PDOException` or other unclassified storage
-failure continues to propagate unchanged. The B2 contracts are implemented by
+`PdoRuleHydrationTrait` classifies the hydration-corruption conditions above as
+`InvalidPersistedRuleStateException` rather than leaking a native
+`UnexpectedValueException`/`ValueError`, preserving the original validation
+failure as `previous` where applicable. `PdoRuleManagementQuery` classifies a
+lifecycle-summary independent-total mismatch as the same exception instead of
+silently returning an undercounted summary; this path does not wrap a native
+Throwable by itself. Neither path blanket-catches `\Throwable`, and an unknown
+`PDOException` or other unclassified storage failure continues to propagate
+unchanged. The B2 contracts are implemented by
 the concrete evaluation and management services listed under the B4 runtime
 slice, while the concrete PDO persistence adapters are listed separately
 below.

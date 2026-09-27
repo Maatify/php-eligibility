@@ -568,14 +568,19 @@ Package-defined failures implement
   inventory. The current RC1 concrete PDO paths do not use it to classify
   arbitrary concurrency or driver failures; unknown external failures are not
   converted automatically.
-- `InvalidPersistedRuleStateException` — a persisted Rule row could not be
-  classified under Eligibility's own invariants: a non-array row shape, a
-  missing or non-string required persisted column, an invalid persisted
-  canonical Subject/dimension component, or a persisted `effect`/`lifecycle`
-  value not represented by `RuleEffectEnum`/`RuleLifecycleEnum`. It extends the
-  shared `maatify/exceptions` `SystemMaatifyException` (System category,
-  HTTP 500, unsafe) and preserves the original `InvalidEligibilityInputException`
-  or `ValueError` as `previous`.
+- `InvalidPersistedRuleStateException` — package-owned malformed persisted
+  Eligibility Rule state. It covers Rule hydration corruption (a non-array
+  row shape, non-string column keys, a missing or non-string required persisted
+  column, an invalid persisted canonical Subject/dimension component, or a
+  persisted `effect`/`lifecycle` value not represented by
+  `RuleEffectEnum`/`RuleLifecycleEnum`) and lifecycle-summary aggregate
+  inconsistency where the independent persisted total differs from active
+  plus inactive counts because a persisted lifecycle value is unrecognized.
+  It extends the shared `maatify/exceptions` `SystemMaatifyException` (System
+  category, HTTP 500, unsafe). On the hydration path, an original
+  `InvalidEligibilityInputException` or `ValueError` is preserved as
+  `previous` when wrapping occurs; the summary mismatch has no wrapped
+  Throwable by itself.
 
 Unknown external `PDOException` or other `Throwable` values propagate unchanged.
 Consumers may catch the package marker for a package-level boundary, or catch a

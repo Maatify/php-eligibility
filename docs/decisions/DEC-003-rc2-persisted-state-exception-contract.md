@@ -42,18 +42,20 @@ constructor preserves an optional `?Throwable $previous` without inventing a
 competing exception hierarchy.
 
 The package classifies the following conditions as
-`InvalidPersistedRuleStateException` instead of a native
-`UnexpectedValueException`/`ValueError`:
+`InvalidPersistedRuleStateException`:
 
 - **Rule hydration corruption:** a non-array row shape; non-string column
   keys; a missing or non-string required persisted column; a persisted
   canonical Subject/dimension component invalid under Eligibility's own
   invariants; or a persisted `effect`/`lifecycle` value not represented by
-  `RuleEffectEnum`/`RuleLifecycleEnum`.
+  `RuleEffectEnum`/`RuleLifecycleEnum`. `PdoRuleHydrationTrait` converts the
+  applicable native or package validation failure to the typed exception and
+  preserves it as `previous` where applicable.
 - **Lifecycle-summary persisted inconsistency:** an independent persisted
   total differs from active plus inactive counts because a persisted
-  lifecycle value is unrecognized. The lifecycle summary uses the same
-  `InvalidPersistedRuleStateException` classification.
+  lifecycle value is unrecognized. `PdoRuleManagementQuery` raises the typed
+  exception instead of silently returning an undercounted summary; this path
+  has no wrapped Throwable by itself.
 
 When the classification is caused by an existing
 `InvalidEligibilityInputException` or a `\ValueError` raised while validating
@@ -76,7 +78,10 @@ Eligibility-defined exception type is removed or renamed, and no legacy alias
 or compatibility shim is introduced. Callers that previously observed a native
 `UnexpectedValueException`/`ValueError` from malformed persisted hydration
 input will now observe `InvalidPersistedRuleStateException` instead, with the
-original condition preserved as `previous` where applicable.
+original condition preserved as `previous` where applicable. Callers that
+previously observed a silent lifecycle-summary undercount for an unrecognized
+persisted lifecycle will now observe the typed
+`InvalidPersistedRuleStateException` instead.
 
 ## Semantic Boundary
 
@@ -101,11 +106,13 @@ failures (Canonical Acceptance Scenario 48).
 
 ## Consequences
 
-- Package-owned malformed persisted Rule state is a typed, documented
-  Eligibility failure (`InvalidPersistedRuleStateException`) instead of a
-  native PHP exception leaking out of the persistence boundary, whether the
-  corruption is found while hydrating a Rule or while validating a
-  lifecycle-summary aggregate.
+- Hydration corruption no longer leaks its applicable native or package
+  validation failure: it is classified as the typed
+  `InvalidPersistedRuleStateException`, preserving `previous` where
+  applicable.
+- A lifecycle-summary aggregate inconsistency no longer produces a silent
+  undercount: it is classified as the same typed
+  `InvalidPersistedRuleStateException`.
 - Consumers catching `EligibilityExceptionInterface` now also observe this
   classification; consumers relying on the previous native
   `UnexpectedValueException`/`ValueError` type from hydration must update
