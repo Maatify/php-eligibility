@@ -20,17 +20,17 @@ substitute for a Decision Record, and not a substitute for
 ## Current Discovery State
 
 ```text
-Decision Records: 1
-Active Decisions: 1
+Decision Records: 3
+Active Decisions: 3
 Pending Owner Decisions: 0
 ```
 
-This repository currently holds one durable engineering decision record.
+This repository currently holds three durable engineering decision records.
 
 The registry is intentionally maintained as the discovery surface required by
 `DECISION_GOVERNANCE_STANDARD_AR.md`.
 
-`docs/decisions/` contains this index and the active record below. Runtime code paths that contain the word `Decision`
+`docs/decisions/` contains this index and the active records below. Runtime code paths that contain the word `Decision`
 (for example `src/Evaluation/ValueObject/`) are package runtime artifacts governed by
 `ELIGIBILITY_PACKAGE_REFERENCE.md`; they are not governance decision records and are
 deliberately not indexed here.
@@ -65,6 +65,8 @@ Each future decision record must be reachable from a row below with, as applicab
 | Decision ID | Title | Status | Scope / Concern | Decision Record | Canonical Contract / Current Owner | Supersedes | Superseded By |
 |---|---|---|---|---|---|---|---|
 | `DEC-001` | RC2 Canonical Source Topology and Pre-Stable FQCN Migration | `ACTIVE` | php-eligibility RC2 source topology, namespace/FQCN placement, and pre-Stable structural compatibility boundary | `docs/decisions/DEC-001-rc2-canonical-source-topology-and-pre-stable-fqcn-migration.md` | `ELIGIBILITY_PACKAGE_REFERENCE.md` for package behavior; `DEC-001` for RC2 structural placement and compatibility boundary | None | None |
+| `DEC-002` | RC2 Management Operational-Read Contract | `ACTIVE` | php-eligibility RC2 Management/Admin operational-read boundary: Host/Admin vs. Eligibility ownership, paginated Rule management reads, paginated active-dimension discovery, and the Rule lifecycle summary | `docs/decisions/DEC-002-rc2-management-operational-read-contract.md` | `ELIGIBILITY_PACKAGE_REFERENCE.md` for package behavior; `DEC-002` for the Host/Admin boundary and pagination/summary contract | None | None |
+| `DEC-003` | RC2 Persisted-State Exception Contract | `ACTIVE` | php-eligibility RC2 package-defined exception hierarchy/marker ownership, and classification of malformed persisted Rule state | `docs/decisions/DEC-003-rc2-persisted-state-exception-contract.md` | `ELIGIBILITY_PACKAGE_REFERENCE.md` for package behavior; `DEC-003` for the persisted-state classification and propagation boundary | None | None |
 
 ## Discovery Integrity
 

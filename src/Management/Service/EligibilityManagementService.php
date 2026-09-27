@@ -12,16 +12,20 @@ use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
 use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
 use Maatify\Eligibility\Management\Criteria\RuleCriteria;
-use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyCollectionDTO;
+use Maatify\Eligibility\Management\Criteria\RuleLifecycleSummaryCriteria;
+use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyDTO;
+use Maatify\Eligibility\Management\DTO\RuleLifecycleSummaryDTO;
 use Maatify\Eligibility\Management\Service\EligibilityManagementServiceInterface;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Exception\RuleNotFoundException;
 use Maatify\Eligibility\Management\Repository\RuleCommandRepositoryInterface;
 use Maatify\Eligibility\Management\Repository\RuleManagementQueryInterface;
 use Maatify\Eligibility\Management\Repository\RuleMutationSupportInterface;
 use Maatify\Eligibility\ValueObject\Rule;
-use Maatify\Eligibility\ValueObject\RuleCollection;
 use Maatify\Eligibility\ValueObject\RuleIdentity;
 use Maatify\Eligibility\Enum\RuleLifecycleEnum;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 
 /**
@@ -58,16 +62,59 @@ final class EligibilityManagementService implements EligibilityManagementService
         return $rule;
     }
 
-    /** Reads the bounded set selected by the supplied management criteria. */
-    public function inspectRules(RuleCriteria $criteria): RuleCollection
+    /**
+     * Reads one canonically ordered page selected by the supplied management criteria.
+     *
+     * @return PageResult<Rule>
+     */
+    public function inspectRules(RuleCriteria $criteria, PageRequest $pageRequest): PageResult
     {
-        return $this->managementQuery->findByCriteria($criteria);
+        $this->assertCanonicalDimensionKeySort($pageRequest);
+
+        return $this->managementQuery->findByCriteria($criteria, $pageRequest);
     }
 
-    /** Returns active dimension keys for one Subject in canonical order. */
-    public function inspectActiveDimensionKeys(ActiveDimensionKeysCriteria $query): ActiveDimensionKeyCollectionDTO
+    /**
+     * Returns one canonically ordered page of active dimension keys for a Subject.
+     *
+     * @return PageResult<ActiveDimensionKeyDTO>
+     */
+    public function inspectActiveDimensionKeys(
+        ActiveDimensionKeysCriteria $query,
+        PageRequest $pageRequest,
+    ): PageResult {
+        $this->assertCanonicalDimensionKeySort($pageRequest);
+
+        return $this->managementQuery->findActiveDimensionKeys($query, $pageRequest);
+    }
+
+    /** Returns the Rule lifecycle count summary for the supplied criteria scope. */
+    public function inspectRuleLifecycleSummary(RuleLifecycleSummaryCriteria $criteria): RuleLifecycleSummaryDTO
     {
-        return $this->managementQuery->findActiveDimensionKeys($query);
+        return $this->managementQuery->summarizeLifecycle($criteria);
+    }
+
+    /**
+     * Rejects any explicit sort request other than the canonical `dimension_key`
+     * ascending order accepted by the public pagination contract: both fields
+     * `null` (implicit canonical order), or the explicit equivalent pair
+     * `sortBy = dimension_key` and `sortDirection = ASC`. This mirrors the
+     * same guard enforced at the `RuleManagementQueryInterface` PDO boundary
+     * so the contract does not depend on the Service alone.
+     */
+    private function assertCanonicalDimensionKeySort(PageRequest $pageRequest): void
+    {
+        if ($pageRequest->sortBy === null && $pageRequest->sortDirection === null) {
+            return;
+        }
+
+        if ($pageRequest->sortBy === 'dimension_key' && $pageRequest->sortDirection === 'ASC') {
+            return;
+        }
+
+        throw new InvalidEligibilityInputException(
+            'Unsupported Rule management sort request; only canonical ascending dimension_key order is supported.',
+        );
     }
 
     /** Changes only effect state; a missing natural identity becomes RuleNotFoundException. */

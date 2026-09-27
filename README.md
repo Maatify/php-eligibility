@@ -71,15 +71,18 @@ available through [Packagist](https://packagist.org/packages/maatify/php-eligibi
   reason codes.
 - Single and ordered batch evaluation with duplicate-Subject rejection, empty
   batch support, and a bounded bulk load path (no canonical N+1 query pattern).
-- Management lifecycle: create, inspect/list (including inactive Rules),
-  active-dimension introspection, effect and lifecycle mutations, atomic
-  `replaceDimensionRules()`, and idempotent Subject cleanup.
+- Management lifecycle: create, paginated inspect/list (including inactive
+  Rules, with optional dimension/lifecycle/effect filters), paginated
+  active-dimension introspection, a Rule lifecycle count summary, effect and
+  lifecycle mutations, atomic `replaceDimensionRules()`, and idempotent
+  Subject cleanup.
 - Direct-PDO MySQL-compatible persistence with separate command, management
-  query, and evaluation-read adapters, plus shared Persistence transaction
-  ownership/savepoint mechanics and Eligibility-owned coordination locking;
-  no Host foreign keys or joins.
-- Typed package exceptions on the shared `maatify/exceptions` hierarchy, with
-  unknown external throwables propagated unchanged.
+  query, and evaluation-read adapters, plus shared Persistence transaction,
+  savepoint, and pagination mechanics and Eligibility-owned coordination
+  locking; no Host foreign keys or joins.
+- Typed package exceptions on the shared `maatify/exceptions` hierarchy,
+  including classification of malformed persisted Rule state, with unknown
+  external throwables propagated unchanged.
 
 ## Requirements
 
@@ -212,8 +215,10 @@ $decisions = $evaluation->decideMany(
 
 ```php
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
+use Maatify\Eligibility\Management\Criteria\RuleLifecycleSummaryCriteria;
 use Maatify\Eligibility\Management\ValueObject\DesiredRule;
 use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
 
 // Atomic replacement of the complete active set for one Subject dimension.
 $management->replaceDimensionRules(new ReplaceDimensionRulesCommand(
@@ -225,8 +230,16 @@ $management->replaceDimensionRules(new ReplaceDimensionRulesCommand(
     ),
 ));
 
-// Bounded management reads include inactive Rules.
-$rules = $management->inspectRules(new RuleCriteria($subject, 'country'));
+// Paginated management reads include inactive Rules and accept optional
+// dimension/lifecycle/effect filters; pagination mechanics are delegated to
+// maatify/persistence. A null PageRequest field means the canonical default
+// (page 1, per-page 20, dimension_key/dimension_value ascending order).
+$page = $management->inspectRules(new RuleCriteria($subject, 'country'), new PageRequest());
+// $page->data, $page->total, $page->filtered, $page->hasNext, ...
+
+// Rule lifecycle count summary for a Subject, optionally scoped to one dimension.
+$summary = $management->inspectRuleLifecycleSummary(new RuleLifecycleSummaryCriteria($subject));
+// $summary->totalRules === $summary->activeRules + $summary->inactiveRules
 ```
 
 ## Public Runtime API
@@ -246,17 +259,19 @@ Public surface (see the
   `EligibilityEvaluationServiceInterface` — `decide()` and `decideMany()`.
 - **Management service:** `EligibilityManagementService` /
   `EligibilityManagementServiceInterface` — `createRule()`, `inspectRule()`,
-  `inspectRules()`, `inspectActiveDimensionKeys()`, `updateRuleEffect()`,
-  `deactivateRule()`, `reactivateRule()`, `replaceDimensionRules()`,
-  `cleanupSubject()`.
+  `inspectRules()` (paginated), `inspectActiveDimensionKeys()` (paginated),
+  `inspectRuleLifecycleSummary()`, `updateRuleEffect()`, `deactivateRule()`,
+  `reactivateRule()`, `replaceDimensionRules()`, `cleanupSubject()`.
 - **Persistence contracts:** `RuleCommandRepositoryInterface` owns command
-  mutations, `RuleManagementQueryInterface` owns bounded management reads, and
-  `ActiveRuleReaderInterface` owns active bulk reads for evaluation. The
-  internal `RuleMutationSupportInterface` owns only the coordination lock,
-  complete Subject + dimension mutation read, and coordination cleanup needed
-  by atomic replacement/cleanup. Generic transaction/savepoint mechanics are
-  owned by `maatify/persistence`; `EligibilityManagementService` receives
-  its `SavepointTransactionRunnerInterface` separately.
+  mutations, `RuleManagementQueryInterface` owns paginated management reads
+  and the lifecycle summary aggregate, and `ActiveRuleReaderInterface` owns
+  active bulk reads for evaluation. The internal `RuleMutationSupportInterface`
+  owns only the coordination lock, complete Subject + dimension mutation read,
+  and coordination cleanup needed by atomic replacement/cleanup. Generic
+  transaction/savepoint and pagination mechanics are owned by
+  `maatify/persistence` (`SavepointTransactionRunnerInterface`, `PageRequest`,
+  `PageResult`, `PdoPaginator`); Eligibility owns only its domain
+  filter/count SQL and row mapping.
 - **PDO adapters:** `PdoRuleCommandRepository`, `PdoRuleManagementQuery`,
   `PdoActiveRuleReader`, and `PdoSavepointTransactionRunner` are constructed
   from the same PDO connection. The command adapter implements only the
@@ -265,13 +280,16 @@ Public surface (see the
 - **Commands / queries / results:** `CreateRuleCommand`,
   `UpdateRuleEffectCommand`, `DeactivateRuleCommand`, `ReactivateRuleCommand`,
   `DesiredRule`, `DesiredRuleCollection`, `ReplaceDimensionRulesCommand`,
-  `CleanupSubjectCommand`, `RuleCriteria`, `ActiveDimensionKeysCriteria`,
-  `ActiveDimensionKeyCollectionDTO`, `SubjectDecisionDTO`,
-  `SubjectDecisionCollectionDTO`.
+  `CleanupSubjectCommand`, `RuleCriteria` (subject/dimension/lifecycle/effect
+  filters), `ActiveDimensionKeysCriteria`, `ActiveDimensionKeyDTO`,
+  `RuleLifecycleSummaryCriteria`, `RuleLifecycleSummaryDTO`,
+  `SubjectDecisionDTO`, `SubjectDecisionCollectionDTO`.
 - **Exceptions:** `EligibilityExceptionInterface`, `InvalidEligibilityInputException`,
   `RuleNotFoundException`, `RuleIdentityConflictException`,
-  `RuleConcurrencyConflictException` (backed by the shared
-  `maatify/exceptions` hierarchy).
+  `RuleConcurrencyConflictException`, `InvalidPersistedRuleStateException`
+  (backed by the shared `maatify/exceptions` hierarchy). Unknown/external
+  storage failures (for example an unclassified `PDOException`) propagate
+  unchanged rather than being forced into the Eligibility marker.
 
 ## Critical Runtime Behavior
 
@@ -356,7 +374,7 @@ installing or trying the package.
 
 | Document | Purpose |
 |---|---|
-| [Package Reference](ELIGIBILITY_PACKAGE_REFERENCE.md) | Canonical RC1 contract: identity, Context, Rule, Decision, lifecycle, ordering, persistence, transaction, concurrency, error, batch, and 52-scenario coverage. |
+| [Package Reference](ELIGIBILITY_PACKAGE_REFERENCE.md) | Canonical package contract: identity, Context, Rule, Decision, lifecycle, ordering, pagination, lifecycle summary, persistence, transaction, concurrency, error, batch, and 59-scenario coverage. |
 | [Usage Guide](docs/guides/USAGE_GUIDE.md) | Consumer-facing API guide, capability decision map, input/output types, transaction notes, and links to runnable examples. |
 | [Runnable Examples](examples/) | Standalone public-API examples for evaluation, batch evaluation, management, replacement, PDO wiring, and typed exception handling. |
 | [Schema](schema/README.md) | Persistence contract, tables, bounds, applying/reapplying, and the local MySQL fixture. |

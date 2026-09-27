@@ -104,5 +104,5 @@ The final pinned local set is locally reference-closed. Every relative link requ
 - Manifest auditable from local Control Set and exact Adoption Commit: `YES`
 - Full upstream `standards/` snapshot copied: `NO`
 - Historical audits, verification evidence, or decisions copied: `NO`
-- Repository-owned decision governance: `docs/decisions/DECISIONS_INDEX.md` (required by `std-decision-governance`; current discovery state: 1 Decision Record / 1 ACTIVE / 0 pending Owner Decisions)
+- Repository-owned decision governance: `docs/decisions/DECISIONS_INDEX.md` (required by `std-decision-governance`; canonical current Decision discovery lives there)
 - Underlying Standards remain the source of truth: `YES`

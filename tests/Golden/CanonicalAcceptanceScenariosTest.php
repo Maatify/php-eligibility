@@ -17,8 +17,8 @@ final class CanonicalAcceptanceScenariosTest extends TestCase
         $scenarios = CanonicalAcceptanceEvidenceMap::scenarios();
         $ids = array_map(static fn(array $scenario): int => $scenario['id'], $scenarios);
 
-        self::assertSame(range(1, 52), $ids);
-        self::assertCount(52, $scenarios);
+        self::assertSame(range(1, 59), $ids);
+        self::assertCount(59, $scenarios);
 
         foreach ($scenarios as $scenario) {
             self::assertNotSame('', $scenario['behavior']);

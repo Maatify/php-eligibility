@@ -11,7 +11,9 @@ use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
 use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
 use Maatify\Eligibility\Management\Criteria\RuleCriteria;
-use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyCollectionDTO;
+use Maatify\Eligibility\Management\Criteria\RuleLifecycleSummaryCriteria;
+use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyDTO;
+use Maatify\Eligibility\Management\DTO\RuleLifecycleSummaryDTO;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
 use Maatify\Eligibility\Evaluation\Repository\ActiveRuleReaderInterface;
 use Maatify\Eligibility\Management\Repository\RuleCommandRepositoryInterface;
@@ -23,9 +25,20 @@ use Maatify\Eligibility\ValueObject\RuleIdentity;
 use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\ValueObject\Subject;
 use Maatify\Eligibility\ValueObject\SubjectCollection;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
+use Maatify\Persistence\Pdo\Pagination\SortDirectionEnum;
 
 /**
  * Deterministic test double for the shared in-memory persistence state.
+ *
+ * Paginated reads always return one fixed page containing the complete
+ * filtered/ordered result, ignoring the supplied `PageRequest` page/per-page
+ * fields entirely. This double intentionally does not implement page
+ * normalization, per-page normalization, out-of-range handling, offset
+ * calculation, or real total-pages/has-next/has-previous computation; those
+ * mechanics are owned by `maatify/persistence` and are proven only against
+ * the real PDO adapter in Integration evidence.
  */
 final class InMemoryRuleRepository implements
     RuleCommandRepositoryInterface,
@@ -71,26 +84,34 @@ final class InMemoryRuleRepository implements
         return $this->rules[$this->identityKey($identity)] ?? null;
     }
 
-    public function findByCriteria(RuleCriteria $criteria): RuleCollection
+    /** @param PageRequest $pageRequest Unused: this double always returns one fixed page of the complete result. */
+    public function findByCriteria(RuleCriteria $criteria, PageRequest $pageRequest): PageResult
     {
-        $rules = [];
+        $total = 0;
+        $matching = [];
         foreach ($this->rules as $rule) {
             if (!$this->sameSubject($rule->subject, $criteria->subject)) {
                 continue;
             }
+
+            $total++;
+
             if ($criteria->dimensionKey !== null && $rule->dimensionKey !== $criteria->dimensionKey) {
                 continue;
             }
             if ($criteria->lifecycle !== null && $rule->lifecycle !== $criteria->lifecycle) {
                 continue;
             }
+            if ($criteria->effect !== null && $rule->effect !== $criteria->effect) {
+                continue;
+            }
 
-            $rules[] = $rule;
+            $matching[] = $rule;
         }
 
-        $ordered = new RuleCollection(...$rules);
+        $ordered = (new RuleCollection(...$matching))->items();
 
-        return new RuleCollection(...array_slice($ordered->items(), 0, $criteria->maxResults));
+        return $this->fixedSinglePageResult($ordered, $total);
     }
 
     public function findActiveForSubjects(SubjectCollection $subjects): RuleCollection
@@ -113,19 +134,52 @@ final class InMemoryRuleRepository implements
         return new RuleCollection(...$rules);
     }
 
-    public function findActiveDimensionKeys(ActiveDimensionKeysCriteria $query): ActiveDimensionKeyCollectionDTO
-    {
+    /** @param PageRequest $pageRequest Unused: this double always returns one fixed page of the complete result. */
+    public function findActiveDimensionKeys(
+        ActiveDimensionKeysCriteria $query,
+        PageRequest $pageRequest,
+    ): PageResult {
+        /** @var array<string, true> $keys */
         $keys = [];
         foreach ($this->rules as $rule) {
             if (
                 $rule->lifecycle === RuleLifecycleEnum::ACTIVE
                 && $this->sameSubject($rule->subject, $query->subject)
             ) {
-                $keys[] = $rule->dimensionKey;
+                $keys[$rule->dimensionKey] = true;
             }
         }
 
-        return new ActiveDimensionKeyCollectionDTO(...array_values(array_unique($keys)));
+        $ordered = array_keys($keys);
+        usort($ordered, static fn(string $left, string $right): int => strcmp($left, $right));
+        $dtos = array_map(
+            static fn(string $dimensionKey): ActiveDimensionKeyDTO => new ActiveDimensionKeyDTO($dimensionKey),
+            $ordered,
+        );
+
+        return $this->fixedSinglePageResult($dtos, count($dtos));
+    }
+
+    public function summarizeLifecycle(RuleLifecycleSummaryCriteria $criteria): RuleLifecycleSummaryDTO
+    {
+        $active = 0;
+        $inactive = 0;
+        foreach ($this->rules as $rule) {
+            if (!$this->sameSubject($rule->subject, $criteria->subject)) {
+                continue;
+            }
+            if ($criteria->dimensionKey !== null && $rule->dimensionKey !== $criteria->dimensionKey) {
+                continue;
+            }
+
+            if ($rule->lifecycle === RuleLifecycleEnum::ACTIVE) {
+                $active++;
+            } else {
+                $inactive++;
+            }
+        }
+
+        return new RuleLifecycleSummaryDTO($active + $inactive, $active, $inactive);
     }
 
     public function updateEffect(UpdateRuleEffectCommand $command): bool
@@ -186,6 +240,38 @@ final class InMemoryRuleRepository implements
     public function allRules(): array
     {
         return array_values($this->rules);
+    }
+
+    /**
+     * Wraps a complete, already-filtered-and-ordered list as one fixed page
+     * containing everything: page 1 of 1 (or 0 pages when empty), with no
+     * page/per-page normalization, no offset arithmetic, and no computed
+     * has-next/has-previous — both are always `false` because there is only
+     * ever this one page. Deliberately not a pagination engine.
+     *
+     * @template T of array<array-key, mixed>|object
+     * @param list<T> $orderedItems
+     * @return PageResult<T>
+     */
+    private function fixedSinglePageResult(array $orderedItems, int $total): PageResult
+    {
+        $filtered = count($orderedItems);
+        if ($filtered === 0) {
+            return new PageResult([], 1, 20, $total, 0, 0, false, false, 'dimension_key', SortDirectionEnum::ASC);
+        }
+
+        return new PageResult(
+            $orderedItems,
+            1,
+            $filtered,
+            $total,
+            $filtered,
+            1,
+            false,
+            false,
+            'dimension_key',
+            SortDirectionEnum::ASC,
+        );
     }
 
     private function setLifecycle(RuleIdentity $identity, RuleLifecycleEnum $lifecycle): bool

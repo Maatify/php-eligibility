@@ -688,9 +688,9 @@ The management surface MUST support the capability to:
 
 - create a Rule for an external Subject and exact dimension value;
 - inspect Rules for a Subject across both active and inactive lifecycle states;
-- inspect/filter Rules by dimension using bounded reads;
-- filter management Rule reads by lifecycle state when required;
-- inspect the active dimension keys governing a Subject;
+- inspect/filter paginated Rules by dimension, lifecycle, and effect;
+- inspect the active dimension keys governing a Subject, paginated;
+- inspect a Rule lifecycle count summary for a Subject, optionally scoped to one dimension;
 - update an existing Rule's effect;
 - deactivate a Rule;
 - reactivate an inactive Rule;
@@ -703,9 +703,110 @@ Management Rule representations MUST expose lifecycle state explicitly so caller
 
 Management reads MUST be capable of returning inactive Rules. An adapter or service MUST NOT silently hide inactive Rules from the management surface merely because the evaluator ignores them.
 
-Lifecycle filtering MAY be represented through typed criteria/query contracts; exact class names are an implementation-stage decision.
+Dimension, lifecycle, and effect filtering are represented through the typed `RuleCriteria` contract; exact class names beyond that are an implementation-stage decision.
 
 Active-dimension queries describe evaluation state and therefore consider active Rules only. Management Rule collections may include active and inactive Rules according to the requested criteria. All returned collections MUST follow canonical ordering.
+
+### Host/Admin boundary
+
+Admin is a Host use case, not a distinct Eligibility Capability: there is no
+`Admin` namespace or capability inside the package. The package owns Rule
+identity, effect, active/inactive lifecycle, Eligibility dimension/value
+semantics, and the Management reads/mutations/counts documented in this
+section. The Host owns authentication, authorization, roles/permissions,
+HTTP routes/controllers/UI, exports, Product/Category/Customer name
+resolution, Host-domain search, Host dataset pagination, Host joins, and Host
+actor identity. No Host table, repository, model, foreign key, name
+resolution, or global Subject inventory may enter Eligibility. A generic root
+Admin capability, Dashboard/Statistics/Report subsystem, Host Subject
+inventory, or HTTP/UI/permissions/export surface inside the package is
+explicitly out of scope; those concerns stay at the Host/project-aware layer.
+
+### Paginated Rule management reads
+
+Management Rule reads are paginated rather than bounded by a fixed
+`maxResults`. The public contract is:
+
+```text
+inspectRules(RuleCriteria $criteria, PageRequest $pageRequest): PageResult<Rule>
+```
+
+`RuleCriteria` carries only the domain filters (Subject, optional dimension
+key, optional lifecycle, optional effect); `PageRequest` and `PageResult` are
+the stable published types from `Maatify\Persistence\Pdo\Pagination`. Eligibility
+does not implement a package-local page/per-page normalization, sort-resolution
+engine, offset engine, or pagination metadata engine; those mechanics are
+delegated to `maatify/persistence`'s `PdoPaginator`. Shared per-page bounds are
+those of the approved Pagination configuration: default `20`, minimum `1`,
+maximum `200`.
+
+For one supplied Subject:
+
+```text
+total    = all persisted Rules belonging to that Subject, before optional
+           RuleCriteria filters.
+filtered = persisted Rules after optional dimensionKey + lifecycle + effect
+           filters.
+```
+
+The public Rule page ordering contract is one canonical sort, not a generic
+Admin sorter: primary `dimension_key` ascending, tie-breaker `dimension_value`
+ascending. This is because, within one Subject, `(dimension_key,
+dimension_value)` is the natural Rule identity remainder and therefore gives
+deterministic complete ordering. `PageRequest.sortBy`/`sortDirection` accept
+only `null` (meaning this canonical order) or the explicit equivalent
+(`sortBy = dimension_key`, `sortDirection = ASC`); any other explicit sort
+request is invalid Eligibility Management input and MUST produce
+`InvalidEligibilityInputException`. No alternative public sort key is exposed.
+
+### Paginated active-dimension discovery
+
+Active-dimension discovery is likewise paginated rather than an unbounded
+collection, because there is no proven small hard domain bound for distinct
+active dimensions for a Subject:
+
+```text
+inspectActiveDimensionKeys(ActiveDimensionKeysCriteria $criteria, PageRequest $pageRequest): PageResult<ActiveDimensionKeyDTO>
+```
+
+Semantics: scope is one Subject; visibility is active Rules only; the result
+is distinct dimension keys; inactive-only dimensions are excluded; ordering is
+`dimension_key` ascending. For this query `total === filtered`, because no
+optional domain filter exists beyond the query's intrinsic active-visibility
+contract. Only canonical ascending `dimension_key` ordering is supported;
+other explicit sort requests are rejected with
+`InvalidEligibilityInputException`.
+
+### Rule lifecycle summary
+
+```text
+inspectRuleLifecycleSummary(RuleLifecycleSummaryCriteria $criteria): RuleLifecycleSummaryDTO
+```
+
+`RuleLifecycleSummaryCriteria` requires a Subject and accepts an optional
+exact dimension key filter; a `null` dimension key summarizes all Rules for
+the Subject. There is no pagination, lifecycle filter, effect filter, time
+window, or Host dimension on this criteria — it always summarizes complete
+lifecycle state for its Subject/dimension scope. `RuleLifecycleSummaryDTO`
+exposes `totalRules`, `activeRules`, and `inactiveRules` with the invariant
+`totalRules === activeRules + inactiveRules`, all `>= 0`. The PDO
+implementation computes this aggregate in the database; it MUST NOT load all
+Rules into PHP to calculate it. An empty Subject/dimension scope returns
+exactly `0`/`0`/`0`. The PDO implementation also reads an independent total
+count for the same scope and MUST classify a mismatch between that
+independent total and `activeRules + inactiveRules` (for example caused by an
+unrecognized persisted `lifecycle` byte) as `InvalidPersistedRuleStateException`
+rather than silently returning an undercounted summary.
+
+### Non-goals for this operational-read surface
+
+The following remain outside the Management operational-read surface unless a
+later documented decision adds them: a generic `Dashboard`/`Statistics`/
+`Report` subsystem, a Host Subject inventory, Host-domain search, HTTP/UI/
+permissions/export, schema migration, timestamps/audit history, time-window
+analytics, and any generic reporting taxonomy or universal metric shape. These
+either belong to the Host/project-aware layer or are intentionally outside
+Eligibility's package boundary.
 
 ### Atomic dimension replacement
 
@@ -786,7 +887,14 @@ RC1 error semantics MUST distinguish at least:
 - invalid structural input;
 - natural-identity conflict on create;
 - requested Rule not found for commands that require an existing Rule;
-- concurrency/uniqueness conflict that could not be resolved safely.
+- concurrency/uniqueness conflict that could not be resolved safely;
+- malformed persisted Rule state, including malformed Rule hydration state
+  (an invalid persisted canonical component, or a persisted `effect`/`lifecycle`
+  value not represented by its enum) and a package-owned lifecycle-summary
+  inconsistency where the independent persisted total differs from the active
+  plus inactive counts because a persisted lifecycle value is unrecognized;
+  these are distinct from an unknown/external storage failure, which continues
+  to propagate unchanged.
 
 The exception ownership contract required by the adopted package standards is:
 
@@ -1087,7 +1195,7 @@ The final RC1 schema and adapter MUST preserve these principles:
 - individual create persists new Rules active;
 - explicit typed ALLOW/DENY storage;
 - management storage reads preserve and expose lifecycle state;
-- bounded management reads;
+- paginated Management reads using the approved shared pagination contract;
 - bulk Rule loading for supplied Subject sets;
 - canonical package-defined ordering for returned Rule and Decision collections;
 - concurrency-safe mutation behavior where uniqueness/lifecycle invariants require it;
@@ -1186,17 +1294,19 @@ evaluator and application-service runtime.
 - `DesiredRule(mixed $dimensionValue, RuleEffectEnum $effect)` represents one desired active value/effect pair without lifecycle state. `DesiredRuleCollection` rejects duplicate dimension values, orders values canonically, and accepts an empty set.
 - `ReplaceDimensionRulesCommand(Subject $subject, mixed $dimensionKey, DesiredRuleCollection $desiredRules)` represents complete desired active-set replacement intent.
 - `CleanupSubjectCommand(Subject $subject)` represents idempotent Subject cleanup intent.
-- `RuleCriteria(Subject $subject, mixed $dimensionKey = null, ?RuleLifecycleEnum $lifecycle = null, mixed $maxResults = 100)` represents a bounded management read. A dimension filter is optional, lifecycle filtering is optional, and `maxResults` must be an integer from `1` through `500`. This is a bounded read limit, not Host-global pagination or search.
-- `ActiveDimensionKeysCriteria(Subject $subject)` represents active-dimension introspection for one Subject.
+- `RuleCriteria(Subject $subject, mixed $dimensionKey = null, ?RuleLifecycleEnum $lifecycle = null, ?RuleEffectEnum $effect = null)` represents a paginated management read for one Subject. Dimension, lifecycle, and effect filters are all optional. `RuleCriteria` carries no pagination state itself; the caller supplies pagination separately as a `Maatify\Persistence\Pdo\Pagination\PageRequest`.
+- `ActiveDimensionKeysCriteria(Subject $subject)` represents active-dimension introspection for one Subject; the caller likewise supplies a `PageRequest` separately.
+- `RuleLifecycleSummaryCriteria(Subject $subject, mixed $dimensionKey = null)` represents the input to the Rule lifecycle count summary; the optional dimension key is an exact filter, and a `null` dimension key summarizes every Rule for the Subject. This criteria is intentionally not paginated: it has no lifecycle filter, effect filter, or time-window input, because it always summarizes complete lifecycle state for its Subject/dimension scope.
 
 ### B2 typed results and service boundaries
 
-- `ActiveDimensionKeyCollectionDTO` contains only canonical dimension-key strings, rejects duplicates, and returns them in ascending bytewise order.
+- `ActiveDimensionKeyDTO` wraps one canonical dimension-key string, validated at construction.
+- `RuleLifecycleSummaryDTO` carries `totalRules`, `activeRules`, and `inactiveRules`; the constructor enforces `totalRules === activeRules + inactiveRules` and non-negative counts.
 - `SubjectDecisionDTO` associates one `Subject` with one `EligibilityDecision`. `SubjectDecisionCollectionDTO` rejects duplicate Subject identities, accepts an empty result, and preserves the supplied result order.
 - `EligibilityEvaluationServiceInterface` exposes `decide(Subject $subject, Context $context): EligibilityDecision` and `decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollectionDTO`. The interface is the public evaluation seam defined in the historical B2 slice and is implemented by the concrete `EligibilityEvaluationService` documented under the B4 runtime slice below.
-- `EligibilityManagementServiceInterface` exposes typed Rule creation, identity inspection, bounded Rule inspection, active-dimension inspection, effect/lifecycle mutations, replacement intent, and Subject cleanup. Its state-setting methods return `void` except `createRule(...): Rule`; `inspectRule(...): Rule` has a typed Rule-not-found contract.
+- `EligibilityManagementServiceInterface` exposes typed Rule creation, identity inspection, paginated Rule inspection, paginated active-dimension inspection, a lifecycle count summary, effect/lifecycle mutations, replacement intent, and Subject cleanup. Its state-setting methods return `void` except `createRule(...): Rule`; `inspectRule(...): Rule` has a typed Rule-not-found contract; `inspectRules(RuleCriteria, PageRequest): PageResult<Rule>` and `inspectActiveDimensionKeys(ActiveDimensionKeysCriteria, PageRequest): PageResult<ActiveDimensionKeyDTO>` delegate pagination mechanics to `maatify/persistence`; `inspectRuleLifecycleSummary(RuleLifecycleSummaryCriteria): RuleLifecycleSummaryDTO` returns the aggregate lifecycle count.
 - `RuleCommandRepositoryInterface` is the replaceable command/mutation persistence contract. It exposes only canonical Rule creation, effect/lifecycle mutations, and Subject cleanup.
-- `RuleManagementQueryInterface` is the replaceable management-query persistence contract. It exposes natural-identity lookup, bounded management reads, and active-dimension lookup, including inactive Rules where criteria allow them.
+- `RuleManagementQueryInterface` is the replaceable management-query persistence contract. It exposes natural-identity lookup, paginated management reads (`findByCriteria(RuleCriteria, PageRequest): PageResult<Rule>`), paginated active-dimension lookup (`findActiveDimensionKeys(ActiveDimensionKeysCriteria, PageRequest): PageResult<ActiveDimensionKeyDTO>`), and the lifecycle summary aggregate (`summarizeLifecycle(RuleLifecycleSummaryCriteria): RuleLifecycleSummaryDTO`), including inactive Rules where criteria allow them.
 - `ActiveRuleReaderInterface` is the replaceable evaluation-read persistence contract. It exposes only bounded bulk loading of active Rules for a supplied `SubjectCollection`.
 - `RuleMutationSupportInterface` is a package-internal Eligibility-specific persistence contract. It owns only the coordination lock, complete Subject + dimension mutation read, and coordination cleanup required by atomic replacement and cleanup; it is not a Management Query or Evaluation Read contract.
 
@@ -1211,18 +1321,28 @@ evaluator and application-service runtime.
 - `RuleNotFoundException` extends the shared `ResourceNotFoundMaatifyException` hierarchy and identifies the requested `RuleIdentity`.
 - `RuleIdentityConflictException` extends the shared `GenericConflictMaatifyException` hierarchy and identifies a conflicting natural identity.
 - `RuleConcurrencyConflictException` extends the shared `GenericConflictMaatifyException` hierarchy for an unresolved Rule uniqueness/concurrency condition.
+- `InvalidPersistedRuleStateException` extends the shared `SystemMaatifyException` hierarchy (System category, HTTP 500, unsafe, `ErrorCodeEnum::MAATIFY_ERROR`). It signals package-owned malformed persisted Rule state: Rule hydration corruption such as a non-array row shape, non-string column keys, a missing or non-string required persisted column, an invalid persisted canonical Subject/dimension component, or a persisted `effect`/`lifecycle` value not represented by `RuleEffectEnum`/`RuleLifecycleEnum`; and lifecycle-summary persisted inconsistency where an independent total differs from active plus inactive because a persisted lifecycle value is unrecognized. It preserves the original `InvalidEligibilityInputException` or `ValueError` as `previous` where the conversion is caused by one of those.
 
-All three B2 semantic exceptions implement `EligibilityExceptionInterface`. B3
+All four semantic exceptions implement `EligibilityExceptionInterface`. B3
 classifies only proven MySQL/MariaDB duplicate-key driver code `1062` at the
-repository boundary; other PDO/storage failures propagate unchanged. The B2
-contracts are implemented by the concrete evaluation and management services
-listed under the B4 runtime slice, while the concrete PDO persistence adapters
-are listed separately below.
+repository boundary; other PDO/storage failures propagate unchanged.
+`PdoRuleHydrationTrait` classifies the hydration-corruption conditions above as
+`InvalidPersistedRuleStateException` rather than leaking a native
+`UnexpectedValueException`/`ValueError`, preserving the original validation
+failure as `previous` where applicable. `PdoRuleManagementQuery` classifies a
+lifecycle-summary independent-total mismatch as the same exception instead of
+silently returning an undercounted summary; this path does not wrap a native
+Throwable by itself. Neither path blanket-catches `\Throwable`, and an unknown
+`PDOException` or other unclassified storage failure continues to propagate
+unchanged. The B2 contracts are implemented by
+the concrete evaluation and management services listed under the B4 runtime
+slice, while the concrete PDO persistence adapters are listed separately
+below.
 
 ### B3 persistence implementation and bounds extensions
 
 - `Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository` is the concrete direct-PDO implementation of `RuleCommandRepositoryInterface` and `RuleMutationSupportInterface`. It provides both Eligibility-specific capabilities over the same PDO connection without owning generic transaction/savepoint mechanics.
-- `Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery` is the concrete direct-PDO implementation of `RuleManagementQueryInterface`. It provides exact identity reads, bounded management reads, lifecycle visibility, and active-dimension reads.
+- `Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery` is the concrete direct-PDO implementation of `RuleManagementQueryInterface`. It provides exact identity reads, paginated management reads, lifecycle visibility, paginated active-dimension reads, and the lifecycle summary aggregate. It delegates page/per-page normalization, sort resolution, count execution, and pagination metadata to `Maatify\Persistence\Pdo\Pagination\PdoPaginator`, owning only its domain filter/count SQL and row mapping; the lifecycle summary aggregate (`SUM(CASE ...)`) is computed in the database rather than by loading Rules into PHP.
 - `Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader` is the concrete direct-PDO implementation of `ActiveRuleReaderInterface`. It provides the active-only bounded bulk read used by evaluation.
 - `PdoRuleHydrationTrait` is an internal implementation helper for shared PDO row binding and Rule hydration; it is not a public contract or business-service abstraction.
 - `Maatify\Eligibility\Management\Repository\RuleMutationSupportInterface` is a package-internal mutation-support contract used by `EligibilityManagementService` for the complete Subject + dimension read, Subject coordination lock, and coordination cleanup; it is not an additional Host-facing service method.
@@ -1313,7 +1433,14 @@ Before a persistence adapter or Release Candidate can be considered correct, exe
 49. `replaceDimensionRules()` called inside a Host-owned outer transaction participates without committing or rolling back that transaction, and the Host's commit or rollback determines durability;
 50. a package-owned multi-step mutation commits only a complete successful state, attempts rollback only while its transaction is active after failure, and rethrows the original `Throwable` unless an explicitly documented semantic conversion applies;
 51. concurrent creates for one natural Rule identity result in exactly one persistent Rule, with the competing operation returning the typed natural-identity or concurrency/uniqueness conflict rather than creating a duplicate;
-52. concurrent `replaceDimensionRules()` operations preserve natural-identity uniqueness and complete-dimension atomicity, while evaluation and management reads observe either a coherent committed state before or after the replacement and never a mixed intermediate state.
+52. concurrent `replaceDimensionRules()` operations preserve natural-identity uniqueness and complete-dimension atomicity, while evaluation and management reads observe either a coherent committed state before or after the replacement and never a mixed intermediate state;
+53. paginated Rule management reads prove complete, duplicate-free identity coverage across pages for a Subject with more than 500 Rules;
+54. Rule pagination supports default and explicit page/per-page requests, with per-page normalization above the configured maximum delegated to the shared paginator;
+55. Rule Criteria effect filtering narrows Management reads independently of, and in combination with, lifecycle filtering;
+56. the Rule lifecycle summary reports internally consistent active/inactive counts for a Subject and an optional dimension scope, including a 500+ Rule state, and returns `0`/`0`/`0` for an empty scope;
+57. paginated active-dimension discovery returns distinct active dimension keys in canonical ascending order across a page boundary, excludes inactive-only dimensions, and is Subject-isolated;
+58. an unsupported explicit Rule pagination sort request is rejected with `InvalidEligibilityInputException` rather than silently falling back to the canonical order;
+59. malformed persisted Rule state — invalid persisted effect bytes, an invalid persisted canonical component, or an unrecognized persisted lifecycle value that makes the Rule lifecycle summary's independent total inconsistent with its active/inactive counts — is classified as `InvalidPersistedRuleStateException` (preserving the original cause as `previous` where the classification wraps an `InvalidEligibilityInputException` or `ValueError`), while an unknown/external storage failure continues to propagate unchanged.
 
 These scenarios are the minimum golden behavioral suite, not an exhaustive test list.
 

@@ -12,6 +12,7 @@ use Maatify\Eligibility\Management\Service\EligibilityManagementService;
 use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
 use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery;
 use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -110,6 +111,6 @@ try {
     throw $exception;
 }
 
-$rules = $management->inspectRules(new RuleCriteria($subject, 'country'));
+$rules = $management->inspectRules(new RuleCriteria($subject, 'country'), new PageRequest());
 echo "Replacement committed inside the Host-owned outer transaction:\n";
 echo json_encode($rules, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;

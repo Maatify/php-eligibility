@@ -10,11 +10,13 @@ use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
 use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
 use Maatify\Eligibility\Management\Criteria\RuleCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleLifecycleSummaryCriteria;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
 use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
 use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery;
 use Maatify\Eligibility\Enum\RuleEffectEnum;
 use Maatify\Eligibility\Enum\RuleLifecycleEnum;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -103,8 +105,12 @@ $created = $management->createRule(new CreateRuleCommand(
 $identity = $created->naturalIdentity();
 
 $inspected = $management->inspectRule($identity);
-$allRules = $management->inspectRules(new RuleCriteria($subject, 'country'));
-$activeDimensions = $management->inspectActiveDimensionKeys(new ActiveDimensionKeysCriteria($subject));
+$allRules = $management->inspectRules(new RuleCriteria($subject, 'country'), new PageRequest());
+$activeDimensions = $management->inspectActiveDimensionKeys(
+    new ActiveDimensionKeysCriteria($subject),
+    new PageRequest(),
+);
+$lifecycleSummary = $management->inspectRuleLifecycleSummary(new RuleLifecycleSummaryCriteria($subject));
 
 $management->updateRuleEffect(new UpdateRuleEffectCommand($identity, RuleEffectEnum::DENY));
 $management->deactivateRule(new DeactivateRuleCommand($identity));
@@ -112,18 +118,19 @@ $inactiveRules = $management->inspectRules(new RuleCriteria(
     $subject,
     'country',
     RuleLifecycleEnum::INACTIVE,
-));
+), new PageRequest());
 $management->reactivateRule(new ReactivateRuleCommand($identity));
 $reactivated = $management->inspectRule($identity);
 $management->cleanupSubject(new CleanupSubjectCommand($subject));
-$remainingRules = $management->inspectRules(new RuleCriteria($subject, 'country'));
+$remainingRules = $management->inspectRules(new RuleCriteria($subject, 'country'), new PageRequest());
 
 echo json_encode([
     'created' => $created,
     'inspected' => $inspected,
     'allRules' => $allRules,
     'activeDimensionKeys' => $activeDimensions,
+    'lifecycleSummary' => $lifecycleSummary,
     'inactiveRules' => $inactiveRules,
     'reactivated' => $reactivated,
-    'cleanup' => ['remainingRules' => $remainingRules->count()],
+    'cleanup' => ['remainingRules' => $remainingRules->filtered],
 ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;

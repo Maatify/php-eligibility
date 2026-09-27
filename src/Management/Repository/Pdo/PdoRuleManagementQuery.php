@@ -5,23 +5,38 @@ declare(strict_types=1);
 namespace Maatify\Eligibility\Management\Repository\Pdo;
 
 use Maatify\Eligibility\Common\CanonicalString;
+use Maatify\Eligibility\Enum\RuleLifecycleEnum;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
+use Maatify\Eligibility\Exception\InvalidPersistedRuleStateException;
 use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
 use Maatify\Eligibility\Management\Criteria\RuleCriteria;
-use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyCollectionDTO;
+use Maatify\Eligibility\Management\Criteria\RuleLifecycleSummaryCriteria;
+use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyDTO;
+use Maatify\Eligibility\Management\DTO\RuleLifecycleSummaryDTO;
 use Maatify\Eligibility\Management\Repository\RuleManagementQueryInterface;
 use Maatify\Eligibility\Repository\Pdo\PdoRuleHydrationTrait;
 use Maatify\Eligibility\ValueObject\Rule;
-use Maatify\Eligibility\ValueObject\RuleCollection;
 use Maatify\Eligibility\ValueObject\RuleIdentity;
-use Maatify\Eligibility\Enum\RuleLifecycleEnum;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
+use Maatify\Persistence\Pdo\Pagination\PaginationConfig;
+use Maatify\Persistence\Pdo\Pagination\PdoPaginationQueryDescriptor;
+use Maatify\Persistence\Pdo\Pagination\PdoPaginator;
+use Maatify\Persistence\Pdo\Pagination\SortDirectionEnum;
+use Maatify\Persistence\Pdo\Pagination\SortWhitelist;
 use PDO;
 
 /**
  * Direct-PDO management query adapter.
  *
- * Identity reads include inactive Rules, while criteria reads apply the caller's
- * optional lifecycle filter and bounded result limit; all returned collections
- * are canonicalized by their value-object constructors.
+ * Identity reads include inactive Rules. Eligibility owns only its domain
+ * filter/count SQL and row mapping; the shared `maatify/persistence`
+ * paginator owns page/per-page normalization, sort resolution, count
+ * execution, and pagination metadata. Rule page ordering is the canonical
+ * `dimension_key` ASC, `dimension_value` ASC fixed sort applied by the query
+ * plus the shared pagination configuration, not by the returned items'
+ * constructors; each returned item is still hydrated into a typed,
+ * canonicalized Eligibility value (`Rule`, `ActiveDimensionKeyDTO`).
  */
 final class PdoRuleManagementQuery implements RuleManagementQueryInterface
 {
@@ -29,7 +44,14 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
 
     private const TABLE = 'maa_eligibility_rules';
 
-    public function __construct(private readonly PDO $pdo) {}
+    private const RULE_SORT_KEY = 'dimension_key';
+
+    private const RULE_TIE_BREAKER_SORT_KEY = 'dimension_value';
+
+    public function __construct(
+        private readonly PDO $pdo,
+        private readonly PdoPaginator $paginator = new PdoPaginator(),
+    ) {}
 
     /** Reads either active or inactive state and returns null only when the identity is absent. */
     public function findByIdentity(RuleIdentity $identity): ?Rule
@@ -52,13 +74,115 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
         return $row === null ? null : $this->hydrate($row);
     }
 
-    /** Applies optional lifecycle/dimension filters and the criteria's bounded result limit. */
-    public function findByCriteria(RuleCriteria $criteria): RuleCollection
+    /**
+     * Applies optional dimension/lifecycle/effect filters and returns one
+     * canonically ordered page of the matching Rules for the Subject.
+     *
+     * @return PageResult<Rule>
+     */
+    public function findByCriteria(RuleCriteria $criteria, PageRequest $pageRequest): PageResult
     {
-        $conditions = [
-            '`subject_type` = ?',
-            '`subject_id` = ?',
+        self::assertCanonicalRuleSort($pageRequest);
+
+        $baseParams = [
+            'subject_type' => CanonicalString::validateSubjectType($criteria->subject->subjectType),
+            'subject_id' => CanonicalString::validateSubjectId($criteria->subject->subjectId),
         ];
+
+        $filterConditions = [];
+        $filterParams = $baseParams;
+
+        if ($criteria->dimensionKey !== null) {
+            $filterConditions[] = '`dimension_key` = :dimension_key';
+            $filterParams['dimension_key'] = CanonicalString::validateDimensionKey($criteria->dimensionKey);
+        }
+
+        if ($criteria->lifecycle !== null) {
+            $filterConditions[] = '`lifecycle` = :lifecycle';
+            $filterParams['lifecycle'] = $criteria->lifecycle->value;
+        }
+
+        if ($criteria->effect !== null) {
+            $filterConditions[] = '`effect` = :effect';
+            $filterParams['effect'] = $criteria->effect->value;
+        }
+
+        $baseWhere = '`subject_type` = :subject_type AND `subject_id` = :subject_id';
+        $filteredWhere = implode(' AND ', [$baseWhere, ...$filterConditions]);
+
+        $descriptor = new PdoPaginationQueryDescriptor(
+            totalSql: 'SELECT COUNT(*) FROM `' . self::TABLE . '` WHERE ' . $baseWhere,
+            totalParams: $baseParams,
+            filteredCountSql: 'SELECT COUNT(*) FROM `' . self::TABLE . '` WHERE ' . $filteredWhere,
+            filteredCountParams: $filterParams,
+            dataSql: 'SELECT `subject_type`, `subject_id`, `dimension_key`, `dimension_value`, `effect`, `lifecycle` '
+                . 'FROM `' . self::TABLE . '` WHERE ' . $filteredWhere,
+            dataParams: $filterParams,
+        );
+
+        return $this->paginator->paginate(
+            $this->pdo,
+            $descriptor,
+            $pageRequest,
+            self::rulePaginationConfig(),
+            fn(array $row): Rule => $this->hydrate($row),
+        );
+    }
+
+    /**
+     * Returns one canonically ordered page of distinct active dimension keys
+     * for a Subject. Total and filtered are always equal for this query.
+     *
+     * @return PageResult<ActiveDimensionKeyDTO>
+     */
+    public function findActiveDimensionKeys(
+        ActiveDimensionKeysCriteria $criteria,
+        PageRequest $pageRequest,
+    ): PageResult {
+        self::assertCanonicalRuleSort($pageRequest);
+
+        $params = [
+            'subject_type' => CanonicalString::validateSubjectType($criteria->subject->subjectType),
+            'subject_id' => CanonicalString::validateSubjectId($criteria->subject->subjectId),
+            'lifecycle' => RuleLifecycleEnum::ACTIVE->value,
+        ];
+        $where = '`subject_type` = :subject_type AND `subject_id` = :subject_id AND `lifecycle` = :lifecycle';
+        $countSql = 'SELECT COUNT(*) FROM (SELECT DISTINCT `dimension_key` FROM `' . self::TABLE . '` '
+            . 'WHERE ' . $where . ') AS `distinct_active_dimensions`';
+
+        $descriptor = new PdoPaginationQueryDescriptor(
+            totalSql: $countSql,
+            totalParams: $params,
+            filteredCountSql: $countSql,
+            filteredCountParams: $params,
+            dataSql: 'SELECT DISTINCT `dimension_key` FROM `' . self::TABLE . '` WHERE ' . $where,
+            dataParams: $params,
+        );
+
+        return $this->paginator->paginate(
+            $this->pdo,
+            $descriptor,
+            $pageRequest,
+            self::activeDimensionKeyPaginationConfig(),
+            fn(array $row): ActiveDimensionKeyDTO => new ActiveDimensionKeyDTO(
+                $this->validatedColumn(
+                    $row,
+                    'dimension_key',
+                    static fn(string $value): string => CanonicalString::validateDimensionKey($value),
+                ),
+            ),
+        );
+    }
+
+    /**
+     * Computes the Rule lifecycle count summary for the supplied criteria scope
+     * in one aggregate query, and classifies an inconsistent independent total
+     * (for example caused by an unrecognized persisted lifecycle byte) as
+     * malformed persisted state rather than silently undercounting it.
+     */
+    public function summarizeLifecycle(RuleLifecycleSummaryCriteria $criteria): RuleLifecycleSummaryDTO
+    {
+        $conditions = ['`subject_type` = ?', '`subject_id` = ?'];
         $parameters = [
             CanonicalString::validateSubjectType($criteria->subject->subjectType),
             CanonicalString::validateSubjectId($criteria->subject->subjectId),
@@ -69,47 +193,151 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
             $parameters[] = CanonicalString::validateDimensionKey($criteria->dimensionKey);
         }
 
-        if ($criteria->lifecycle !== null) {
-            $conditions[] = '`lifecycle` = ?';
-            $parameters[] = $criteria->lifecycle->value;
-        }
-
-        $parameters[] = $criteria->maxResults;
         $rows = $this->fetchRows(
-            'SELECT `subject_type`, `subject_id`, `dimension_key`, `dimension_value`, `effect`, `lifecycle` '
-            . 'FROM `' . self::TABLE . '` WHERE ' . implode(' AND ', $conditions) . ' '
-            . 'ORDER BY `subject_type`, `subject_id`, `dimension_key`, `dimension_value` LIMIT ?',
-            $parameters,
-        );
-
-        $rules = [];
-        foreach ($rows as $row) {
-            $rules[] = $this->hydrate($row);
-        }
-
-        return new RuleCollection(...$rules);
-    }
-
-    /** Returns distinct active dimension keys for a Subject in canonical order. */
-    public function findActiveDimensionKeys(ActiveDimensionKeysCriteria $query): ActiveDimensionKeyCollectionDTO
-    {
-        $rows = $this->fetchRows(
-            'SELECT DISTINCT `dimension_key` FROM `' . self::TABLE . '` '
-            . 'WHERE `subject_type` = ? AND `subject_id` = ? AND `lifecycle` = ?',
+            'SELECT '
+            . 'COUNT(*) AS `total_count`, '
+            . 'SUM(CASE WHEN `lifecycle` = ? THEN 1 ELSE 0 END) AS `active_count`, '
+            . 'SUM(CASE WHEN `lifecycle` = ? THEN 1 ELSE 0 END) AS `inactive_count` '
+            . 'FROM `' . self::TABLE . '` WHERE ' . implode(' AND ', $conditions),
             [
-                CanonicalString::validateSubjectType($query->subject->subjectType),
-                CanonicalString::validateSubjectId($query->subject->subjectId),
                 RuleLifecycleEnum::ACTIVE->value,
+                RuleLifecycleEnum::INACTIVE->value,
+                ...$parameters,
             ],
         );
 
-        $dimensionKeys = [];
-        foreach ($rows as $row) {
-            $dimensionKeys[] = CanonicalString::validateDimensionKey(
-                $this->rowString($row, 'dimension_key'),
+        $row = $rows[0] ?? [];
+        $totalCount = $this->exactNonNegativeIntegerColumn($row, 'total_count');
+        $active = $this->exactNonNegativeIntegerColumn($row, 'active_count', true);
+        $inactive = $this->exactNonNegativeIntegerColumn($row, 'inactive_count', true);
+
+        if ($totalCount !== $active + $inactive) {
+            throw new InvalidPersistedRuleStateException(sprintf(
+                'Persisted Rule lifecycle state is inconsistent for the requested scope: '
+                . 'independent total %d does not equal active (%d) plus inactive (%d). '
+                . 'This indicates an unrecognized persisted lifecycle value.',
+                $totalCount,
+                $active,
+                $inactive,
+            ));
+        }
+
+        return new RuleLifecycleSummaryDTO($totalCount, $active, $inactive);
+    }
+
+    /**
+     * Reads one required aggregate column and accepts only a value that is
+     * exactly representable as a non-negative PHP integer: a native
+     * non-negative int or a digit-only decimal string within the
+     * `PHP_INT_MAX` range. Explicit `null` is accepted only for the SUM
+     * aggregates, where an empty scope reads as `0`; a missing column is
+     * always malformed persisted state. A negative int, a non-digit string,
+     * a decimal/scientific/signed representation, or a digit string above
+     * `PHP_INT_MAX` is rejected rather than silently coerced or saturated by
+     * an `(int)` cast.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function exactNonNegativeIntegerColumn(array $row, string $column, bool $allowNull = false): int
+    {
+        if (! array_key_exists($column, $row)) {
+            throw new InvalidPersistedRuleStateException(
+                sprintf('Required aggregate column `%s` is missing.', $column),
             );
         }
 
-        return new ActiveDimensionKeyCollectionDTO(...$dimensionKeys);
+        $value = $row[$column];
+        if ($value === null) {
+            if ($allowNull) {
+                return 0;
+            }
+
+            throw new InvalidPersistedRuleStateException(
+                sprintf('Aggregate column `%s` must not be NULL.', $column),
+            );
+        }
+
+        if (is_int($value)) {
+            if ($value < 0) {
+                throw new InvalidPersistedRuleStateException(
+                    sprintf('Aggregate column `%s` must not be negative.', $column),
+                );
+            }
+
+            return $value;
+        }
+
+        if (!is_string($value) || preg_match('/^[0-9]+$/', $value) !== 1) {
+            throw new InvalidPersistedRuleStateException(
+                sprintf('Expected an exact non-negative integer aggregate column `%s`.', $column),
+            );
+        }
+
+        // Normalize leading zeroes for magnitude comparison only ("0000" -> "0").
+        $normalized = ltrim($value, '0');
+        if ($normalized === '') {
+            $normalized = '0';
+        }
+
+        // Prove the digit string is representable as a PHP int, by string
+        // length/magnitude against PHP_INT_MAX, before casting at all.
+        $maxDigits = (string) PHP_INT_MAX;
+        $isRepresentable = strlen($normalized) < strlen($maxDigits)
+            || (strlen($normalized) === strlen($maxDigits) && strcmp($normalized, $maxDigits) <= 0);
+
+        if (!$isRepresentable) {
+            throw new InvalidPersistedRuleStateException(
+                sprintf('Aggregate column `%s` exceeds the representable PHP integer range.', $column),
+            );
+        }
+
+        return (int) $normalized;
+    }
+
+    /**
+     * Enforces the frozen public sort-request contract at the repository
+     * boundary: `null`/`null` (canonical order) or the explicit equivalent
+     * `dimension_key` + `ASC`. `dimension_value` is an internal tie-breaker
+     * only and MUST NOT be accepted as an explicit public primary sort; any
+     * other explicit request is invalid Eligibility Management input.
+     */
+    private static function assertCanonicalRuleSort(PageRequest $pageRequest): void
+    {
+        if ($pageRequest->sortBy === null && $pageRequest->sortDirection === null) {
+            return;
+        }
+
+        if ($pageRequest->sortBy === self::RULE_SORT_KEY && $pageRequest->sortDirection === 'ASC') {
+            return;
+        }
+
+        throw new InvalidEligibilityInputException(
+            'Unsupported Rule management sort request; only canonical ascending dimension_key order is supported.',
+        );
+    }
+
+    private static function rulePaginationConfig(): PaginationConfig
+    {
+        return new PaginationConfig(
+            new SortWhitelist([
+                self::RULE_SORT_KEY => self::RULE_SORT_KEY,
+                self::RULE_TIE_BREAKER_SORT_KEY => self::RULE_TIE_BREAKER_SORT_KEY,
+            ]),
+            self::RULE_SORT_KEY,
+            SortDirectionEnum::ASC,
+            self::RULE_TIE_BREAKER_SORT_KEY,
+            SortDirectionEnum::ASC,
+        );
+    }
+
+    private static function activeDimensionKeyPaginationConfig(): PaginationConfig
+    {
+        return new PaginationConfig(
+            new SortWhitelist([self::RULE_SORT_KEY => self::RULE_SORT_KEY]),
+            self::RULE_SORT_KEY,
+            SortDirectionEnum::ASC,
+            self::RULE_SORT_KEY,
+            SortDirectionEnum::ASC,
+        );
     }
 }
