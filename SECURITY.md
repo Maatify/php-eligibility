@@ -9,9 +9,11 @@
 prepared for the Packagist distribution channel. It is a pre-release and does
 not establish a supported Stable line on its own.
 
-External RC2 publication is not performed by this documentation change. There
-is no Published Stable release, and this Release Candidate creates no Stable
-SLA or support commitment.
+The target source/release line is `v1.0.0-rc.2`. External RC2 publication is
+not established by repository source; external availability is determined by
+the exact version tag and an approved Composer distribution source. There is
+no Published Stable release, and this Release Candidate creates no Stable SLA
+or support commitment.
 
 ## Reporting a Vulnerability
 

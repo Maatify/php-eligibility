@@ -1128,7 +1128,7 @@ If a future use case genuinely requires tenant identity to participate in the bu
 
 ## Persistence principles for RC2
 
-### D2 — Resolved database compatibility contract
+### Database compatibility contract
 
 For RC2, Eligibility persistence targets **MySQL-compatible database-server
 semantics through direct PDO**. The database compatibility contract is
@@ -1215,7 +1215,10 @@ The final RC2 schema and adapter MUST preserve these principles:
 - direct PDO for the RC2 persistence implementation, with no ORM and no external query builder;
 - no dependency on a framework or HTTP runtime.
 
-Exact table/column names, indexes, maximum lengths, timestamp fields, optional surrogate Rule IDs, and adapter internals are implementation/schema-slice decisions, but they MUST be explicitly documented and verified before RC2 release readiness.
+The executable table, column, index, and bounds details are owned by
+`schema/eligibility_rules.sql` and `schema/README.md`. Adapter mechanics that
+are not part of the public contract remain implementation details under this
+normative persistence contract.
 
 The RC2 persistence implementation MUST use direct PDO. It MUST NOT use an ORM or an external query builder. Repository and interface substitution boundaries MAY remain part of the public architecture, but every RC2 persistence implementation MUST preserve this direct-PDO requirement; a non-PDO implementation MUST NOT be presented as an RC2 alternative. Eligibility MUST NOT require Laravel, Doctrine, Slim, or another framework runtime.
 
@@ -1263,7 +1266,7 @@ Host Input
   → Observable Result
 ```
 
-This workflow is normative at the responsibility and observable-behavior level. The implemented Public Runtime API inventory below is the authoritative record of the current RC2 concrete PHP classes, FQCNs, signatures, adapters, and dependency wiring. RC1 references in this document preserve historical behavioral and release context; they do not identify the current concrete runtime inventory. Documentation MUST NOT invent classes or wiring that are absent from that inventory and the current source.
+This workflow is normative at the responsibility and observable-behavior level. The implemented Public Runtime API inventory below is the authoritative record of the current RC2 concrete PHP classes, FQCNs, signatures, adapters, and dependency wiring. Documentation MUST NOT invent classes or wiring that are absent from that inventory and the current source.
 
 1. The Host validates the external Subject and resolves its business Context. It constructs the canonical typed Subject and immutable Context using the exact string rules and Context shape defined in this reference. Host-owned semantic normalization, such as choosing an uppercase country code, occurs before the package boundary.
 2. The Host calls the public Eligibility API for one Subject or an ordered batch of Subjects. The public operation is conceptually `decide(Subject, Context)` or `decideMany(Subjects, Context)`; these labels describe the frozen capability and do not freeze concrete PHP names.
@@ -1273,7 +1276,7 @@ This workflow is normative at the responsibility and observable-behavior level. 
 
 Rule management follows the same boundary: the Host submits typed management commands/criteria through the public package contracts, the Domain Service coordinates the mutation or read, and the package-owned persistence boundary produces the typed management result or documented typed failure. Application/domain code MUST NOT require direct SQL access.
 
-The Consumer Verification Harness required by the adopted Testing and CI Standards exists and is part of the maintained current-source verification contract. It installs and consumes the package through production Composer autoload, exercises the public contracts against the real MySQL persistence boundary, proves independent-process natural-identity concurrency, and verifies clean consumer and database states before and after the workflow. The maintained Harness executes twice from clean consumer/database states using the synthetic development identity `dev-rc2-current-source`; this is not Published RC1 or Published RC2 verification. Local Integration, CI Integration, Harness, and database-backed example smoke share the repository-owned Compose lifecycle documented by DEC-005.
+The Consumer Verification Harness required by the adopted Testing and CI Standards exists and is part of the maintained current-source verification contract. It installs and consumes the package through production Composer autoload, exercises the public contracts against the real MySQL persistence boundary, proves independent-process natural-identity concurrency, and verifies clean consumer and database states before and after the workflow. The maintained Harness executes twice from clean consumer/database states using the synthetic development identity `dev-rc2-current-source`; current-source Harness verification is not published-release verification. Local Integration, CI Integration, Harness, and database-backed example smoke share the repository-owned Compose lifecycle documented by DEC-005.
 
 ## Public Runtime API inventory
 
