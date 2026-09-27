@@ -45,6 +45,7 @@ use Maatify\Eligibility\ValueObject\Subject;
 use Maatify\Eligibility\ValueObject\SubjectCollection;
 use Maatify\Exceptions\Contracts\ApiAwareExceptionInterface;
 use Maatify\Exceptions\Exception\Conflict\ConflictMaatifyException;
+use Maatify\Exceptions\Exception\MaatifyException;
 use Maatify\Exceptions\Exception\NotFound\NotFoundMaatifyException;
 use Maatify\Exceptions\Exception\System\SystemMaatifyException;
 use Maatify\Persistence\Pdo\Pagination\PageResult;
@@ -496,6 +497,11 @@ final class PublicContractTest extends TestCase
 
         foreach ($exceptions as $exception) {
             self::assertInstanceOf(EligibilityExceptionInterface::class, $exception);
+            // ApiAwareExceptionInterface alone would only prove interface
+            // compatibility; MaatifyException proves the exception is
+            // actually built on the shared maatify/exceptions class
+            // hierarchy, not merely a same-shaped independent implementation.
+            self::assertInstanceOf(MaatifyException::class, $exception);
             self::assertInstanceOf(ApiAwareExceptionInterface::class, $exception);
         }
     }

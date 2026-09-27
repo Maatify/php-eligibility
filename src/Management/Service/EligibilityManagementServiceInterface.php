@@ -32,28 +32,49 @@ interface EligibilityManagementServiceInterface
     public function inspectRule(RuleIdentity $identity): Rule;
 
     /**
-     * Returns one canonically ordered page of Rules matching the criteria.
+     * Returns one canonically ordered page of Rules matching the criteria,
+     * in the fixed order `dimension_key` ASC, `dimension_value` ASC.
      *
-     * `PageRequest.sortBy`/`sortDirection` accept only `null` (canonical order)
-     * or the explicit equivalent `dimension_key` ascending; any other explicit
-     * sort request is rejected with `InvalidEligibilityInputException`.
+     * `$pageRequest->sortBy`/`sortDirection` accept only exactly one of the
+     * two following shapes: both `null` (implicit canonical order), or the
+     * explicit pair `sortBy = 'dimension_key'` and `sortDirection = 'ASC'`.
+     * Any other explicit combination — including `dimension_key` with a
+     * `null` direction, any `dimension_value` sort, or a `DESC` direction —
+     * is rejected.
      *
      * @return PageResult<Rule>
+     * @throws \Maatify\Eligibility\Exception\InvalidEligibilityInputException if the sort request does not match one of those two shapes
      */
     public function inspectRules(RuleCriteria $criteria, PageRequest $pageRequest): PageResult;
 
     /**
      * Returns one canonically ordered page of active dimension keys for the
-     * Subject. `total` and `filtered` are always equal for this query.
+     * Subject. `total` and `filtered` are always equal for this query,
+     * because no optional domain filter exists beyond its intrinsic
+     * active-visibility contract.
+     *
+     * `$pageRequest->sortBy`/`sortDirection` accept the same two canonical
+     * shapes as {@see inspectRules()}: both `null`, or the explicit pair
+     * `sortBy = 'dimension_key'` and `sortDirection = 'ASC'`.
      *
      * @return PageResult<ActiveDimensionKeyDTO>
+     * @throws \Maatify\Eligibility\Exception\InvalidEligibilityInputException if the sort request does not match one of those two shapes
      */
     public function inspectActiveDimensionKeys(
         ActiveDimensionKeysCriteria $criteria,
         PageRequest $pageRequest,
     ): PageResult;
 
-    /** Returns the Rule lifecycle count summary for the supplied criteria scope. */
+    /**
+     * Returns the Rule lifecycle count summary for the supplied criteria
+     * scope. Malformed persisted state that this package owns a semantic
+     * classification for (for example an inconsistent independent total
+     * caused by an unrecognized persisted lifecycle value) surfaces as
+     * `InvalidPersistedRuleStateException`; unknown/external infrastructure
+     * failures are not wrapped and propagate unchanged.
+     *
+     * @throws \Maatify\Eligibility\Exception\InvalidPersistedRuleStateException if the persisted lifecycle state cannot be classified
+     */
     public function inspectRuleLifecycleSummary(RuleLifecycleSummaryCriteria $criteria): RuleLifecycleSummaryDTO;
 
     /** @throws \Maatify\Eligibility\Exception\RuleNotFoundException */

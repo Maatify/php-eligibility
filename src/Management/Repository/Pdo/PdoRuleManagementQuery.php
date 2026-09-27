@@ -29,11 +29,14 @@ use PDO;
 /**
  * Direct-PDO management query adapter.
  *
- * Identity reads include inactive Rules. Paginated reads apply the caller's
- * optional dimension/lifecycle/effect filters and delegate page/per-page/sort
- * mechanics to the shared `maatify/persistence` paginator; Eligibility owns
- * only the domain filter/count SQL and row mapping. All returned collections
- * are canonicalized by their value-object constructors.
+ * Identity reads include inactive Rules. Eligibility owns only its domain
+ * filter/count SQL and row mapping; the shared `maatify/persistence`
+ * paginator owns page/per-page normalization, sort resolution, count
+ * execution, and pagination metadata. Rule page ordering is the canonical
+ * `dimension_key` ASC, `dimension_value` ASC fixed sort applied by the query
+ * plus the shared pagination configuration, not by the returned items'
+ * constructors; each returned item is still hydrated into a typed,
+ * canonicalized Eligibility value (`Rule`, `ActiveDimensionKeyDTO`).
  */
 final class PdoRuleManagementQuery implements RuleManagementQueryInterface
 {
@@ -223,10 +226,13 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
     }
 
     /**
-     * Reads one required aggregate column and accepts only an exact
-     * non-negative integer representation (a native int, or a string of
-     * decimal digits only); decimal, scientific, or negative representations
-     * are rejected rather than silently coerced.
+     * Reads one required aggregate column and accepts only a value that is
+     * exactly representable as a non-negative PHP integer: a native
+     * non-negative int, a digit-only decimal string within the `PHP_INT_MAX`
+     * range, or `null` (an empty `SUM` for the current scope), which reads
+     * as `0`. A negative int, a non-digit string, a decimal/scientific/signed
+     * representation, or a digit string above `PHP_INT_MAX` is rejected
+     * rather than silently coerced or saturated by an `(int)` cast.
      *
      * @param array<string, mixed> $row
      */
@@ -247,13 +253,31 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
             return $value;
         }
 
-        if (is_string($value) && preg_match('/^[0-9]+$/', $value) === 1) {
-            return (int) $value;
+        if (!is_string($value) || preg_match('/^[0-9]+$/', $value) !== 1) {
+            throw new InvalidPersistedRuleStateException(
+                sprintf('Expected an exact non-negative integer aggregate column `%s`.', $column),
+            );
         }
 
-        throw new InvalidPersistedRuleStateException(
-            sprintf('Expected an exact non-negative integer aggregate column `%s`.', $column),
-        );
+        // Normalize leading zeroes for magnitude comparison only ("0000" -> "0").
+        $normalized = ltrim($value, '0');
+        if ($normalized === '') {
+            $normalized = '0';
+        }
+
+        // Prove the digit string is representable as a PHP int, by string
+        // length/magnitude against PHP_INT_MAX, before casting at all.
+        $maxDigits = (string) PHP_INT_MAX;
+        $isRepresentable = strlen($normalized) < strlen($maxDigits)
+            || (strlen($normalized) === strlen($maxDigits) && strcmp($normalized, $maxDigits) <= 0);
+
+        if (!$isRepresentable) {
+            throw new InvalidPersistedRuleStateException(
+                sprintf('Aggregate column `%s` exceeds the representable PHP integer range.', $column),
+            );
+        }
+
+        return (int) $normalized;
     }
 
     /**

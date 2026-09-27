@@ -792,7 +792,11 @@ exposes `totalRules`, `activeRules`, and `inactiveRules` with the invariant
 `totalRules === activeRules + inactiveRules`, all `>= 0`. The PDO
 implementation computes this aggregate in the database; it MUST NOT load all
 Rules into PHP to calculate it. An empty Subject/dimension scope returns
-exactly `0`/`0`/`0`.
+exactly `0`/`0`/`0`. The PDO implementation also reads an independent total
+count for the same scope and MUST classify a mismatch between that
+independent total and `activeRules + inactiveRules` (for example caused by an
+unrecognized persisted `lifecycle` byte) as `InvalidPersistedRuleStateException`
+rather than silently returning an undercounted summary.
 
 ### Non-goals for this operational-read surface
 
@@ -1429,7 +1433,7 @@ Before a persistence adapter or Release Candidate can be considered correct, exe
 56. the Rule lifecycle summary reports internally consistent active/inactive counts for a Subject and an optional dimension scope, including a 500+ Rule state, and returns `0`/`0`/`0` for an empty scope;
 57. paginated active-dimension discovery returns distinct active dimension keys in canonical ascending order across a page boundary, excludes inactive-only dimensions, and is Subject-isolated;
 58. an unsupported explicit Rule pagination sort request is rejected with `InvalidEligibilityInputException` rather than silently falling back to the canonical order;
-59. malformed persisted Rule state (invalid persisted effect bytes, or an invalid persisted canonical component) is classified as `InvalidPersistedRuleStateException`, preserving the original cause as `previous`, while an unknown/external storage failure continues to propagate unchanged.
+59. malformed persisted Rule state — invalid persisted effect bytes, an invalid persisted canonical component, or an unrecognized persisted lifecycle value that makes the Rule lifecycle summary's independent total inconsistent with its active/inactive counts — is classified as `InvalidPersistedRuleStateException` (preserving the original cause as `previous` where the classification wraps an `InvalidEligibilityInputException` or `ValueError`), while an unknown/external storage failure continues to propagate unchanged.
 
 These scenarios are the minimum golden behavioral suite, not an exhaustive test list.
 
