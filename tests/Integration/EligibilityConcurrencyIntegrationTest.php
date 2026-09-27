@@ -378,6 +378,66 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         self::assertSame(5, $this->countAllRules());
     }
 
+    #[Test]
+    public function concurrentReplaceObservesRealLockWaitTimeoutAsTypedConcurrencyConflict(): void
+    {
+        $subject = new Subject('product', '761');
+        $workerA = null;
+        $workerB = null;
+        $primaryFailure = null;
+        try {
+            $workerA = $this->startWorker([
+                'hold-replace',
+                $subject->subjectType,
+                $subject->subjectId,
+                'country',
+                $this->encodeDesired([
+                    ['EG', RuleEffectEnum::ALLOW->value],
+                ]),
+            ]);
+            self::assertSame('LOCKED', $this->readLine($workerA, 'worker A subject lock'));
+
+            $workerB = $this->startWorker([
+                'replace-lock-timeout',
+                $subject->subjectType,
+                $subject->subjectId,
+                'country',
+                $this->encodeDesired([
+                    ['SA', RuleEffectEnum::DENY->value],
+                ]),
+            ]);
+            self::assertSame('STARTED', $this->readLine($workerB, 'worker B start event'));
+            self::assertSame('ATTEMPTING_LOCK', $this->readLine($workerB, 'worker B subject lock attempt'));
+            self::assertSame(
+                'RESULT:CONCURRENCY:PDOException:1205',
+                $this->readLine($workerB, 'worker B lock-wait-timeout concurrency result'),
+            );
+
+            $this->signal($workerA, 'REPLACE');
+            self::assertSame('REPLACED', $this->readLine($workerA, 'worker A replacement result'));
+            $this->signal($workerA, 'COMMIT');
+            self::assertSame('DONE', $this->readLine($workerA, 'worker A commit result'));
+        } catch (\Throwable $exception) {
+            $primaryFailure = $exception;
+            throw $exception;
+        } finally {
+            $this->closeWorkers($workerA, $workerB, $primaryFailure !== null);
+        }
+
+        $rules = $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Enum\RuleLifecycleEnum::ACTIVE),
+            new PageRequest(),
+        );
+        self::assertSame(
+            ['EG'],
+            array_map(
+                static fn(\Maatify\Eligibility\ValueObject\Rule $rule): string => $rule->dimensionValue,
+                $rules->data,
+            ),
+        );
+        self::assertSame(1, $this->countAllRules());
+    }
+
     /** @param list<array{0: string, 1: string}> $desired */
     private function encodeDesired(array $desired): string
     {

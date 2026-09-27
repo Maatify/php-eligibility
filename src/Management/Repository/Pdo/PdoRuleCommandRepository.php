@@ -8,6 +8,7 @@ use Maatify\Eligibility\Common\CanonicalString;
 use Maatify\Eligibility\Management\Repository\RuleCommandRepositoryInterface;
 use Maatify\Eligibility\Management\Repository\RuleMutationSupportInterface;
 use Maatify\Eligibility\ValueObject\Subject;
+use Maatify\Eligibility\Exception\RuleConcurrencyConflictException;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
 use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
@@ -22,13 +23,15 @@ use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\Repository\Pdo\PdoRuleHydrationTrait;
 use PDO;
 use PDOException;
+use PDOStatement;
 
 /**
  * Direct-PDO Rule mutation and Subject-coordination adapter.
  *
- * Natural-identity uniqueness conflicts are translated to the package exception
- * while unrelated PDO failures propagate. Lock creation is transaction-scoped
- * and is used by the management service for atomic desired-state replacement.
+ * Natural-identity uniqueness conflicts and unresolved lock-wait-timeout/deadlock
+ * conflicts are translated to typed package exceptions while unrelated PDO
+ * failures propagate. Lock creation is transaction-scoped and is used by the
+ * management service for atomic desired-state replacement.
  */
 final class PdoRuleCommandRepository implements
     RuleCommandRepositoryInterface,
@@ -71,6 +74,10 @@ final class PdoRuleCommandRepository implements
                     new RuleIdentity($subjectType, $subjectId, $dimensionKey, $dimensionValue),
                     $exception,
                 );
+            }
+
+            if (MySqlConcurrencyConflictClassifier::isConcurrencyConflict($exception)) {
+                throw new RuleConcurrencyConflictException(previous: $exception);
             }
 
             throw $exception;
@@ -129,7 +136,7 @@ final class PdoRuleCommandRepository implements
         $statement = $this->pdo->prepare(
             'DELETE FROM `' . self::TABLE . '` WHERE `subject_type` = ? AND `subject_id` = ?',
         );
-        $this->bindAndExecute($statement, [
+        $this->executeMutation($statement, [
             CanonicalString::validateSubjectType($command->subject->subjectType),
             CanonicalString::validateSubjectId($command->subject->subjectId),
         ]);
@@ -143,7 +150,7 @@ final class PdoRuleCommandRepository implements
             . '(`subject_type`, `subject_id`) VALUES (?, ?) '
             . 'ON DUPLICATE KEY UPDATE `id` = `id`',
         );
-        $this->bindAndExecute($statement, [
+        $this->executeMutation($statement, [
             CanonicalString::validateSubjectType($subject->subjectType),
             CanonicalString::validateSubjectId($subject->subjectId),
         ]);
@@ -178,7 +185,7 @@ final class PdoRuleCommandRepository implements
         $statement = $this->pdo->prepare(
             'DELETE FROM `' . self::SUBJECT_LOCK_TABLE . '` WHERE `subject_type` = ? AND `subject_id` = ?',
         );
-        $this->bindAndExecute($statement, [
+        $this->executeMutation($statement, [
             CanonicalString::validateSubjectType($subject->subjectType),
             CanonicalString::validateSubjectId($subject->subjectId),
         ]);
@@ -209,13 +216,33 @@ final class PdoRuleCommandRepository implements
     private function updateAndCheckIdentity(string $sql, array $parameters, RuleIdentity $identity): bool
     {
         $statement = $this->pdo->prepare($sql);
-        $this->bindAndExecute($statement, $parameters);
+        $this->executeMutation($statement, $parameters);
 
         if ($statement->rowCount() > 0) {
             return true;
         }
 
         return $this->exists($identity);
+    }
+
+    /**
+     * Executes a command/mutation statement and translates a proven MySQL/MariaDB
+     * lock-wait-timeout or deadlock driver code to the typed concurrency conflict.
+     * Every other PDO failure propagates unchanged.
+     *
+     * @param list<string|int> $parameters
+     */
+    private function executeMutation(PDOStatement $statement, array $parameters): void
+    {
+        try {
+            $this->bindAndExecute($statement, $parameters);
+        } catch (PDOException $exception) {
+            if (MySqlConcurrencyConflictClassifier::isConcurrencyConflict($exception)) {
+                throw new RuleConcurrencyConflictException(previous: $exception);
+            }
+
+            throw $exception;
+        }
     }
 
     private function exists(RuleIdentity $identity): bool
