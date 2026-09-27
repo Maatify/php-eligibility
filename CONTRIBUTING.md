@@ -72,6 +72,7 @@ The lowest-supported local sequence matching `ci-tests / lowest-deps` is:
 
 ```bash
 composer update --prefer-lowest --prefer-stable --no-interaction --prefer-dist --no-progress
+composer check-platform-reqs
 composer test:unit
 composer test:golden
 composer analyse
