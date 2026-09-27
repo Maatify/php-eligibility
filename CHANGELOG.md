@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [1.0.0-rc.2] - 2026-09-27
+## [1.0.0-rc.2] - 2026-09-28
 
 This entry describes the release payload prepared for `v1.0.0-rc.2`. This
 entry's heading, date, and release-tag link identify the intended release
