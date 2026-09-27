@@ -9,12 +9,8 @@ use Maatify\Eligibility\Management\ValueObject\DesiredRule;
 use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Management\Criteria\RuleCriteria;
-use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Management\Service\EligibilityManagementService;
+use Maatify\Eligibility\Factory\Pdo\PdoEligibilityRuntimeFactory;
 use Maatify\Eligibility\Evaluation\Enum\DecisionReasonEnum;
-use Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader;
-use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
-use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery;
 use Maatify\Eligibility\Enum\RuleEffectEnum;
 use Maatify\Eligibility\ValueObject\RuleIdentity;
 use Maatify\Eligibility\Enum\RuleLifecycleEnum;
@@ -22,7 +18,6 @@ use Maatify\Eligibility\Evaluation\ValueObject\Context;
 use Maatify\Eligibility\Evaluation\ValueObject\ContextDimension;
 use Maatify\Eligibility\ValueObject\Subject;
 use Maatify\Persistence\Pdo\Pagination\PageRequest;
-use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 
 $consumerRoot = dirname(__DIR__);
 $autoloadPath = $consumerRoot . '/vendor/autoload.php';
@@ -68,17 +63,9 @@ $pdo->exec($schema);
 
 $runId = environment('ELIGIBILITY_HARNESS_RUN_ID', 'manual');
 $subject = new Subject('consumer_harness', $runId);
-$commandRepository = new PdoRuleCommandRepository($pdo);
-$managementQuery = new PdoRuleManagementQuery($pdo);
-$activeRuleReader = new PdoActiveRuleReader($pdo);
-$transactionRunner = new PdoSavepointTransactionRunner($pdo);
-$management = new EligibilityManagementService(
-    $commandRepository,
-    $managementQuery,
-    $commandRepository,
-    $transactionRunner,
-);
-$evaluation = new EligibilityEvaluationService($activeRuleReader);
+$factory = new PdoEligibilityRuntimeFactory($pdo);
+$management = $factory->createManagementService();
+$evaluation = $factory->createEvaluationService();
 
 assertTableEmpty($pdo, 'maa_eligibility_rules', 'Before workflow');
 assertTableEmpty($pdo, 'maa_eligibility_subject_locks', 'Before workflow');

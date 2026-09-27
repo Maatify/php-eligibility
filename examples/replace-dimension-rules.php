@@ -8,12 +8,9 @@ use Maatify\Eligibility\Management\ValueObject\DesiredRule;
 use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Management\Criteria\RuleCriteria;
-use Maatify\Eligibility\Management\Service\EligibilityManagementService;
-use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
-use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery;
+use Maatify\Eligibility\Factory\Pdo\PdoEligibilityRuntimeFactory;
 use Maatify\Eligibility\Enum\RuleEffectEnum;
 use Maatify\Persistence\Pdo\Pagination\PageRequest;
-use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -81,13 +78,7 @@ function connectReplacementDatabaseOrSkip(): PDO
 }
 
 $pdo = connectReplacementDatabaseOrSkip();
-$commandRepository = new PdoRuleCommandRepository($pdo);
-$management = new EligibilityManagementService(
-    $commandRepository,
-    new PdoRuleManagementQuery($pdo),
-    $commandRepository,
-    new PdoSavepointTransactionRunner($pdo),
-);
+$management = (new PdoEligibilityRuntimeFactory($pdo))->createManagementService();
 
 $subject = new Subject('product', 'example-replacement');
 $management->cleanupSubject(new CleanupSubjectCommand($subject));

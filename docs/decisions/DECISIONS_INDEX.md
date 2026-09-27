@@ -20,8 +20,8 @@ substitute for a Decision Record, and not a substitute for
 ## Current Discovery State
 
 ```text
-Decision Records: 3
-Active Decisions: 3
+Decision Records: 4
+Active Decisions: 4
 Pending Owner Decisions: 0
 ```
 
@@ -67,6 +67,7 @@ Each future decision record must be reachable from a row below with, as applicab
 | `DEC-001` | RC2 Canonical Source Topology and Pre-Stable FQCN Migration | `ACTIVE` | php-eligibility RC2 source topology, namespace/FQCN placement, and pre-Stable structural compatibility boundary | `docs/decisions/DEC-001-rc2-canonical-source-topology-and-pre-stable-fqcn-migration.md` | `ELIGIBILITY_PACKAGE_REFERENCE.md` for package behavior; `DEC-001` for RC2 structural placement and compatibility boundary | None | None |
 | `DEC-002` | RC2 Management Operational-Read Contract | `ACTIVE` | php-eligibility RC2 Management/Admin operational-read boundary: Host/Admin vs. Eligibility ownership, paginated Rule management reads, paginated active-dimension discovery, and the Rule lifecycle summary | `docs/decisions/DEC-002-rc2-management-operational-read-contract.md` | `ELIGIBILITY_PACKAGE_REFERENCE.md` for package behavior; `DEC-002` for the Host/Admin boundary and pagination/summary contract | None | None |
 | `DEC-003` | RC2 Persisted-State Exception Contract | `ACTIVE` | php-eligibility RC2 package-defined exception hierarchy/marker ownership, and classification of malformed persisted Rule state | `docs/decisions/DEC-003-rc2-persisted-state-exception-contract.md` | `ELIGIBILITY_PACKAGE_REFERENCE.md` for package behavior; `DEC-003` for the persisted-state classification and propagation boundary | None | None |
+| `DEC-004` | RC2 Public Runtime Construction Contract | `ACTIVE` | php-eligibility RC2 default PDO construction surface, service-interface returns, caller-owned PDO boundary, and explicit exclusion of locator/container behavior | `docs/decisions/DEC-004-rc2-public-runtime-construction-contract.md` | `ELIGIBILITY_PACKAGE_REFERENCE.md` for package behavior; `DEC-004` for the default construction and ownership boundary | None | None |
 
 ## Discovery Integrity
 

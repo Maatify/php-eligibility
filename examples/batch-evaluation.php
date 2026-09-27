@@ -4,36 +4,27 @@ declare(strict_types=1);
 
 use Maatify\Eligibility\ValueObject\Subject;
 use Maatify\Eligibility\ValueObject\SubjectCollection;
-use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationServiceInterface;
 use Maatify\Eligibility\Evaluation\ValueObject\Context;
 use Maatify\Eligibility\Evaluation\ValueObject\ContextDimension;
 use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
-use Maatify\Eligibility\Management\Service\EligibilityManagementService;
-use Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader;
-use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
-use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery;
+use Maatify\Eligibility\Management\Service\EligibilityManagementServiceInterface;
+use Maatify\Eligibility\Factory\Pdo\PdoEligibilityRuntimeFactory;
 use Maatify\Eligibility\Enum\RuleEffectEnum;
-use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 
 require __DIR__ . '/../vendor/autoload.php';
 
 /**
- * @return array{management: EligibilityManagementService, evaluation: EligibilityEvaluationService}
+ * @return array{management: EligibilityManagementServiceInterface, evaluation: EligibilityEvaluationServiceInterface}
  */
 function wireBatchServices(PDO $pdo): array
 {
-    $commandRepository = new PdoRuleCommandRepository($pdo);
-    $managementQuery = new PdoRuleManagementQuery($pdo);
+    $factory = new PdoEligibilityRuntimeFactory($pdo);
 
     return [
-        'management' => new EligibilityManagementService(
-            $commandRepository,
-            $managementQuery,
-            $commandRepository,
-            new PdoSavepointTransactionRunner($pdo),
-        ),
-        'evaluation' => new EligibilityEvaluationService(new PdoActiveRuleReader($pdo)),
+        'management' => $factory->createManagementService(),
+        'evaluation' => $factory->createEvaluationService(),
     ];
 }
 
