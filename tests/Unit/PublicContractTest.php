@@ -23,6 +23,7 @@ use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationServiceInterface
 use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
 use Maatify\Eligibility\Management\Service\EligibilityManagementServiceInterface;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
+use Maatify\Eligibility\Factory\Pdo\PdoEligibilityRuntimeFactory;
 use Maatify\Eligibility\Evaluation\ValueObject\EligibilityDecision;
 use Maatify\Eligibility\Exception\EligibilityExceptionInterface;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
@@ -58,9 +59,43 @@ use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
+use PDO;
 
 final class PublicContractTest extends TestCase
 {
+    #[Test]
+    public function pdoRuntimeFactoryExposesOnlyTheLockedPublicConstructionContract(): void
+    {
+        $reflection = new ReflectionClass(PdoEligibilityRuntimeFactory::class);
+
+        self::assertTrue($reflection->isFinal());
+        self::assertTrue($reflection->isReadOnly());
+        self::assertSame('Maatify\\Eligibility\\Factory\\Pdo', $reflection->getNamespaceName());
+        self::assertSame(['pdo'], array_map(
+            static fn(\ReflectionProperty $property): string => $property->getName(),
+            $reflection->getProperties(),
+        ));
+        self::assertSame([
+            '__construct',
+            'createManagementService',
+            'createEvaluationService',
+        ], array_map(
+            static fn(ReflectionMethod $method): string => $method->getName(),
+            $reflection->getMethods(ReflectionMethod::IS_PUBLIC),
+        ));
+
+        $constructor = $reflection->getMethod('__construct');
+        self::assertSame(PDO::class, self::parameterTypeName($constructor->getParameters()[0]));
+        self::assertSame(
+            EligibilityManagementServiceInterface::class,
+            self::namedReturnTypeName($reflection->getMethod('createManagementService')),
+        );
+        self::assertSame(
+            EligibilityEvaluationServiceInterface::class,
+            self::namedReturnTypeName($reflection->getMethod('createEvaluationService')),
+        );
+    }
+
     #[Test]
     public function subjectBatchCollectionAcceptsEmptyInputAndPreservesOrder(): void
     {

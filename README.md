@@ -142,14 +142,9 @@ not a migration run at install time.
 
 ```php
 use Maatify\Eligibility\Management\Criteria\RuleCriteria;
-use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Management\Service\EligibilityManagementService;
+use Maatify\Eligibility\Factory\Pdo\PdoEligibilityRuntimeFactory;
 use Maatify\Eligibility\Evaluation\Enum\DecisionReasonEnum;
-use Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader;
-use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
-use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery;
 use Maatify\Eligibility\Enum\RuleEffectEnum;
-use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use Maatify\Eligibility\Evaluation\ValueObject\Context;
 use Maatify\Eligibility\Evaluation\ValueObject\ContextDimension;
 use Maatify\Eligibility\ValueObject\Subject;
@@ -160,17 +155,9 @@ $pdo = new PDO('mysql:host=127.0.0.1;dbname=app;charset=utf8mb4', 'app', 'secret
 ]);
 $pdo->exec(file_get_contents(__DIR__ . '/vendor/maatify/php-eligibility/schema/eligibility_rules.sql'));
 
-$commandRepository = new PdoRuleCommandRepository($pdo);
-$managementQuery = new PdoRuleManagementQuery($pdo);
-$activeRuleReader = new PdoActiveRuleReader($pdo);
-$transactionRunner = new PdoSavepointTransactionRunner($pdo);
-$management = new EligibilityManagementService(
-    $commandRepository,
-    $managementQuery,
-    $commandRepository,
-    $transactionRunner,
-);
-$evaluation = new EligibilityEvaluationService($activeRuleReader);
+$factory = new PdoEligibilityRuntimeFactory($pdo);
+$management = $factory->createManagementService();
+$evaluation = $factory->createEvaluationService();
 
 $subject = new Subject('product', '150');
 $management->createRule(new \Maatify\Eligibility\Management\Command\CreateRuleCommand(
@@ -272,11 +259,16 @@ Public surface (see the
   `maatify/persistence` (`SavepointTransactionRunnerInterface`, `PageRequest`,
   `PageResult`, `PdoPaginator`); Eligibility owns only its domain
   filter/count SQL and row mapping.
+- **Default PDO construction:** `PdoEligibilityRuntimeFactory` accepts one
+  caller-owned `PDO` and returns the Evaluation and Management service
+  interfaces. It creates all default adapters and the savepoint runner over
+  that same PDO; it does not create connections, apply schema, own credentials,
+  or expose the internal mutation-support contract.
 - **PDO adapters:** `PdoRuleCommandRepository`, `PdoRuleManagementQuery`,
-  `PdoActiveRuleReader`, and `PdoSavepointTransactionRunner` are constructed
-  from the same PDO connection. The command adapter implements only the
-  Eligibility command and mutation-support contracts; callers wire each
-  responsibility explicitly to the corresponding service dependency.
+  `PdoActiveRuleReader`, and `PdoSavepointTransactionRunner` remain available
+  for advanced explicit composition. The command adapter
+  implements the Eligibility command and mutation-support contracts; ordinary
+  consumers should use the factory.
 - **Commands / queries / results:** `CreateRuleCommand`,
   `UpdateRuleEffectCommand`, `DeactivateRuleCommand`, `ReactivateRuleCommand`,
   `DesiredRule`, `DesiredRuleCollection`, `ReplaceDimensionRulesCommand`,
@@ -374,7 +366,7 @@ installing or trying the package.
 
 | Document | Purpose |
 |---|---|
-| [Package Reference](ELIGIBILITY_PACKAGE_REFERENCE.md) | Canonical package contract: identity, Context, Rule, Decision, lifecycle, ordering, pagination, lifecycle summary, persistence, transaction, concurrency, error, batch, and 59-scenario coverage. |
+| [Package Reference](ELIGIBILITY_PACKAGE_REFERENCE.md) | Canonical package contract: identity, Context, Rule, Decision, lifecycle, ordering, pagination, lifecycle summary, persistence, transaction, concurrency, error, batch, and 60-scenario coverage. |
 | [Usage Guide](docs/guides/USAGE_GUIDE.md) | Consumer-facing API guide, capability decision map, input/output types, transaction notes, and links to runnable examples. |
 | [Runnable Examples](examples/) | Standalone public-API examples for evaluation, batch evaluation, management, replacement, PDO wiring, and typed exception handling. |
 | [Schema](schema/README.md) | Persistence contract, tables, bounds, applying/reapplying, and the local MySQL fixture. |
@@ -396,20 +388,19 @@ See [schema/README.md](schema/README.md) for bounds, storage guarantees,
 transaction/savepoint behavior, and the local `mysql:8.4.11` reproducibility
 fixture. The fixture version is **not** a minimum supported product version.
 
-The runtime composition keeps command, management-query, evaluation-read, and
-internal mutation-support responsibilities explicit. A Host constructs the
-three PDO adapters and `PdoSavepointTransactionRunner` from the same PDO
-connection, passes the command adapter, management query, mutation-support
-capability, and shared transaction runner separately to
-`EligibilityManagementService`, and passes the active-rule reader to
-`EligibilityEvaluationService`. Generic transaction/savepoint mechanics belong
-to `maatify/persistence`; per-Subject coordination locking remains
+The default runtime composition keeps command, management-query,
+evaluation-read, and internal mutation-support responsibilities explicit inside
+`PdoEligibilityRuntimeFactory`. The Host creates/configures the PDO, applies
+the schema, and may own an outer transaction; the factory builds both service
+graphs over that exact PDO. Direct adapter/service construction remains an
+advanced extension path. Generic transaction/savepoint mechanics belong to
+`maatify/persistence`; per-Subject coordination locking remains
 Eligibility-owned.
 
 ## Quality Status
 
 - PHPStan **level max**, zero errors, no baseline and no suppressions.
-- Unit, Golden (52 canonical acceptance scenarios with an executable evidence
+- Unit, Golden (60 canonical acceptance scenarios with an executable evidence
   map), real-MySQL Integration, and concurrency/invariant suites.
 - Real-service Integration is run on both supported PHP minors with a repeated
   run for cleanup/repeatability evidence; there is no SQLite or mock substitute.

@@ -2,12 +2,7 @@
 
 declare(strict_types=1);
 
-use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Management\Service\EligibilityManagementService;
-use Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader;
-use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
-use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery;
-use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
+use Maatify\Eligibility\Factory\Pdo\PdoEligibilityRuntimeFactory;
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -76,19 +71,10 @@ function connectWiringDatabaseOrSkip(): PDO
 
 $pdo = connectWiringDatabaseOrSkip();
 
-// Every adapter and the shared transaction runner receive this exact PDO instance.
-$commandRepository = new PdoRuleCommandRepository($pdo);
-$managementQuery = new PdoRuleManagementQuery($pdo);
-$activeRuleReader = new PdoActiveRuleReader($pdo);
-$transactionRunner = new PdoSavepointTransactionRunner($pdo);
-
-$management = new EligibilityManagementService(
-    $commandRepository,
-    $managementQuery,
-    $commandRepository,
-    $transactionRunner,
-);
-$evaluation = new EligibilityEvaluationService($activeRuleReader);
+// The Host owns this PDO and the factory builds both services over it.
+$factory = new PdoEligibilityRuntimeFactory($pdo);
+$management = $factory->createManagementService();
+$evaluation = $factory->createEvaluationService();
 
 echo sprintf(
     "PDO wiring ready: %s and %s share one PDO connection.\n",

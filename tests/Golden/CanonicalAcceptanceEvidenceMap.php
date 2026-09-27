@@ -7,6 +7,7 @@ namespace Maatify\Eligibility\Tests\Golden;
 use Maatify\Eligibility\Tests\Integration\EligibilityConcurrencyIntegrationTest;
 use Maatify\Eligibility\Tests\Integration\EligibilityRuntimeIntegrationTest;
 use Maatify\Eligibility\Tests\Integration\PdoRuleRepositoryIntegrationTest;
+use Maatify\Eligibility\Tests\Integration\PdoEligibilityRuntimeFactoryIntegrationTest;
 use Maatify\Eligibility\Tests\Unit\CanonicalStringTest;
 use Maatify\Eligibility\Tests\Unit\ContextTest;
 use Maatify\Eligibility\Tests\Unit\DecisionModelTest;
@@ -115,6 +116,11 @@ final class CanonicalAcceptanceEvidenceMap
                 self::evidence(PdoRuleRepositoryIntegrationTest::class, 'invalidPersistedEffectBytesAreClassifiedAsPersistedStateFailures', 'integration'),
                 self::evidence(PdoRuleRepositoryIntegrationTest::class, 'invalidPersistedCanonicalComponentIsClassifiedAsPersistedStateFailure', 'integration'),
                 self::evidence(PdoRuleRepositoryIntegrationTest::class, 'invalidPersistedLifecycleByteMakesLifecycleSummaryClassifyPersistedStateFailureRatherThanUndercount', 'integration'),
+            ]),
+            self::scenarioWithEvidence(60, 'The default public PDO construction path builds Management and Evaluation over the caller-owned PDO without exposing internal mutation-support wiring.', [
+                self::evidence(PublicContractTest::class, 'pdoRuntimeFactoryExposesOnlyTheLockedPublicConstructionContract', 'unit'),
+                self::evidence(PdoEligibilityRuntimeFactoryIntegrationTest::class, 'factoryBuildsTheDefaultManagementAndEvaluationWorkflow', 'integration'),
+                self::evidence(PdoEligibilityRuntimeFactoryIntegrationTest::class, 'factoryPreservesCallerOwnedOuterTransactionAndEvaluationVisibility', 'integration'),
             ]),
         ];
     }

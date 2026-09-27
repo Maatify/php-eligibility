@@ -93,11 +93,10 @@ The Host must:
 - Define stable Subject-type and dimension-key semantics and perform any
   domain-specific validation or normalization before the package boundary.
 - Decide which Context dimensions are required for each application flow.
-- Construct the package-owned PDO adapters and schema using a trusted database
-  configuration.
-- Use one PDO connection for `PdoRuleCommandRepository`,
-  `PdoRuleManagementQuery`, `PdoActiveRuleReader`, and
-  `PdoSavepointTransactionRunner`.
+- Create/configure the caller-owned PDO and apply the schema using a trusted
+  database configuration, then pass it to `PdoEligibilityRuntimeFactory`.
+- Use the factory's two service methods for the default Management and
+  Evaluation composition; all components use that same PDO connection.
 - Own the outer transaction when Eligibility mutation is composed with a larger
   Host operation.
 - Combine the Eligibility decision with the Host domain's own lifecycle and
@@ -121,7 +120,7 @@ Use the smallest public surface that matches the task:
 | Reactivate a Rule | [Deactivate a Rule](#deactivate-and-reactivate-a-rule) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Replace one complete dimension atomically | [Replace dimension Rules](#replace-dimension-rules) | [`replace-dimension-rules.php`](../../examples/replace-dimension-rules.php) |
 | Remove all Rules for one Subject | [Clean up a Subject](#clean-up-a-subject) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
-| Wire production PDO adapters | [Production PDO wiring](#production-pdo-wiring) | [`persistence-wiring.php`](../../examples/persistence-wiring.php) |
+| Construct the default PDO runtime | [Production PDO wiring](#production-pdo-wiring) | [`persistence-wiring.php`](../../examples/persistence-wiring.php) |
 | Participate in a Host-owned transaction | [Host-owned transactions](#host-owned-transactions) | [`replace-dimension-rules.php`](../../examples/replace-dimension-rules.php) |
 | Handle typed package failures | [Typed exceptions](#typed-exceptions) | [`exception-handling.php`](../../examples/exception-handling.php) |
 
@@ -508,27 +507,20 @@ presentation text in the Host.
 
 ## Production PDO wiring
 
-The RC1 persistence implementation is direct PDO. The
-`EligibilityManagementService` depends on
-`SavepointTransactionRunnerInterface`; production PDO composition constructs
-`PdoSavepointTransactionRunner` from the same PDO connection as the three
-Eligibility adapters, then wires their separate capabilities into the two
-services:
+The RC1 persistence implementation is direct PDO. The recommended production
+construction path accepts a Host-created PDO and uses the package factory:
 
 ```php
-$commandRepository = new PdoRuleCommandRepository($pdo);
-$managementQuery = new PdoRuleManagementQuery($pdo);
-$activeRuleReader = new PdoActiveRuleReader($pdo);
-$transactionRunner = new PdoSavepointTransactionRunner($pdo);
-
-$management = new EligibilityManagementService(
-    $commandRepository,
-    $managementQuery,
-    $commandRepository,
-    $transactionRunner,
-);
-$evaluation = new EligibilityEvaluationService($activeRuleReader);
+$factory = new PdoEligibilityRuntimeFactory($pdo);
+$management = $factory->createManagementService();
+$evaluation = $factory->createEvaluationService();
 ```
+
+`PdoEligibilityRuntimeFactory` does not create/configure PDO, apply schema, or
+own credentials. It returns the public service interfaces and preserves the
+same-PDO transaction boundary. Direct adapter/service construction remains an
+advanced extension path when a consumer genuinely needs explicit composition;
+ordinary consumers do not need to know `RuleMutationSupportInterface`.
 
 Apply `schema/eligibility_rules.sql` as an installation asset. It is safe to
 reapply with `CREATE TABLE IF NOT EXISTS`, but it is not an automatic migration
@@ -541,7 +533,7 @@ runnable construction-only example.
 
 `replaceDimensionRules()` and `cleanupSubject()` use the shared
 `SavepointTransactionRunnerInterface`. In production PDO composition, that
-interface is supplied by `PdoSavepointTransactionRunner`. When no outer
+interface is supplied internally by the factory as `PdoSavepointTransactionRunner`. When no outer
 transaction is active, the runner owns the complete operation transaction. When
 a Host transaction is already active on the same PDO connection, the runner
 creates an operation-local savepoint, releases it on success, and rolls back to
@@ -597,7 +589,7 @@ database-free typed validation example.
 | [`batch-evaluation.php`](../../examples/batch-evaluation.php) | Ordered `SubjectCollection` and `decideMany()`. |
 | [`management-lifecycle.php`](../../examples/management-lifecycle.php) | Create, inspect, criteria reads, active dimensions, effect, deactivate, and reactivate. |
 | [`replace-dimension-rules.php`](../../examples/replace-dimension-rules.php) | Atomic complete-dimension replacement and Host-owned transaction participation. |
-| [`persistence-wiring.php`](../../examples/persistence-wiring.php) | Same-PDO production adapter and service construction. |
+| [`persistence-wiring.php`](../../examples/persistence-wiring.php) | Caller-owned PDO → `PdoEligibilityRuntimeFactory` → Management / Evaluation service interfaces. |
 | [`exception-handling.php`](../../examples/exception-handling.php) | Typed package exception handling without a database. |
 
 Every example declares strict types, requires the production Composer autoload,

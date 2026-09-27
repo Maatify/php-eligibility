@@ -1166,16 +1166,27 @@ must not trim, normalize, coerce, or truncate input. Repository results are
 hydrated and then normalized by the existing package collections to canonical
 bytewise ordering.
 
+The default public direct-PDO construction class is
+`Maatify\Eligibility\Factory\Pdo\PdoEligibilityRuntimeFactory`. Its exact
+constructor is `__construct(PDO $pdo)`, and its only public service methods are
+`createManagementService(): EligibilityManagementServiceInterface` and
+`createEvaluationService(): EligibilityEvaluationServiceInterface`. The caller
+owns PDO creation/configuration, credentials, schema application, and any
+outer transaction; the factory owns no connection or container state and uses
+the same caller PDO for every component it creates.
+
 The concrete direct-PDO adapters are
 `Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository`,
 `Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery`, and
 `Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader`. They are
 constructed from the same PDO connection while keeping mutation, management
 query, evaluation-read, and internal mutation-support responsibilities
-separate. `PdoSavepointTransactionRunner` is also constructed from that same
-PDO connection and is wired as the service's transaction dependency. The
-command adapter implements only `RuleCommandRepositoryInterface` and
-`RuleMutationSupportInterface`.
+separate. The factory wires these components and
+`PdoSavepointTransactionRunner` into the two service graphs. Direct adapter and
+service construction remains available as an advanced explicit composition
+boundary. The command adapter implements `RuleCommandRepositoryInterface` and
+the package-internal `RuleMutationSupportInterface`; that internal contract is
+not part of ordinary consumer wiring.
 The command adapter's internal auto-increment `BIGINT UNSIGNED` primary key is infrastructure-only
 and is not part of `Rule`, `RuleIdentity`, `RuleReference`, Decisions, or B2
 public contracts. B3 converts only MySQL/MariaDB driver error code `1062` to
@@ -1256,7 +1267,7 @@ This workflow is normative at the responsibility and observable-behavior level. 
 1. The Host validates the external Subject and resolves its business Context. It constructs the canonical typed Subject and immutable Context using the exact string rules and Context shape defined in this reference. Host-owned semantic normalization, such as choosing an uppercase country code, occurs before the package boundary.
 2. The Host calls the public Eligibility API for one Subject or an ordered batch of Subjects. The public operation is conceptually `decide(Subject, Context)` or `decideMany(Subjects, Context)`; these labels describe the frozen capability and do not freeze concrete PHP names.
 3. The package-owned Domain Service orchestrates evaluation. It applies the canonical rule semantics, requests active Rules only through `ActiveRuleReaderInterface`, and uses bounded bulk loading for the batch path. It does not query or join Host-owned Subject, Product, Category, Payment, Shipping, Customer, or geography tables.
-4. The Integration Boundary consists of the package-owned command, management-query, evaluation-read, and internal mutation-support contracts backed by the direct-PDO RC1 adapters, plus the released Persistence transaction runner. The Host constructs `PdoRuleCommandRepository`, `PdoRuleManagementQuery`, `PdoActiveRuleReader`, and `PdoSavepointTransactionRunner` from the same PDO connection and wires each required capability explicitly to `EligibilityManagementService` or `EligibilityEvaluationService`. Together they preserve exact validated strings, active/inactive lifecycle state, natural-identity uniqueness, canonical ordering, transaction participation, and the concurrency guarantees above. Repository/interface substitution MUST NOT be used to introduce a non-PDO RC1 persistence implementation.
+4. The default Integration Boundary is caller-owned PDO → `PdoEligibilityRuntimeFactory` → `EligibilityManagementServiceInterface` and `EligibilityEvaluationServiceInterface`. The factory builds the package-owned command, management-query, evaluation-read, internal mutation-support, and released Persistence transaction-runner components from that same PDO. Together they preserve exact validated strings, active/inactive lifecycle state, natural-identity uniqueness, canonical ordering, transaction participation, and the concurrency guarantees above. Direct adapter/service construction remains an advanced explicit composition path; ordinary consumers do not wire `RuleMutationSupportInterface`. Repository/interface substitution MUST NOT be used to introduce a non-PDO RC1 persistence implementation.
 5. The Host receives a typed immutable `EligibilityDecision` (or an ordered collection of typed Subject Decisions for batch evaluation), including its machine-readable reason and complete dimension/matched-Rule traces. The Host then combines that Decision with its own domain lifecycle and visibility rules where applicable, for example `intrinsically visible AND eligible`; `eligible=true` MUST NOT be interpreted as Product, Category, Payment Method, Shipping Method, or other Host-domain publication/availability.
 
 Rule management follows the same boundary: the Host submits typed management commands/criteria through the public package contracts, the Domain Service coordinates the mutation or read, and the package-owned persistence boundary produces the typed management result or documented typed failure. Application/domain code MUST NOT require direct SQL access.
@@ -1272,7 +1283,8 @@ capabilities. B1 introduced the
 model and validation types; B2 introduced commands, interfaces, results, and
 semantic exceptions; B3 introduced the concrete direct-PDO persistence
 implementation and canonical-bound extensions; B4 introduced the concrete
-evaluator and application-service runtime.
+evaluator and application-service runtime; RC2-04B introduced the public
+default PDO runtime construction path.
 
 ### B1 model and validation types
 
@@ -1311,6 +1323,12 @@ evaluator and application-service runtime.
 - `RuleMutationSupportInterface` is a package-internal Eligibility-specific persistence contract. It owns only the coordination lock, complete Subject + dimension mutation read, and coordination cleanup required by atomic replacement and cleanup; it is not a Management Query or Evaluation Read contract.
 
 ### B4 concrete runtime services
+
+- `Maatify\Eligibility\Factory\Pdo\PdoEligibilityRuntimeFactory` is the
+  default framework-neutral construction surface. It accepts exactly one
+  caller-owned `PDO` and exposes only
+  `createManagementService(): EligibilityManagementServiceInterface` and
+  `createEvaluationService(): EligibilityEvaluationServiceInterface`.
 
 - `Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService` implements `EligibilityEvaluationServiceInterface` and depends only on `ActiveRuleReaderInterface`. It loads active Rules through one reader bulk call for a batch and delegates both single and batch calls to the shared pure `Maatify\Eligibility\Evaluation\Service\EligibilityRuleEvaluator`; `PdoActiveRuleReader` internally chunks large Subject collections at its configured bound, and the service preserves input order.
 - `Maatify\Eligibility\Management\Service\EligibilityManagementService` implements `EligibilityManagementServiceInterface`. It maps missing identity mutation results to `RuleNotFoundException` and coordinates create, inspect, lifecycle/effect, replacement, and cleanup behavior without SQL. Its dependencies are explicit: `RuleCommandRepositoryInterface` for command mutations, `RuleManagementQueryInterface` for management reads, `RuleMutationSupportInterface` for atomic replacement/cleanup support, and `Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface` for shared transaction/savepoint execution.
@@ -1441,6 +1459,7 @@ Before a persistence adapter or Release Candidate can be considered correct, exe
 57. paginated active-dimension discovery returns distinct active dimension keys in canonical ascending order across a page boundary, excludes inactive-only dimensions, and is Subject-isolated;
 58. an unsupported explicit Rule pagination sort request is rejected with `InvalidEligibilityInputException` rather than silently falling back to the canonical order;
 59. malformed persisted Rule state — invalid persisted effect bytes, an invalid persisted canonical component, or an unrecognized persisted lifecycle value that makes the Rule lifecycle summary's independent total inconsistent with its active/inactive counts — is classified as `InvalidPersistedRuleStateException` (preserving the original cause as `previous` where the classification wraps an `InvalidEligibilityInputException` or `ValueError`), while an unknown/external storage failure continues to propagate unchanged.
+60. the default public PDO construction path builds Management and Evaluation over the caller-owned PDO without exposing internal mutation-support wiring, and preserves transaction-local visibility on that same PDO.
 
 These scenarios are the minimum golden behavioral suite, not an exhaustive test list.
 
