@@ -20,6 +20,12 @@ use Throwable;
  */
 final class InvalidPersistedRuleStateException extends SystemMaatifyException implements EligibilityExceptionInterface
 {
+    /**
+     * Creates a package-classified malformed persisted-state failure.
+     *
+     * The supplied message describes the classified state, and any supplied
+     * underlying cause is preserved as the exception's previous cause.
+     */
     public function __construct(string $message, ?Throwable $previous = null)
     {
         parent::__construct($message, 0, $previous);

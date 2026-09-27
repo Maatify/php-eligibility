@@ -61,6 +61,10 @@ final readonly class ContextValueCollection implements Countable, IteratorAggreg
         return new ArrayIterator($this->items);
     }
 
+    /**
+     * Returns false only for a valid dimension value that is not a member;
+     * invalid input raises InvalidEligibilityInputException before comparison.
+     */
     public function contains(mixed $value): bool
     {
         $canonicalValue = CanonicalString::validateDimensionValue($value, 'contextValue');

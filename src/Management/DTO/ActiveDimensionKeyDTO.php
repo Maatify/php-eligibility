@@ -12,6 +12,10 @@ final readonly class ActiveDimensionKeyDTO implements JsonSerializable
 {
     public string $dimensionKey;
 
+    /**
+     * Validates the input against the canonical dimension-key contract;
+     * invalid input raises InvalidEligibilityInputException.
+     */
     public function __construct(mixed $dimensionKey)
     {
         $this->dimensionKey = CanonicalString::validateDimensionKey($dimensionKey);

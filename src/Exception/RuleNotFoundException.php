@@ -12,6 +12,13 @@ final class RuleNotFoundException extends ResourceNotFoundMaatifyException imple
 {
     private RuleIdentity $identity;
 
+    /**
+     * Creates a not-found failure for the supplied natural Rule identity.
+     *
+     * The semantic exception message is derived from that identity, which is
+     * retained for identity(), and any supplied underlying cause is preserved
+     * as the exception's previous cause.
+     */
     public function __construct(RuleIdentity $identity, ?\Throwable $previous = null)
     {
         $this->identity = $identity;
