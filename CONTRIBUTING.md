@@ -5,6 +5,10 @@ Pre-Stable `v1.0.0-rc.2` Release Candidate in the intended Stable `1.0` line.
 Its package identity is `maatify/php-eligibility`; Packagist is the intended
 distribution channel.
 
+The target source/release line is `v1.0.0-rc.2`. External RC2 publication is
+determined by the exact version tag and an approved Composer distribution
+source, not by this guide. No Published Stable release exists.
+
 ## Package identity and boundaries
 
 - Package: `maatify/php-eligibility`, repository

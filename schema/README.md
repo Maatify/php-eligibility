@@ -3,7 +3,7 @@
 This directory contains the RC2 executable schema for package-owned Rule
 persistence and Subject-specific coordination metadata.
 
-## Compatibility contract (D2)
+## Compatibility contract
 
 RC2 uses **MySQL-compatible database-server semantics through direct PDO**. The
 database compatibility contract is capability-based, not product-version-based:

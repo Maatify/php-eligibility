@@ -28,6 +28,9 @@ This guide describes the **Pre-Stable `v1.0.0-rc.2` Release Candidate**:
 - release: `v1.0.0-rc.2`
 - stability: Pre-Stable Release Candidate
 - intended distribution channel: [Packagist](https://packagist.org/packages/maatify/php-eligibility)
+- external RC2 publication: determined by the exact version tag and approved
+  Composer distribution source, not by this guide
+- Published Stable: none
 
 For local development, install dependencies with Composer before running the
 examples:
@@ -114,9 +117,9 @@ Use the smallest public surface that matches the task:
 | Evaluate several Subjects in deterministic input order | [Evaluate many Subjects](#evaluate-many-subjects) | [`batch-evaluation.php`](../../examples/batch-evaluation.php) |
 | Create a Rule | [Create a Rule](#create-a-rule) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Read one Rule | [Read one Rule](#read-one-rule) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
-| Read Rules by criteria | [Read Rules by criteria](#read-rules-by-criteria) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
+| Read Rules by criteria | [Read Rules by criteria](#read-rules-by-criteria-paginated) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Read Rule lifecycle summary | [Read the Rule lifecycle summary](#read-the-rule-lifecycle-summary) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
-| Find active dimension keys | [Find active dimension keys](#find-active-dimension-keys) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
+| Find active dimension keys | [Find active dimension keys](#find-active-dimension-keys-paginated) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Change a Rule effect | [Update a Rule effect](#update-a-rule-effect) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Deactivate a Rule | [Deactivate a Rule](#deactivate-and-reactivate-a-rule) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Reactivate a Rule | [Deactivate a Rule](#deactivate-and-reactivate-a-rule) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |

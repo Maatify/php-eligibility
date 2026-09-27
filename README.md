@@ -8,8 +8,15 @@
 [![Release state](https://img.shields.io/badge/Status-Release%20Candidate-orange)](#status)
 [![Version](https://img.shields.io/badge/Version-v1.0.0--rc.2-orange)](#status)
 [![PHP](https://img.shields.io/badge/PHP-%5E8.4-8892BF)](composer.json)
-[![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-success)](phpstan.neon)
 [![License](https://img.shields.io/badge/License-proprietary-lightgrey)](LICENSE)
+[![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-success)](phpstan.neon)
+
+**Registry and usage:**<br>
+[![Packagist](https://img.shields.io/badge/Packagist-package-blue)](https://packagist.org/packages/maatify/php-eligibility)
+[![Monthly Downloads](https://img.shields.io/packagist/dm/maatify/php-eligibility?label=Monthly%20Downloads)](https://packagist.org/packages/maatify/php-eligibility)
+[![Total Downloads](https://img.shields.io/packagist/dt/maatify/php-eligibility?label=Total%20Downloads)](https://packagist.org/packages/maatify/php-eligibility)
+[![Maatify Ecosystem](https://img.shields.io/badge/Maatify-Ecosystem-blueviolet)](https://github.com/Maatify)
+[![Install](https://img.shields.io/badge/Install-composer%20require%20maatify%2Fphp--eligibility-blue)](https://packagist.org/packages/maatify/php-eligibility)
 
 **Documentation:**<br>
 [![Changelog](https://img.shields.io/badge/Changelog-View-blue)](CHANGELOG.md)
@@ -19,13 +26,6 @@
 [![Schema](https://img.shields.io/badge/Schema-Read-blue)](schema/README.md)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-blue)](SECURITY.md)
 [![Contributing Guide](https://img.shields.io/badge/Contributing-Guide-blue)](CONTRIBUTING.md)
-
-**Ecosystem and usage:**<br>
-[![Packagist](https://img.shields.io/badge/Packagist-package-blue)](https://packagist.org/packages/maatify/php-eligibility)
-[![Monthly Downloads](https://img.shields.io/packagist/dm/maatify/php-eligibility?label=Monthly%20Downloads)](https://packagist.org/packages/maatify/php-eligibility)
-[![Total Downloads](https://img.shields.io/packagist/dt/maatify/php-eligibility?label=Total%20Downloads)](https://packagist.org/packages/maatify/php-eligibility)
-[![Maatify Ecosystem](https://img.shields.io/badge/Maatify-Ecosystem-blueviolet)](https://github.com/Maatify)
-[![Install](https://img.shields.io/badge/Install-composer%20require%20maatify%2Fphp--eligibility-blue)](https://packagist.org/packages/maatify/php-eligibility)
 
 Framework-neutral eligibility rules and typed decisions that answer one
 reusable business question about an external Subject in a supplied Context.
@@ -57,6 +57,11 @@ distribution channel: [package page](https://packagist.org/packages/maatify/php-
 ## Status
 
 - **Release state:** Pre-Stable `v1.0.0-rc.2` Release Candidate.
+- **Target source/release line:** `v1.0.0-rc.2`.
+- **External RC2 publication:** Not established by repository source; external
+  availability is determined by the exact `v1.0.0-rc.2` tag and an approved
+  Composer distribution source.
+- **Published Stable:** None.
 - **Package identity:** `maatify/php-eligibility`.
 - **Intended distribution channel:** [Packagist](https://packagist.org/packages/maatify/php-eligibility).
 - **Quality:** see [Quality Status](#quality-status).
@@ -110,12 +115,16 @@ executed MariaDB verification.
 
 ## Installation
 
-The release install command for the Pre-Stable `v1.0.0-rc.2` Release Candidate
+The exact install command for the Pre-Stable `v1.0.0-rc.2` Release Candidate
 is:
 
 ```bash
 composer require maatify/php-eligibility:1.0.0-rc.2@RC
 ```
+
+This command is externally resolvable when the exact version is published
+through the approved Composer distribution source; this document is not
+publication evidence.
 
 ### Development access
 
@@ -473,8 +482,7 @@ track it), and PHPUnit/PHPStan caches are not committed.
 
 This package is released under a **proprietary Maatify license**. See
 [LICENSE](LICENSE). The Pre-Stable `v1.0.0-rc.2` Release Candidate is prepared
-for its intended [Packagist distribution channel](https://packagist.org/packages/maatify/php-eligibility);
-external RC2 publication is not performed by this branch.
+for its intended [Packagist distribution channel](https://packagist.org/packages/maatify/php-eligibility).
 
 ## Author
 
