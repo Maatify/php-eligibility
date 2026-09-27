@@ -7,6 +7,7 @@ use Maatify\Eligibility\Management\ValueObject\DesiredRule;
 use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
+use Maatify\Eligibility\Exception\RuleConcurrencyConflictException;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
 use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
 use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery;
@@ -55,6 +56,7 @@ try {
         'create' => create($repository, $arguments),
         'hold-replace' => holdReplace($pdo, $repository, $transactionRunner, $arguments),
         'replace' => replace($pdo, $repository, $transactionRunner, $arguments),
+        'replace-lock-timeout' => replaceWithShortLockTimeout($pdo, $repository, $transactionRunner, $arguments),
         default => throw new InvalidArgumentException('Unknown concurrency worker mode.'),
     };
 } catch (Throwable $exception) {
@@ -145,6 +147,52 @@ function replace(
         replacementCommand($arguments),
     );
     writeLine('DONE');
+}
+
+/**
+ * Sets a short deterministic session lock-wait timeout, then attempts the
+ * public production replacement path against a Subject already locked by
+ * another connection so the real MySQL driver reports lock-wait-timeout
+ * (1205), proving the typed concurrency classification end to end.
+ *
+ * @param list<string> $arguments
+ */
+function replaceWithShortLockTimeout(
+    PDO $pdo,
+    PdoRuleCommandRepository $repository,
+    PdoSavepointTransactionRunner $transactionRunner,
+    array $arguments,
+): void {
+    $pdo->exec('SET SESSION innodb_lock_wait_timeout = 1');
+    writeLine('STARTED');
+    writeLine('ATTEMPTING_LOCK');
+    try {
+        (new EligibilityManagementService(
+            $repository,
+            new PdoRuleManagementQuery($pdo),
+            $repository,
+            $transactionRunner,
+        ))->replaceDimensionRules(
+            replacementCommand($arguments),
+        );
+        writeLine('RESULT:UNEXPECTED_SUCCESS');
+    } catch (RuleConcurrencyConflictException $exception) {
+        $previous = $exception->getPrevious();
+        $driverCodeLabel = 'NONE';
+        if ($previous instanceof PDOException) {
+            $errorInfo = $previous->errorInfo;
+            $driverCode = is_array($errorInfo) ? ($errorInfo[1] ?? null) : null;
+            if (is_int($driverCode) || is_string($driverCode)) {
+                $driverCodeLabel = (string) $driverCode;
+            }
+        }
+
+        writeLine(sprintf(
+            'RESULT:CONCURRENCY:%s:%s',
+            $previous !== null ? $previous::class : 'NONE',
+            $driverCodeLabel,
+        ));
+    }
 }
 
 /** @param list<string> $arguments */
