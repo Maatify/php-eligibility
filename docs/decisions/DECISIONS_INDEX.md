@@ -30,7 +30,7 @@ This repository currently holds three durable engineering decision records.
 The registry is intentionally maintained as the discovery surface required by
 `DECISION_GOVERNANCE_STANDARD_AR.md`.
 
-`docs/decisions/` contains this index and the active record below. Runtime code paths that contain the word `Decision`
+`docs/decisions/` contains this index and the active records below. Runtime code paths that contain the word `Decision`
 (for example `src/Evaluation/ValueObject/`) are package runtime artifacts governed by
 `ELIGIBILITY_PACKAGE_REFERENCE.md`; they are not governance decision records and are
 deliberately not indexed here.

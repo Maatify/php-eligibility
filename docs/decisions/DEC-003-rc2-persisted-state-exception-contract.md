@@ -7,7 +7,7 @@
 | Decision ID | `DEC-003` |
 | Title | RC2 Persisted-State Exception Contract |
 | Status | `ACTIVE` |
-| Scope / Concern | php-eligibility RC2 package-defined exception hierarchy/marker ownership, and classification of malformed persisted Rule state detected while hydrating a persisted row |
+| Scope / Concern | php-eligibility RC2 package-defined exception hierarchy/marker ownership, and classification of package-owned malformed persisted Rule state during Rule hydration or lifecycle-summary reads |
 | Owner approval context | Owner-approved RC2 architecture and scope for WU-RC2-04A — Management / Admin Integration & Operational Read Closure |
 | Canonical Contract / Current Owner | `ELIGIBILITY_PACKAGE_REFERENCE.md` for the full package exception contract; this record for the continuing-effect persisted-state classification and propagation-boundary decisions below |
 
@@ -41,18 +41,19 @@ It uses `ErrorCodeEnum::MAATIFY_ERROR`, the System category, HTTP `500`, and
 constructor preserves an optional `?Throwable $previous` without inventing a
 competing exception hierarchy.
 
-`PdoRuleHydrationTrait` classifies the following conditions as
+The package classifies the following conditions as
 `InvalidPersistedRuleStateException` instead of a native
 `UnexpectedValueException`/`ValueError`:
 
-- a non-array row shape;
-- non-string column keys;
-- a missing required persisted column;
-- a non-string required persisted column;
-- a persisted canonical Subject/dimension component invalid under
-  Eligibility's own invariants;
-- a persisted `effect` value not represented by `RuleEffectEnum`;
-- a persisted `lifecycle` value not represented by `RuleLifecycleEnum`.
+- **Rule hydration corruption:** a non-array row shape; non-string column
+  keys; a missing or non-string required persisted column; a persisted
+  canonical Subject/dimension component invalid under Eligibility's own
+  invariants; or a persisted `effect`/`lifecycle` value not represented by
+  `RuleEffectEnum`/`RuleLifecycleEnum`.
+- **Lifecycle-summary persisted inconsistency:** an independent persisted
+  total differs from active plus inactive counts because a persisted
+  lifecycle value is unrecognized. The lifecycle summary uses the same
+  `InvalidPersistedRuleStateException` classification.
 
 When the classification is caused by an existing
 `InvalidEligibilityInputException` or a `\ValueError` raised while validating
@@ -79,13 +80,14 @@ original condition preserved as `previous` where applicable.
 
 ## Semantic Boundary
 
-This decision changes only the classification of malformed persisted Rule
-state detected during hydration, and does not change Rule natural-identity,
-lifecycle, matching, ordering, replacement, cleanup, transaction, or
-concurrency semantics, and does not change the database schema. It does not
-alter the existing duplicate-key classification (`RuleIdentityConflictException`,
-proven MySQL/MariaDB driver code `1062` only) or the existing propagation
-behavior for unknown storage failures (Canonical Acceptance Scenario 48).
+This decision changes only the classification of package-owned malformed
+persisted Rule state during Rule hydration and lifecycle-summary reads, and
+does not change Rule natural-identity, lifecycle, matching, ordering,
+replacement, cleanup, transaction, or concurrency semantics, and does not
+change the database schema. It does not alter the existing duplicate-key
+classification (`RuleIdentityConflictException`, proven MySQL/MariaDB driver
+code `1062` only) or the existing propagation behavior for unknown storage
+failures (Canonical Acceptance Scenario 48).
 
 ## Non-Goals
 
@@ -99,9 +101,11 @@ behavior for unknown storage failures (Canonical Acceptance Scenario 48).
 
 ## Consequences
 
-- Malformed persisted Rule state is now a typed, documented Eligibility
-  failure (`InvalidPersistedRuleStateException`) instead of a native PHP
-  exception leaking out of the persistence boundary.
+- Package-owned malformed persisted Rule state is a typed, documented
+  Eligibility failure (`InvalidPersistedRuleStateException`) instead of a
+  native PHP exception leaking out of the persistence boundary, whether the
+  corruption is found while hydrating a Rule or while validating a
+  lifecycle-summary aggregate.
 - Consumers catching `EligibilityExceptionInterface` now also observe this
   classification; consumers relying on the previous native
   `UnexpectedValueException`/`ValueError` type from hydration must update

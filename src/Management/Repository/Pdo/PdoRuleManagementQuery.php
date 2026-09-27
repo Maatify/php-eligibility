@@ -208,8 +208,8 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
 
         $row = $rows[0] ?? [];
         $totalCount = $this->exactNonNegativeIntegerColumn($row, 'total_count');
-        $active = $this->exactNonNegativeIntegerColumn($row, 'active_count');
-        $inactive = $this->exactNonNegativeIntegerColumn($row, 'inactive_count');
+        $active = $this->exactNonNegativeIntegerColumn($row, 'active_count', true);
+        $inactive = $this->exactNonNegativeIntegerColumn($row, 'inactive_count', true);
 
         if ($totalCount !== $active + $inactive) {
             throw new InvalidPersistedRuleStateException(sprintf(
@@ -228,19 +228,33 @@ final class PdoRuleManagementQuery implements RuleManagementQueryInterface
     /**
      * Reads one required aggregate column and accepts only a value that is
      * exactly representable as a non-negative PHP integer: a native
-     * non-negative int, a digit-only decimal string within the `PHP_INT_MAX`
-     * range, or `null` (an empty `SUM` for the current scope), which reads
-     * as `0`. A negative int, a non-digit string, a decimal/scientific/signed
-     * representation, or a digit string above `PHP_INT_MAX` is rejected
-     * rather than silently coerced or saturated by an `(int)` cast.
+     * non-negative int or a digit-only decimal string within the
+     * `PHP_INT_MAX` range. Explicit `null` is accepted only for the SUM
+     * aggregates, where an empty scope reads as `0`; a missing column is
+     * always malformed persisted state. A negative int, a non-digit string,
+     * a decimal/scientific/signed representation, or a digit string above
+     * `PHP_INT_MAX` is rejected rather than silently coerced or saturated by
+     * an `(int)` cast.
      *
      * @param array<string, mixed> $row
      */
-    private function exactNonNegativeIntegerColumn(array $row, string $column): int
+    private function exactNonNegativeIntegerColumn(array $row, string $column, bool $allowNull = false): int
     {
-        $value = $row[$column] ?? null;
+        if (! array_key_exists($column, $row)) {
+            throw new InvalidPersistedRuleStateException(
+                sprintf('Required aggregate column `%s` is missing.', $column),
+            );
+        }
+
+        $value = $row[$column];
         if ($value === null) {
-            return 0;
+            if ($allowNull) {
+                return 0;
+            }
+
+            throw new InvalidPersistedRuleStateException(
+                sprintf('Aggregate column `%s` must not be NULL.', $column),
+            );
         }
 
         if (is_int($value)) {

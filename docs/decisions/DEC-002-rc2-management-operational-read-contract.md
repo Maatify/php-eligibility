@@ -118,7 +118,11 @@ the Subject. There is no pagination, lifecycle filter, effect filter, time
 window, or Host dimension on this criteria. The invariant
 `totalRules === activeRules + inactiveRules` holds, all counts `>= 0`. The PDO
 implementation computes the aggregate in the database; it MUST NOT load all
-Rules into PHP to calculate it. An empty scope returns exactly `0`/`0`/`0`.
+Rules into PHP to calculate it. It reads an independent persisted total for
+the same scope and requires that total to equal `activeRules + inactiveRules`.
+When the mismatch is caused by an unrecognized persisted lifecycle state, the
+summary raises `InvalidPersistedRuleStateException` rather than returning an
+undercounted summary. An empty scope returns exactly `0`/`0`/`0`.
 
 ## Compatibility Boundary
 

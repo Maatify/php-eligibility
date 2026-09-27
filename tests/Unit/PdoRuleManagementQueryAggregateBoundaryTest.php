@@ -21,9 +21,25 @@ use ReflectionMethod;
 final class PdoRuleManagementQueryAggregateBoundaryTest extends TestCase
 {
     #[Test]
-    public function acceptsNullAsAnEmptySum(): void
+    public function acceptsExplicitNullAsAnEmptySumWhenAllowed(): void
     {
-        self::assertSame(0, $this->readColumn(['count' => null]));
+        self::assertSame(0, $this->readColumn(['count' => null], true));
+    }
+
+    #[Test]
+    public function rejectsMissingAggregateColumn(): void
+    {
+        $this->expectException(InvalidPersistedRuleStateException::class);
+
+        $this->readColumn([]);
+    }
+
+    #[Test]
+    public function rejectsExplicitNullWhenTheAggregateDisallowsIt(): void
+    {
+        $this->expectException(InvalidPersistedRuleStateException::class);
+
+        $this->readColumn(['count' => null]);
     }
 
     #[Test]
@@ -76,13 +92,13 @@ final class PdoRuleManagementQueryAggregateBoundaryTest extends TestCase
     }
 
     /** @param array<string, mixed> $row */
-    private function readColumn(array $row): int
+    private function readColumn(array $row, bool $allowNull = false): int
     {
         $query = (new ReflectionClass(PdoRuleManagementQuery::class))->newInstanceWithoutConstructor();
         $method = new ReflectionMethod(PdoRuleManagementQuery::class, 'exactNonNegativeIntegerColumn');
 
         /** @var int $result */
-        $result = $method->invoke($query, $row, 'count');
+        $result = $method->invoke($query, $row, 'count', $allowNull);
 
         return $result;
     }

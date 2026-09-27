@@ -888,10 +888,13 @@ RC1 error semantics MUST distinguish at least:
 - natural-identity conflict on create;
 - requested Rule not found for commands that require an existing Rule;
 - concurrency/uniqueness conflict that could not be resolved safely;
-- malformed persisted Rule state detected while hydrating a persisted row (an
-  invalid persisted canonical component, or a persisted `effect`/`lifecycle`
-  value not represented by its enum), distinct from an unknown/external
-  storage failure, which continues to propagate unchanged.
+- malformed persisted Rule state, including malformed Rule hydration state
+  (an invalid persisted canonical component, or a persisted `effect`/`lifecycle`
+  value not represented by its enum) and a package-owned lifecycle-summary
+  inconsistency where the independent persisted total differs from the active
+  plus inactive counts because a persisted lifecycle value is unrecognized;
+  these are distinct from an unknown/external storage failure, which continues
+  to propagate unchanged.
 
 The exception ownership contract required by the adopted package standards is:
 
@@ -1192,7 +1195,7 @@ The final RC1 schema and adapter MUST preserve these principles:
 - individual create persists new Rules active;
 - explicit typed ALLOW/DENY storage;
 - management storage reads preserve and expose lifecycle state;
-- bounded management reads;
+- paginated Management reads using the approved shared pagination contract;
 - bulk Rule loading for supplied Subject sets;
 - canonical package-defined ordering for returned Rule and Decision collections;
 - concurrency-safe mutation behavior where uniqueness/lifecycle invariants require it;
@@ -1318,7 +1321,7 @@ evaluator and application-service runtime.
 - `RuleNotFoundException` extends the shared `ResourceNotFoundMaatifyException` hierarchy and identifies the requested `RuleIdentity`.
 - `RuleIdentityConflictException` extends the shared `GenericConflictMaatifyException` hierarchy and identifies a conflicting natural identity.
 - `RuleConcurrencyConflictException` extends the shared `GenericConflictMaatifyException` hierarchy for an unresolved Rule uniqueness/concurrency condition.
-- `InvalidPersistedRuleStateException` extends the shared `SystemMaatifyException` hierarchy (System category, HTTP 500, unsafe, `ErrorCodeEnum::MAATIFY_ERROR`). It signals that a persisted Rule row could not be classified under Eligibility's own invariants: a non-array row shape, non-string column keys, a missing or non-string required persisted column, an invalid persisted canonical Subject/dimension component, or a persisted `effect`/`lifecycle` value not represented by `RuleEffectEnum`/`RuleLifecycleEnum`. It preserves the original `InvalidEligibilityInputException` or `ValueError` as `previous` where the conversion is caused by one of those.
+- `InvalidPersistedRuleStateException` extends the shared `SystemMaatifyException` hierarchy (System category, HTTP 500, unsafe, `ErrorCodeEnum::MAATIFY_ERROR`). It signals package-owned malformed persisted Rule state: Rule hydration corruption such as a non-array row shape, non-string column keys, a missing or non-string required persisted column, an invalid persisted canonical Subject/dimension component, or a persisted `effect`/`lifecycle` value not represented by `RuleEffectEnum`/`RuleLifecycleEnum`; and lifecycle-summary persisted inconsistency where an independent total differs from active plus inactive because a persisted lifecycle value is unrecognized. It preserves the original `InvalidEligibilityInputException` or `ValueError` as `previous` where the conversion is caused by one of those.
 
 All four semantic exceptions implement `EligibilityExceptionInterface`. B3
 classifies only proven MySQL/MariaDB duplicate-key driver code `1062` at the
