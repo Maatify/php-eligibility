@@ -6,6 +6,7 @@ use Maatify\Eligibility\Management\Command\CreateRuleCommand;
 use Maatify\Eligibility\Management\ValueObject\DesiredRule;
 use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
+use Maatify\Eligibility\Factory\Pdo\PdoEligibilityRuntimeFactory;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
 use Maatify\Eligibility\Exception\RuleConcurrencyConflictException;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
@@ -57,7 +58,7 @@ try {
         'hold-replace' => holdReplace($pdo, $repository, $transactionRunner, $arguments),
         'replace' => replace($pdo, $repository, $transactionRunner, $arguments),
         'replace-lock-timeout' => replaceWithShortLockTimeout($pdo, $repository, $transactionRunner, $arguments),
-        'cross-lock-deadlock' => crossLockDeadlock($pdo, $repository, $arguments),
+        'cross-lock-deadlock' => crossLockDeadlock($pdo, $arguments),
         default => throw new InvalidArgumentException('Unknown concurrency worker mode.'),
     };
 } catch (Throwable $exception) {
@@ -197,17 +198,24 @@ function replaceWithShortLockTimeout(
 }
 
 /**
- * Opens an outer PDO transaction and locks its own Subject first through the
- * real package repository mutation path, then attempts to lock the other
- * worker's Subject. When both workers are pointed at each other's Subject,
- * this forms a genuine MySQL circular lock wait: the deadlock detector kills
+ * Opens an outer PDO transaction owned by the worker/Host, then routes both
+ * lock acquisitions through the default public Management construction and
+ * service boundary (PdoEligibilityRuntimeFactory::createManagementService()
+ * -> EligibilityManagementServiceInterface::replaceDimensionRules()) instead
+ * of the internal RuleMutationSupportInterface directly. An empty desired
+ * Rule set means the public replacement still acquires the package-owned
+ * Subject coordination lock for its own Subject without creating any Rule
+ * row, and the coordination lock remains held because the outer transaction
+ * stays open. When both workers are pointed at each other's Subject, this
+ * forms a genuine MySQL circular lock wait: the deadlock detector kills
  * exactly one transaction with driver error 1213, which the production
- * repository classifies into the typed concurrency exception, while the
- * other worker's attempt succeeds and commits both coordination locks.
+ * repository classifies into the typed concurrency exception through that
+ * same public call, while the other worker's attempt succeeds and commits
+ * both coordination locks.
  *
  * @param list<string> $arguments
  */
-function crossLockDeadlock(PDO $pdo, PdoRuleCommandRepository $repository, array $arguments): void
+function crossLockDeadlock(PDO $pdo, array $arguments): void
 {
     if (count($arguments) !== 5) {
         throw new InvalidArgumentException('Cross-lock deadlock worker arguments are invalid.');
@@ -215,15 +223,26 @@ function crossLockDeadlock(PDO $pdo, PdoRuleCommandRepository $repository, array
 
     $own = new Subject($arguments[1], $arguments[2]);
     $other = new Subject($arguments[3], $arguments[4]);
+    $dimensionKey = 'country';
+
+    $management = (new PdoEligibilityRuntimeFactory($pdo))->createManagementService();
 
     $pdo->beginTransaction();
     try {
-        $repository->lockSubjectForMutation($own);
+        $management->replaceDimensionRules(new ReplaceDimensionRulesCommand(
+            $own,
+            $dimensionKey,
+            new DesiredRuleCollection(),
+        ));
         writeLine('LOCKED');
         awaitSignal();
 
         try {
-            $repository->lockSubjectForMutation($other);
+            $management->replaceDimensionRules(new ReplaceDimensionRulesCommand(
+                $other,
+                $dimensionKey,
+                new DesiredRuleCollection(),
+            ));
             writeLine('RESULT:SUCCESS');
             $pdo->commit();
             writeLine('DONE');
