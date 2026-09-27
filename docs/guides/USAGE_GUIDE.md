@@ -120,7 +120,7 @@ Use the smallest public surface that matches the task:
 | Reactivate a Rule | [Deactivate a Rule](#deactivate-and-reactivate-a-rule) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Replace one complete dimension atomically | [Replace dimension Rules](#replace-dimension-rules) | [`replace-dimension-rules.php`](../../examples/replace-dimension-rules.php) |
 | Remove all Rules for one Subject | [Clean up a Subject](#clean-up-a-subject) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
-| Wire production PDO adapters | [Production PDO wiring](#production-pdo-wiring) | [`persistence-wiring.php`](../../examples/persistence-wiring.php) |
+| Construct the default PDO runtime | [Production PDO wiring](#production-pdo-wiring) | [`persistence-wiring.php`](../../examples/persistence-wiring.php) |
 | Participate in a Host-owned transaction | [Host-owned transactions](#host-owned-transactions) | [`replace-dimension-rules.php`](../../examples/replace-dimension-rules.php) |
 | Handle typed package failures | [Typed exceptions](#typed-exceptions) | [`exception-handling.php`](../../examples/exception-handling.php) |
 
@@ -589,7 +589,7 @@ database-free typed validation example.
 | [`batch-evaluation.php`](../../examples/batch-evaluation.php) | Ordered `SubjectCollection` and `decideMany()`. |
 | [`management-lifecycle.php`](../../examples/management-lifecycle.php) | Create, inspect, criteria reads, active dimensions, effect, deactivate, and reactivate. |
 | [`replace-dimension-rules.php`](../../examples/replace-dimension-rules.php) | Atomic complete-dimension replacement and Host-owned transaction participation. |
-| [`persistence-wiring.php`](../../examples/persistence-wiring.php) | Same-PDO production adapter and service construction. |
+| [`persistence-wiring.php`](../../examples/persistence-wiring.php) | Caller-owned PDO → `PdoEligibilityRuntimeFactory` → Management / Evaluation service interfaces. |
 | [`exception-handling.php`](../../examples/exception-handling.php) | Typed package exception handling without a database. |
 
 Every example declares strict types, requires the production Composer autoload,

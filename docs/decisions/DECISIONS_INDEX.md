@@ -25,7 +25,7 @@ Active Decisions: 4
 Pending Owner Decisions: 0
 ```
 
-This repository currently holds three durable engineering decision records.
+This repository currently holds four durable engineering decision records.
 
 The registry is intentionally maintained as the discovery surface required by
 `DECISION_GOVERNANCE_STANDARD_AR.md`.

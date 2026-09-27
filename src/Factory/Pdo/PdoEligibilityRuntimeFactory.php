@@ -16,12 +16,21 @@ use PDO;
 
 /**
  * Provides the package-wide default direct-PDO construction path for both
- * Eligibility capabilities over a caller-owned connection.
+ * Eligibility capabilities over a caller-owned PDO.
+ *
+ * The factory uses that same PDO for every component it builds. The caller
+ * creates and configures the PDO, owns its credentials, applies the schema,
+ * and owns any Host outer transaction. This factory does not create or
+ * configure PDO, own credentials, apply schema, or depend on a framework or
+ * container. Its service methods return the public Evaluation and Management
+ * service interfaces.
  */
 final readonly class PdoEligibilityRuntimeFactory
 {
     /**
-     * Keeps the caller-owned PDO as the sole connection used by each graph.
+     * Keeps the caller-owned PDO as the sole connection used by each graph;
+     * connection, credential, schema, framework, container, and outer
+     * transaction ownership remains with the caller/Host.
      */
     public function __construct(private PDO $pdo) {}
 
