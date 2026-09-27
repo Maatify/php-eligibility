@@ -22,14 +22,16 @@ defines the meaning of Subject types and Context dimensions, wires the package's
 PDO adapters, manages the package-owned schema, and maps the typed result to its
 own API or UI behavior.
 
-This guide describes the **Pre-Stable `v1.0.0-rc.2` Release Candidate**:
+This guide describes the **target Pre-Stable `v1.0.0-rc.2` source/release
+line**:
 
 - package: `maatify/php-eligibility`
-- release: `v1.0.0-rc.2`
-- stability: Pre-Stable Release Candidate
+- target release: `v1.0.0-rc.2`
+- stability: Pre-Stable source/release line
 - intended distribution channel: [Packagist](https://packagist.org/packages/maatify/php-eligibility)
-- external RC2 publication: determined by the exact version tag and approved
-  Composer distribution source, not by this guide
+- Published state: repository source alone does not establish it; exact
+  external availability is determined by the exact version tag through the
+  approved Composer distribution source
 - Published Stable: none
 
 For local development, install dependencies with Composer before running the
@@ -86,7 +88,8 @@ connection for every Eligibility adapter and the shared transaction runner.
 - It does not provide controllers, HTTP responses, UI messages, translations,
   framework bindings, ORM integration, or a query builder.
 - It does not infer behavior between different Subjects or dimensions.
-- It is a Pre-Stable Release Candidate and does not define a Stable release line.
+- It targets a Pre-Stable source/release line and does not define a Stable
+  release line.
 
 ## Host responsibilities
 

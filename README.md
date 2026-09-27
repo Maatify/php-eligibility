@@ -49,18 +49,19 @@ The package knows external identities only. It does not know the database
 model, lifecycle, or implementation of the domains that own those identities.
 
 The canonical public/runtime/behavioral contract and complete Public Runtime API
-inventory for the **Pre-Stable `v1.0.0-rc.2` Release Candidate** are in
+inventory for the **target Pre-Stable `v1.0.0-rc.2` source/release line** are in
 [ELIGIBILITY_PACKAGE_REFERENCE.md](ELIGIBILITY_PACKAGE_REFERENCE.md).
 The package identity is `maatify/php-eligibility`; Packagist is its intended
 distribution channel: [package page](https://packagist.org/packages/maatify/php-eligibility).
 
 ## Status
 
-- **Release state:** Pre-Stable `v1.0.0-rc.2` Release Candidate.
-- **Target source/release line:** `v1.0.0-rc.2`.
-- **External RC2 publication:** Not established by repository source; external
-  availability is determined by the exact `v1.0.0-rc.2` tag and an approved
-  Composer distribution source.
+- **Target pre-release / source-release line:** `v1.0.0-rc.2`.
+- **Release state:** This repository currently targets the Pre-Stable
+  `v1.0.0-rc.2` source/release line, in the intended Stable `1.0` line.
+- **Publication boundary:** Repository source alone does not establish
+  Published state; exact external availability is determined by the exact
+  `v1.0.0-rc.2` tag through the approved Composer distribution source.
 - **Published Stable:** None.
 - **Package identity:** `maatify/php-eligibility`.
 - **Intended distribution channel:** [Packagist](https://packagist.org/packages/maatify/php-eligibility).
@@ -115,8 +116,8 @@ executed MariaDB verification.
 
 ## Installation
 
-The exact install command for the Pre-Stable `v1.0.0-rc.2` Release Candidate
-is:
+The exact Composer command for the target Pre-Stable `v1.0.0-rc.2`
+source/release line is:
 
 ```bash
 composer require maatify/php-eligibility:1.0.0-rc.2@RC
@@ -130,7 +131,7 @@ publication evidence.
 
 For development access only, use a local checkout of the current `main` branch
 through a Composer path repository. This development path is separate from the
-`v1.0.0-rc.2` Release Candidate. From your consumer project:
+target Pre-Stable `v1.0.0-rc.2` source/release line. From your consumer project:
 
 ```bash
 git clone https://github.com/Maatify/php-eligibility.git .tools/php-eligibility
@@ -482,8 +483,8 @@ track it), and PHPUnit/PHPStan caches are not committed.
 ## License
 
 This package is released under a **proprietary Maatify license**. See
-[LICENSE](LICENSE). The Pre-Stable `v1.0.0-rc.2` Release Candidate is prepared
-for its intended [Packagist distribution channel](https://packagist.org/packages/maatify/php-eligibility).
+[LICENSE](LICENSE). The target Pre-Stable `v1.0.0-rc.2` source/release line is
+prepared for its intended [Packagist distribution channel](https://packagist.org/packages/maatify/php-eligibility).
 
 ## Author
 
