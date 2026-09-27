@@ -6,7 +6,7 @@
 
 **Package status:**<br>
 [![Release state](https://img.shields.io/badge/Status-Release%20Candidate-orange)](#status)
-[![Version](https://img.shields.io/badge/Version-v1.0.0--rc.2-orange)](#status)
+[![Version](https://img.shields.io/packagist/v/maatify/php-eligibility?include_prereleases&label=Version&color=orange)](https://packagist.org/packages/maatify/php-eligibility)
 [![PHP](https://img.shields.io/badge/PHP-%5E8.4-8892BF)](composer.json)
 [![License](https://img.shields.io/badge/License-proprietary-lightgrey)](LICENSE)
 [![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-success)](phpstan.neon)
@@ -16,7 +16,7 @@
 [![Monthly Downloads](https://img.shields.io/packagist/dm/maatify/php-eligibility?label=Monthly%20Downloads)](https://packagist.org/packages/maatify/php-eligibility)
 [![Total Downloads](https://img.shields.io/packagist/dt/maatify/php-eligibility?label=Total%20Downloads)](https://packagist.org/packages/maatify/php-eligibility)
 [![Maatify Ecosystem](https://img.shields.io/badge/Maatify-Ecosystem-blueviolet)](https://github.com/Maatify)
-[![Install](https://img.shields.io/badge/Install-composer%20require%20maatify%2Fphp--eligibility-blue)](https://packagist.org/packages/maatify/php-eligibility)
+[![Install](https://img.shields.io/packagist/v/maatify/php-eligibility?include_prereleases&label=Install&color=blue)](https://packagist.org/packages/maatify/php-eligibility)
 
 **Documentation:**<br>
 [![Changelog](https://img.shields.io/badge/Changelog-View-blue)](CHANGELOG.md)
