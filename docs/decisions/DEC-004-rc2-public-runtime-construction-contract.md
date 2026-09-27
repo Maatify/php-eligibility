@@ -1,8 +1,15 @@
 # DEC-004 — RC2 Public Runtime Construction Contract
 
-## Status
+## Decision Metadata
 
-`ACTIVE`
+| Field | Value |
+|---|---|
+| Decision ID | `DEC-004` |
+| Title | RC2 Public Runtime Construction Contract |
+| Status | `ACTIVE` |
+| Scope / Concern | php-eligibility RC2 default PDO construction surface, service-interface returns, caller-owned PDO boundary, and explicit exclusion of locator/container behavior |
+| Decision Authority / Deciders | Project Owner — approved RC2 public runtime construction direction for WU-RC2-04B — Public Runtime Construction & Wiring Closure |
+| Canonical Contract / Current Owner | `ELIGIBILITY_PACKAGE_REFERENCE.md` for the full package runtime contract; this record for the default PDO construction and ownership boundary |
 
 ## Context
 
@@ -11,7 +18,7 @@ PDO. The default consumer path must not require an ordinary consumer to know
 the package-internal mutation-support contract or manually assemble the PDO
 adapters and savepoint runner.
 
-## Decisions
+## Decision
 
 1. The default package-owned PDO construction surface is
    `PdoEligibilityRuntimeFactory`.
@@ -35,6 +42,16 @@ adapters and savepoint runner.
     advanced explicit composition path.
 12. This construction path introduces no business, schema, or runtime
     semantic change.
+
+## Rationale
+
+One package-owned factory over the caller's existing PDO gives ordinary
+consumers a complete default wiring path while preserving Host ownership of
+connection configuration, schema application, and outer transactions. The
+existing Evaluation and Management service interfaces already define capability
+access, so adding a Builder, Facade, runtime aggregate, factory interface, or
+Service Locator would introduce abstractions without a corresponding runtime
+substitution or configuration requirement.
 
 ## Consequences
 

@@ -8,8 +8,18 @@
 | Title | RC2 Management Operational-Read Contract |
 | Status | `ACTIVE` |
 | Scope / Concern | php-eligibility RC2 Management/Admin operational-read boundary: Host/Admin vs. Eligibility ownership, paginated Rule management reads, paginated active-dimension discovery, and the Rule lifecycle summary |
-| Owner approval context | Owner-approved RC2 architecture and scope for WU-RC2-04A — Management / Admin Integration & Operational Read Closure |
+| Decision Authority / Deciders | Project Owner — approved RC2 architecture and scope for WU-RC2-04A — Management / Admin Integration & Operational Read Closure |
 | Canonical Contract / Current Owner | `ELIGIBILITY_PACKAGE_REFERENCE.md` for the full package behavior; this record for the continuing-effect Host/Admin boundary and pagination/summary contract decisions below |
+
+## Context
+
+Eligibility owns persisted Rule and lifecycle state, so Host/Admin integrations
+need a stable package API for operational reads instead of direct SQL against
+package tables. The previous bounded Rule read contract capped results at 500,
+while active-dimension discovery had no proven small hard bound. RC2 therefore
+needed an operational-read contract that remains complete for larger persisted
+states without creating a Host-specific Admin capability or a package-local
+pagination subsystem.
 
 ## Decision
 
@@ -123,6 +133,16 @@ the same scope and requires that total to equal `activeRules + inactiveRules`.
 When the mismatch is caused by an unrecognized persisted lifecycle state, the
 summary raises `InvalidPersistedRuleStateException` rather than returning an
 undercounted summary. An empty scope returns exactly `0`/`0`/`0`.
+
+## Rationale
+
+Keeping operational reads inside the existing Management capability preserves
+the Evaluation/Management boundary established by `DEC-001` and prevents Host
+authentication, UI, search, naming, or dataset concerns from entering the
+package. Reusing the stable `maatify/persistence ^1.4` paginator gives complete,
+bounded, deterministic reads without duplicating shared pagination mechanics.
+The lifecycle summary is limited to stable package-owned counts that are useful
+to a Host and can be computed directly from persisted Eligibility state.
 
 ## Compatibility Boundary
 
