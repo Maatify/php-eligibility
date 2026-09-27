@@ -5,7 +5,8 @@
 ![Maatify.dev](https://www.maatify.dev/assets/img/img/maatify_logo_white.svg)
 
 **Package status:**<br>
-[![Release state](https://img.shields.io/badge/Status-Pre--Stable%20Release%20Candidate-orange)](#status)
+[![Release state](https://img.shields.io/badge/Status-Release%20Candidate-orange)](#status)
+[![Version](https://img.shields.io/badge/Version-v1.0.0--rc.2-orange)](#status)
 [![PHP](https://img.shields.io/badge/PHP-%5E8.4-8892BF)](composer.json)
 [![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-success)](phpstan.neon)
 [![License](https://img.shields.io/badge/License-proprietary-lightgrey)](LICENSE)
@@ -20,7 +21,7 @@
 [![Contributing Guide](https://img.shields.io/badge/Contributing-Guide-blue)](CONTRIBUTING.md)
 
 **Ecosystem and usage:**<br>
-[![Latest Version](https://img.shields.io/packagist/v/maatify/php-eligibility.svg?label=Latest%20Version)](https://packagist.org/packages/maatify/php-eligibility)
+[![Packagist](https://img.shields.io/badge/Packagist-package-blue)](https://packagist.org/packages/maatify/php-eligibility)
 [![Monthly Downloads](https://img.shields.io/packagist/dm/maatify/php-eligibility?label=Monthly%20Downloads)](https://packagist.org/packages/maatify/php-eligibility)
 [![Total Downloads](https://img.shields.io/packagist/dt/maatify/php-eligibility?label=Total%20Downloads)](https://packagist.org/packages/maatify/php-eligibility)
 [![Maatify Ecosystem](https://img.shields.io/badge/Maatify-Ecosystem-blueviolet)](https://github.com/Maatify)
@@ -47,16 +48,17 @@ Host Input -> Public API -> Domain Service -> Integration Boundary -> Observable
 The package knows external identities only. It does not know the database
 model, lifecycle, or implementation of the domains that own those identities.
 
-The canonical behavioral contract for the **Pre-Stable `v1.0.0-rc.1` Release
-Candidate** is [ELIGIBILITY_PACKAGE_REFERENCE.md](ELIGIBILITY_PACKAGE_REFERENCE.md).
-The package identity is `maatify/php-eligibility` and its distribution is
-available through [Packagist](https://packagist.org/packages/maatify/php-eligibility).
+The canonical public/runtime/behavioral contract and complete Public Runtime API
+inventory for the **Pre-Stable `v1.0.0-rc.2` Release Candidate** are in
+[ELIGIBILITY_PACKAGE_REFERENCE.md](ELIGIBILITY_PACKAGE_REFERENCE.md).
+The package identity is `maatify/php-eligibility`; Packagist is its intended
+distribution channel: [package page](https://packagist.org/packages/maatify/php-eligibility).
 
 ## Status
 
-- **Release state:** Pre-Stable `v1.0.0-rc.1` Release Candidate.
+- **Release state:** Pre-Stable `v1.0.0-rc.2` Release Candidate.
 - **Package identity:** `maatify/php-eligibility`.
-- **Distribution:** [Packagist](https://packagist.org/packages/maatify/php-eligibility).
+- **Intended distribution channel:** [Packagist](https://packagist.org/packages/maatify/php-eligibility).
 - **Quality:** see [Quality Status](#quality-status).
 
 ## Key Features
@@ -108,18 +110,18 @@ executed MariaDB verification.
 
 ## Installation
 
-Install the Pre-Stable `v1.0.0-rc.1` Release Candidate from
-[Packagist](https://packagist.org/packages/maatify/php-eligibility):
+The release install command for the Pre-Stable `v1.0.0-rc.2` Release Candidate
+is:
 
 ```bash
-composer require maatify/php-eligibility:1.0.0-rc.1
+composer require maatify/php-eligibility:1.0.0-rc.2@RC
 ```
 
 ### Development access
 
 For development access only, use a local checkout of the current `main` branch
 through a Composer path repository. This development path is separate from the
-`v1.0.0-rc.1` Release Candidate. From your consumer project:
+`v1.0.0-rc.2` Release Candidate. From your consumer project:
 
 ```bash
 git clone https://github.com/Maatify/php-eligibility.git .tools/php-eligibility
@@ -370,7 +372,7 @@ installing or trying the package.
 | [Usage Guide](docs/guides/USAGE_GUIDE.md) | Consumer-facing API guide, capability decision map, input/output types, transaction notes, and links to runnable examples. |
 | [Runnable Examples](examples/) | Standalone public-API examples for evaluation, batch evaluation, management, replacement, PDO wiring, and typed exception handling. |
 | [Schema](schema/README.md) | Persistence contract, tables, bounds, applying/reapplying, and the local MySQL fixture. |
-| [CHANGELOG](CHANGELOG.md) | RC1 change history under `[1.0.0-rc.1]`. |
+| [CHANGELOG](CHANGELOG.md) | RC2 release delta and historical release history. |
 | [Security Policy](SECURITY.md) | Support state, vulnerability reporting, and scope. |
 | [Contributing Guide](CONTRIBUTING.md) | Contribution expectations, local verification, and PR requirements. |
 | [Code of Conduct](CODE_OF_CONDUCT.md) | Community rules and reporting. |
@@ -470,8 +472,9 @@ track it), and PHPUnit/PHPStan caches are not committed.
 ## License
 
 This package is released under a **proprietary Maatify license**. See
-[LICENSE](LICENSE). The Pre-Stable `v1.0.0-rc.1` Release Candidate is
-distributed through [Packagist](https://packagist.org/packages/maatify/php-eligibility).
+[LICENSE](LICENSE). The Pre-Stable `v1.0.0-rc.2` Release Candidate is prepared
+for its intended [Packagist distribution channel](https://packagist.org/packages/maatify/php-eligibility);
+external RC2 publication is not performed by this branch.
 
 ## Author
 

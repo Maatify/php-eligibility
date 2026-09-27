@@ -1,9 +1,9 @@
 # Contributing Guide
 
 Thank you for contributing to `maatify/php-eligibility`. This package is the
-Pre-Stable `v1.0.0-rc.1` Release Candidate in the intended Stable `1.0` line.
-Its package identity is `maatify/php-eligibility` and its distribution is
-available through Packagist.
+Pre-Stable `v1.0.0-rc.2` Release Candidate in the intended Stable `1.0` line.
+Its package identity is `maatify/php-eligibility`; Packagist is the intended
+distribution channel.
 
 ## Package identity and boundaries
 
@@ -24,7 +24,7 @@ available through Packagist.
 - Code changes: open a pull request; see expectations below.
 - Documentation/presentation improvements: PRs are welcome, but they must not
   change runtime contracts and must stay accurate to the actual state
-  (including the current Pre-Stable Release Candidate state).
+  (including the current Pre-Stable RC2 Release Candidate state).
 - Vulnerability reports: use the private route documented in
   [SECURITY.md](SECURITY.md), never a public issue.
 
@@ -91,7 +91,7 @@ own disposable Compose state.
   Consumer Verification Harness require the Docker fixture above and must pass
   before a PR can be green.
 - New behavior that changes evaluation or lifecycle semantics should extend the
-  52-scenario Golden evidence map rather than introduce isolated examples that
+  canonical Golden acceptance evidence map rather than introduce isolated examples that
   contradict it.
 - Concurrency changes need the real-MySQL concurrency coverage to stay intact
   and deterministic.
