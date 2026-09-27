@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Support;
 
-use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\ValueObject\Subject;
 use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
 use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
-use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
-use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
-use Maatify\Eligibility\Rule\Rule;
-use Maatify\Eligibility\Rule\RuleCollection;
+use Maatify\Eligibility\Management\Repository\RuleCommandRepositoryInterface;
+use Maatify\Eligibility\Management\Repository\RuleMutationSupportInterface;
+use Maatify\Eligibility\ValueObject\Rule;
+use Maatify\Eligibility\ValueObject\RuleCollection;
 
 /**
  * Real-boundary decorator used only to inject deterministic post-write faults.
@@ -25,11 +25,10 @@ final class FaultingRuleMutationRepository implements RuleCommandRepositoryInter
     private bool $cleanupFailed = false;
 
     public function __construct(
-        private readonly RuleCommandRepositoryInterface & RuleMutationSupportInterface $repository,
+        private readonly RuleCommandRepositoryInterface&RuleMutationSupportInterface $repository,
         private readonly \Throwable $failure,
         private readonly ?\Throwable $cleanupFailure = null,
-    ) {
-    }
+    ) {}
 
     public function create(CreateRuleCommand $command): Rule
     {

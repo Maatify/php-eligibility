@@ -8,4 +8,4 @@ Before planning, implementing, or reviewing work in this repository, read:
 
 For ordinary engineering work, apply only the final `Resolved Applicable Standards Set` recorded in the manifest. Do not contact upstream or copy additional standards during an ordinary task. Adoption, upgrade, and manifest-validation work must use the exact upstream commit recorded in the manifest and must fail closed when that pinned input is unavailable.
 
-The root `ELIGIBILITY_PACKAGE_REFERENCE.md` is the canonical RC1 contract. Do not change its business semantics without an explicit, reviewable documentation decision. No additional path-specific `AGENTS.md` files currently apply.
+The root `ELIGIBILITY_PACKAGE_REFERENCE.md` is the canonical RC2 public/runtime/behavioral contract and complete Public Runtime API inventory. Do not change its business semantics without an explicit, reviewable documentation decision. No additional path-specific `AGENTS.md` files currently apply.

@@ -15,10 +15,10 @@ final class CanonicalAcceptanceScenariosTest extends TestCase
     public function allCanonicalScenariosHaveExecutableEvidence(): void
     {
         $scenarios = CanonicalAcceptanceEvidenceMap::scenarios();
-        $ids = array_map(static fn (array $scenario): int => $scenario['id'], $scenarios);
+        $ids = array_map(static fn(array $scenario): int => $scenario['id'], $scenarios);
 
-        self::assertSame(range(1, 52), $ids);
-        self::assertCount(52, $scenarios);
+        self::assertSame(range(1, 60), $ids);
+        self::assertCount(60, $scenarios);
 
         foreach ($scenarios as $scenario) {
             self::assertNotSame('', $scenario['behavior']);

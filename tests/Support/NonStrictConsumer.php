@@ -3,11 +3,11 @@
 namespace Maatify\Eligibility\Tests\Support;
 
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
-use Maatify\Eligibility\Management\Query\RuleCriteria;
-use Maatify\Eligibility\Common\Ordering\CanonicalOrdering;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Evaluation\Value\ContextValueCollection;
-use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Management\Criteria\RuleCriteria;
+use Maatify\Eligibility\Common\CanonicalOrdering;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\Evaluation\ValueObject\ContextValueCollection;
+use Maatify\Eligibility\ValueObject\Subject;
 
 final class NonStrictConsumer
 {
@@ -32,8 +32,7 @@ final class NonStrictConsumer
     public static function ruleCriteria(
         Subject $subject,
         mixed $dimensionKey,
-        mixed $maxResults,
     ): RuleCriteria {
-        return new RuleCriteria($subject, $dimensionKey, null, $maxResults);
+        return new RuleCriteria($subject, $dimensionKey);
     }
 }

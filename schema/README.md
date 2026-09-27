@@ -1,11 +1,11 @@
 # Eligibility schema
 
-This directory contains the RC1 executable schema for package-owned Rule
+This directory contains the RC2 executable schema for package-owned Rule
 persistence and Subject-specific coordination metadata.
 
-## Compatibility contract (D2)
+## Compatibility contract
 
-RC1 uses **MySQL-compatible database-server semantics through direct PDO**. The
+RC2 uses **MySQL-compatible database-server semantics through direct PDO**. The
 database compatibility contract is capability-based, not product-version-based:
 no minimum MySQL version and no minimum MariaDB version is declared. A compatible
 database server must provide transactional InnoDB-style package-owned table
@@ -48,7 +48,7 @@ not a package minimum version.
   product version.
 
 Canonical strings are bounded in **bytes**, not characters, by the production
-source of truth `Maatify\Eligibility\Common\Validation\CanonicalString` and
+source of truth `Maatify\Eligibility\Common\CanonicalString` and
 validated there before SQL:
 
 | Field | Maximum | SQL type |
@@ -82,29 +82,26 @@ The SQL asset is safe to reapply because it uses `CREATE TABLE IF NOT EXISTS`.
 It does not drop, replace, or truncate an existing valid table. It is an asset,
 not a migration framework and is not run automatically during Composer install.
 
-For local Integration tests, start the dedicated test-only MySQL service:
+For local Integration tests, use the repository-owned lifecycle:
 
 ```bash
-docker compose -f docker-compose.integration.yml up -d --wait
 composer test:integration
 ```
 
-The fixture binds host port `13306` to loopback only (`127.0.0.1:13306`), and
-uses database `maatify_eligibility_test`, user `eligibility_test`, and password
+The orchestrator binds a fresh dynamic host port to loopback only and discovers
+it at runtime. It uses database `maatify_eligibility_test`, user `eligibility_test`, and password
 `eligibility_test`; these credentials are test-only and must not be reused for
-production. The test environment can be overridden with `ELIGIBILITY_TEST_DB_HOST`,
-`ELIGIBILITY_TEST_DB_PORT`, `ELIGIBILITY_TEST_DB_NAME`,
-`ELIGIBILITY_TEST_DB_USER`, and `ELIGIBILITY_TEST_DB_PASSWORD`.
+production. `ELIGIBILITY_TEST_DB_*` are verification-scoped environment values
+exported by the canonical repository orchestrator. Raw PHPUnit execution is an
+internal path and requires explicit verification environment values; the public
+`composer test:integration` lifecycle does not use an externally overridden
+fixed service.
 
 The Integration suite applies the schema, clears package-owned Rule and
 coordination rows, and verifies fresh application, safe reapplication with
-valid data, lifecycle visibility, exact identity, bounded management reads,
+valid data, lifecycle visibility, exact identity, paginated Management reads,
 bulk active reads, cleanup of both package-owned tables, and repeatable setup.
 It fails when the required real MySQL service or `ext-pdo_mysql` is unavailable;
 it has no SQLite or mock fallback. Run the suite again after the first clean run
-to prove repeatability. Stopping the fixture afterward is explicit local
-cleanup:
-
-```bash
-docker compose -f docker-compose.integration.yml down
-```
+to prove repeatability; every invocation tears down its own disposable Compose
+state.

@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Unit;
 
-use Maatify\Eligibility\Evaluation\Engine\EligibilityRuleEvaluator;
+use Maatify\Eligibility\Evaluation\Service\EligibilityRuleEvaluator;
 use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
-use Maatify\Eligibility\Evaluation\Decision\DimensionReasonEnum;
-use Maatify\Eligibility\Rule\Rule;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Eligibility\Evaluation\Enum\DecisionReasonEnum;
+use Maatify\Eligibility\Evaluation\Enum\DimensionReasonEnum;
+use Maatify\Eligibility\ValueObject\Rule;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\InMemoryRuleRepository;
-use Maatify\Eligibility\Evaluation\Value\Context;
-use Maatify\Eligibility\Evaluation\Value\ContextDimension;
-use Maatify\Eligibility\Common\Value\Subject;
-use Maatify\Eligibility\Common\Value\SubjectCollection;
+use Maatify\Eligibility\Evaluation\ValueObject\Context;
+use Maatify\Eligibility\Evaluation\ValueObject\ContextDimension;
+use Maatify\Eligibility\ValueObject\Subject;
+use Maatify\Eligibility\ValueObject\SubjectCollection;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -50,7 +50,7 @@ final class RuntimeEvaluationServiceTest extends TestCase
         self::assertTrue($decision->eligible);
         self::assertSame(DimensionReasonEnum::PASSED_ALLOW_LIST, $outcome->reasonCode);
         self::assertSame(['EG', 'SA'], array_map(
-            static fn ($reference): string => $reference->dimensionValue,
+            static fn($reference): string => $reference->dimensionValue,
             $outcome->matchedRules->items(),
         ));
     }
@@ -67,7 +67,7 @@ final class RuntimeEvaluationServiceTest extends TestCase
         self::assertTrue($decision->eligible);
         self::assertSame(DimensionReasonEnum::PASSED_ALLOW_LIST, $outcome->reasonCode);
         self::assertSame(['EG'], array_map(
-            static fn ($reference): string => $reference->dimensionValue,
+            static fn($reference): string => $reference->dimensionValue,
             $outcome->matchedRules->items(),
         ));
     }
@@ -127,7 +127,7 @@ final class RuntimeEvaluationServiceTest extends TestCase
         self::assertFalse($decision->eligible);
         self::assertSame(DimensionReasonEnum::DENIED_BY_RULE, $outcome->reasonCode);
         self::assertSame(['EG'], array_map(
-            static fn ($reference): string => $reference->dimensionValue,
+            static fn($reference): string => $reference->dimensionValue,
             $outcome->matchedRules->items(),
         ));
     }
@@ -145,7 +145,7 @@ final class RuntimeEvaluationServiceTest extends TestCase
         self::assertFalse($decision->eligible);
         self::assertSame(DimensionReasonEnum::DENIED_BY_RULE, $outcome->reasonCode);
         self::assertSame(['EG', 'SA'], array_map(
-            static fn ($reference): string => $reference->dimensionValue,
+            static fn($reference): string => $reference->dimensionValue,
             $outcome->matchedRules->items(),
         ));
     }
@@ -167,7 +167,7 @@ final class RuntimeEvaluationServiceTest extends TestCase
 
         self::assertFalse($decision->eligible);
         self::assertSame(['country', 'customer_type', 'segment'], array_map(
-            static fn ($outcome): string => $outcome->dimensionKey,
+            static fn($outcome): string => $outcome->dimensionKey,
             $outcomes,
         ));
         self::assertSame(DimensionReasonEnum::ALLOW_LIST_UNSATISFIED, $outcomes[0]->reasonCode);
@@ -208,7 +208,7 @@ final class RuntimeEvaluationServiceTest extends TestCase
 
         self::assertSame(1, $repository->bulkReadCount);
         self::assertSame([$second, $first, $third], array_map(
-            static fn ($result) => $result->subject,
+            static fn($result) => $result->subject,
             $batch->items(),
         ));
         $singleRepository = new InMemoryRuleRepository();
@@ -238,11 +238,11 @@ final class RuntimeEvaluationServiceTest extends TestCase
     {
         self::assertTrue((new \ReflectionClass(EligibilityRuleEvaluator::class))->isFinal());
         self::assertTrue((new \ReflectionClass(EligibilityEvaluationService::class))->implementsInterface(
-            \Maatify\Eligibility\Evaluation\Contract\EligibilityEvaluationServiceInterface::class,
+            \Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationServiceInterface::class,
         ));
     }
 
-    private function evaluate(\Maatify\Eligibility\Evaluation\Value\Context $context, Rule ...$rules): \Maatify\Eligibility\Evaluation\Decision\EligibilityDecision
+    private function evaluate(\Maatify\Eligibility\Evaluation\ValueObject\Context $context, Rule ...$rules): \Maatify\Eligibility\Evaluation\ValueObject\EligibilityDecision
     {
         $repository = new InMemoryRuleRepository();
         $repository->seed(...$rules);

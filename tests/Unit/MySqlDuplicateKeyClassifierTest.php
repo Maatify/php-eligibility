@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Unit;
 
-use Maatify\Eligibility\Rule\Repository\MySqlDuplicateKeyClassifier;
+use Maatify\Eligibility\Management\Repository\Pdo\MySqlDuplicateKeyClassifier;
 use PDOException;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;

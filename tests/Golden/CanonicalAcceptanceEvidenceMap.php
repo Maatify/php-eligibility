@@ -7,6 +7,7 @@ namespace Maatify\Eligibility\Tests\Golden;
 use Maatify\Eligibility\Tests\Integration\EligibilityConcurrencyIntegrationTest;
 use Maatify\Eligibility\Tests\Integration\EligibilityRuntimeIntegrationTest;
 use Maatify\Eligibility\Tests\Integration\PdoRuleRepositoryIntegrationTest;
+use Maatify\Eligibility\Tests\Integration\PdoEligibilityRuntimeFactoryIntegrationTest;
 use Maatify\Eligibility\Tests\Unit\CanonicalStringTest;
 use Maatify\Eligibility\Tests\Unit\ContextTest;
 use Maatify\Eligibility\Tests\Unit\DecisionModelTest;
@@ -95,6 +96,31 @@ final class CanonicalAcceptanceEvidenceMap
             self::scenarioWithEvidence(52, 'Concurrent replacements preserve complete-dimension atomicity.', [
                 self::evidence(EligibilityConcurrencyIntegrationTest::class, 'concurrentReplacementOnInitiallyEmptyDimensionSerializesWholeState', 'concurrency'),
                 self::evidence(EligibilityConcurrencyIntegrationTest::class, 'concurrentReplacementOnExistingDimensionDoesNotMixDesiredSets', 'concurrency'),
+            ]),
+            self::scenario(53, 'Paginated Rule management reads prove complete, duplicate-free identity coverage above 500 Rules across pages.', EligibilityRuntimeIntegrationTest::class, 'replacementUsesCompleteUnboundedDimensionStateAndIsIdempotent', 'integration'),
+            self::scenario(54, 'Rule pagination supports default and explicit page/per-page requests, with per-page normalization delegated to the shared paginator.', PdoRuleRepositoryIntegrationTest::class, 'paginatedManagementReadsSupportDefaultsExplicitPagesAndPerPageNormalization', 'integration'),
+            self::scenario(55, 'Rule Criteria effect filtering narrows Management reads independently of and combined with lifecycle filtering.', PdoRuleRepositoryIntegrationTest::class, 'criteriaReturnsBothLifecyclesWithFiltersAndCanonicalOrdering', 'integration'),
+            self::scenarioWithEvidence(56, 'Rule lifecycle summary reports internally consistent active/inactive counts for a Subject and an optional dimension scope, including the 500+ Rule state.', [
+                self::evidence(PdoRuleRepositoryIntegrationTest::class, 'lifecycleSummaryProvesRealPersistenceAggregatesAndSubjectIsolation', 'integration'),
+                self::evidence(EligibilityRuntimeIntegrationTest::class, 'replacementUsesCompleteUnboundedDimensionStateAndIsIdempotent', 'integration'),
+            ]),
+            self::scenario(57, 'Paginated active-dimension discovery returns distinct active dimension keys in canonical order across a page boundary, excluding inactive-only dimensions.', PdoRuleRepositoryIntegrationTest::class, 'activeDimensionKeysPaginateAcrossAPageBoundaryAndAreSubjectIsolated', 'integration'),
+            self::scenarioWithEvidence(58, 'An unsupported explicit Rule pagination sort request is rejected as typed Eligibility input at both the Service and the public Repository boundary, rather than silently falling back; dimension_value is never accepted as a public primary sort.', [
+                self::evidence(RuntimeManagementServiceTest::class, 'inspectRulesRejectsUnsupportedExplicitSortRequests', 'unit'),
+                self::evidence(RuntimeManagementServiceTest::class, 'inspectRulesRejectsDimensionKeySortWithoutExplicitAscDirection', 'unit'),
+                self::evidence(PdoRuleRepositoryIntegrationTest::class, 'findByCriteriaRejectsNonCanonicalSortRequestsAtTheRepositoryBoundary', 'integration'),
+                self::evidence(PdoRuleRepositoryIntegrationTest::class, 'findActiveDimensionKeysRejectsNonCanonicalSortRequestsAtTheRepositoryBoundary', 'integration'),
+                self::evidence(PdoRuleRepositoryIntegrationTest::class, 'canonicalOrderingRemainsDeterministicWhenDimensionValuesRepeatAcrossDimensions', 'integration'),
+            ]),
+            self::scenarioWithEvidence(59, 'Malformed persisted Rule state (invalid effect bytes, an invalid canonical component, or an inconsistent independent lifecycle total) is classified as a typed persisted-state exception that preserves the original cause where applicable, rather than being silently undercounted.', [
+                self::evidence(PdoRuleRepositoryIntegrationTest::class, 'invalidPersistedEffectBytesAreClassifiedAsPersistedStateFailures', 'integration'),
+                self::evidence(PdoRuleRepositoryIntegrationTest::class, 'invalidPersistedCanonicalComponentIsClassifiedAsPersistedStateFailure', 'integration'),
+                self::evidence(PdoRuleRepositoryIntegrationTest::class, 'invalidPersistedLifecycleByteMakesLifecycleSummaryClassifyPersistedStateFailureRatherThanUndercount', 'integration'),
+            ]),
+            self::scenarioWithEvidence(60, 'The default public PDO construction path builds Management and Evaluation over the caller-owned PDO without exposing internal mutation-support wiring.', [
+                self::evidence(PublicContractTest::class, 'pdoRuntimeFactoryExposesOnlyTheLockedPublicConstructionContract', 'unit'),
+                self::evidence(PdoEligibilityRuntimeFactoryIntegrationTest::class, 'factoryBuildsTheDefaultManagementAndEvaluationWorkflow', 'integration'),
+                self::evidence(PdoEligibilityRuntimeFactoryIntegrationTest::class, 'factoryPreservesCallerOwnedOuterTransactionAndEvaluationVisibility', 'integration'),
             ]),
         ];
     }

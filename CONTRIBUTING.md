@@ -1,9 +1,14 @@
 # Contributing Guide
 
-Thank you for contributing to `maatify/php-eligibility`. This package is the
-Pre-Stable `v1.0.0-rc.1` Release Candidate in the intended Stable `1.0` line.
-Its package identity is `maatify/php-eligibility` and its distribution is
-available through Packagist.
+Thank you for contributing to `maatify/php-eligibility`. This repository
+currently targets the Pre-Stable `v1.0.0-rc.2` source/release line in the
+intended Stable `1.0` line. Its package identity is `maatify/php-eligibility`;
+Packagist is the intended distribution channel.
+
+Repository source alone does not establish Published state; exact external
+availability is determined by the exact `v1.0.0-rc.2` version tag through the
+approved Composer distribution source, not by this guide. No Published Stable
+release exists.
 
 ## Package identity and boundaries
 
@@ -24,7 +29,7 @@ available through Packagist.
 - Code changes: open a pull request; see expectations below.
 - Documentation/presentation improvements: PRs are welcome, but they must not
   change runtime contracts and must stay accurate to the actual state
-  (including the current Pre-Stable Release Candidate state).
+  (including the current Pre-Stable `v1.0.0-rc.2` source/release-line state).
 - Vulnerability reports: use the private route documented in
   [SECURITY.md](SECURITY.md), never a public issue.
 
@@ -32,21 +37,58 @@ available through Packagist.
 
 Prerequisites: PHP `^8.4`, Composer, Docker for the real MySQL fixture.
 
+The repository development and verification workflow requires Composer `2.10.x`.
+This is a development-tooling policy only; it is not a package runtime or
+consumer install requirement.
+
 ```bash
-composer update --no-interaction --prefer-dist --no-progress
-composer check:local                 # non-service gates + Unit + Golden in one pass
-docker compose -f docker-compose.integration.yml up -d --wait
-composer check:local -- --with-integration   # adds real-MySQL Integration + Harness
-docker compose -f docker-compose.integration.yml down
+composer --version | grep -Eq '^Composer version 2\.10\.'
 ```
 
-`composer check:local` mirrors the required CI gates: Composer
-strict validation, optimized strict PSR-4 autoload, platform requirements,
-PHP syntax lint, PHPStan level max (no baseline, no suppressions), the
-whitespace gate, the Composer security audit, the workflow lint, the Unit
-suite, and the Golden suite. With `--with-integration` it adds the MySQL
-readiness check, the real-MySQL Integration suite run twice (repeatability),
-and the two-run Consumer Verification Harness.
+Resolve the latest-compatible dependencies before the local aggregate gate:
+
+```bash
+composer update --no-interaction --prefer-dist --no-progress
+composer check:local                 # local gates + Unit + Golden; no dependency matrix
+composer check:local -- --with-integration   # adds fresh Integration + Harness + examples lifecycles
+composer test:integration                      # focused Integration lifecycle
+composer test:harness                          # focused Consumer Harness lifecycle
+composer test:examples                          # focused example smoke lifecycle
+```
+
+The latest-compatible local sequence matching the authoritative `ci-quality`
+Composer contract is:
+
+```bash
+composer --version | grep -Eq '^Composer version 2\.10\.'
+composer validate --strict
+composer check:composer-policy
+composer update --no-interaction --prefer-dist --no-progress
+composer check-platform-reqs
+composer dump-autoload --optimize --strict-psr
+composer audit --no-interaction --abandoned=fail
+```
+
+The lowest-supported local sequence matching `ci-tests / lowest-deps` is:
+
+```bash
+composer update --prefer-lowest --prefer-stable --no-interaction --prefer-dist --no-progress
+composer check-platform-reqs
+composer test:unit
+composer test:golden
+composer analyse
+```
+
+Run the lowest-supported sequence separately because it rewrites `vendor/`.
+`composer check:local` requires Composer `2.10.x` and mirrors the local static,
+policy, Unit, and Golden gates: strict Composer validation, optimized strict
+PSR-4 autoload, platform requirements, PHP syntax lint, PHPStan level max (no
+baseline or suppressions), PER-CS 3.1, whitespace, fail-closed Composer audit,
+workflow lint, Unit, and Golden. It does not run either dependency-resolution
+matrix. With `--with-integration` it additionally runs the real-MySQL
+Integration suite twice, the two-run Consumer Verification Harness, and the
+standalone-example smoke gate. Each invocation provisions and tears down its
+own disposable Compose state.
 
 ## Test and Integration requirements
 
@@ -55,7 +97,7 @@ and the two-run Consumer Verification Harness.
   Consumer Verification Harness require the Docker fixture above and must pass
   before a PR can be green.
 - New behavior that changes evaluation or lifecycle semantics should extend the
-  52-scenario Golden evidence map rather than introduce isolated examples that
+  canonical Golden acceptance evidence map rather than introduce isolated examples that
   contradict it.
 - Concurrency changes need the real-MySQL concurrency coverage to stay intact
   and deterministic.

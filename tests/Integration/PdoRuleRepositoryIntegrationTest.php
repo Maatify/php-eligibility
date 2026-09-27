@@ -7,24 +7,31 @@ namespace Maatify\Eligibility\Tests\Integration;
 use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
 use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
-use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleLifecycleSummaryCriteria;
+use Maatify\Eligibility\Management\Service\EligibilityManagementService;
 use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
+use Maatify\Eligibility\Evaluation\Enum\DecisionReasonEnum;
+use Maatify\Eligibility\Exception\EligibilityExceptionInterface;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
+use Maatify\Eligibility\Exception\InvalidPersistedRuleStateException;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
-use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
-use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
-use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
-use Maatify\Eligibility\Rule\Rule;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Rule\RuleIdentity;
-use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader;
+use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
+use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery;
+use Maatify\Eligibility\ValueObject\Rule;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\ValueObject\RuleIdentity;
+use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
-use Maatify\Eligibility\Evaluation\Value\Context;
-use Maatify\Eligibility\Evaluation\Value\ContextDimension;
-use Maatify\Eligibility\Common\Value\Subject;
-use Maatify\Eligibility\Common\Value\SubjectCollection;
+use Maatify\Eligibility\Evaluation\ValueObject\Context;
+use Maatify\Eligibility\Evaluation\ValueObject\ContextDimension;
+use Maatify\Eligibility\ValueObject\Subject;
+use Maatify\Eligibility\ValueObject\SubjectCollection;
+use Maatify\Exceptions\Exception\MaatifyException;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use PDO;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -238,25 +245,43 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
             new RuleIdentity('product', '150', 'country', 'SA'),
         )));
 
-        $all = $this->managementQuery->findByCriteria(new RuleCriteria($subject));
-        self::assertCount(4, $all);
+        $all = $this->managementQuery->findByCriteria(new RuleCriteria($subject), new PageRequest());
+        self::assertCount(4, $all->data);
+        self::assertSame(4, $all->total);
+        self::assertSame(4, $all->filtered);
         self::assertSame(['country', 'country', 'customer_type', 'customer_type'], array_map(
-            static fn (Rule $rule): string => $rule->dimensionKey,
-            $all->items(),
+            static fn(Rule $rule): string => $rule->dimensionKey,
+            $all->data,
         ));
         self::assertSame(['EG', 'SA', 'retail', 'wholesale'], array_map(
-            static fn (Rule $rule): string => $rule->dimensionValue,
-            $all->items(),
+            static fn(Rule $rule): string => $rule->dimensionValue,
+            $all->data,
         ));
 
         self::assertCount(3, $this->managementQuery->findByCriteria(
             new RuleCriteria($subject, lifecycle: RuleLifecycleEnum::ACTIVE),
-        ));
+            new PageRequest(),
+        )->data);
         self::assertCount(1, $this->managementQuery->findByCriteria(
             new RuleCriteria($subject, lifecycle: RuleLifecycleEnum::INACTIVE),
-        ));
-        self::assertCount(2, $this->managementQuery->findByCriteria(new RuleCriteria($subject, 'country')));
-        self::assertCount(2, $this->managementQuery->findByCriteria(new RuleCriteria($subject, maxResults: 2)));
+            new PageRequest(),
+        )->data);
+        self::assertCount(2, $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject, 'country'),
+            new PageRequest(),
+        )->data);
+        self::assertCount(2, $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject, effect: RuleEffectEnum::DENY),
+            new PageRequest(),
+        )->data);
+        self::assertCount(1, $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject, lifecycle: RuleLifecycleEnum::ACTIVE, effect: RuleEffectEnum::DENY),
+            new PageRequest(),
+        )->data);
+        self::assertCount(2, $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject),
+            new PageRequest(perPage: 2),
+        )->data);
     }
 
     #[Test]
@@ -274,9 +299,59 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
             new RuleIdentity('product', '150', 'country', 'SA'),
         )));
 
-        $keys = $this->managementQuery->findActiveDimensionKeys(new ActiveDimensionKeysQuery($subject));
+        $keys = $this->managementQuery->findActiveDimensionKeys(new ActiveDimensionKeysCriteria($subject), new PageRequest());
 
-        self::assertSame(['country', 'customer_type'], $keys->items());
+        self::assertSame(['country', 'customer_type'], array_map(
+            static fn($dto): string => $dto->dimensionKey,
+            $keys->data,
+        ));
+        self::assertSame(2, $keys->total);
+        self::assertSame(2, $keys->filtered);
+    }
+
+    #[Test]
+    public function activeDimensionKeysPaginateAcrossAPageBoundaryAndAreSubjectIsolated(): void
+    {
+        $subject = new Subject('product', '150');
+        $otherSubject = new Subject('product', '151');
+        $expectedKeys = [];
+        for ($index = 0; $index < 25; $index++) {
+            $dimensionKey = sprintf('dimension_%02d', $index);
+            $expectedKeys[] = $dimensionKey;
+            $this->repository->create($this->command('product', '150', $dimensionKey, 'value'));
+        }
+        $this->repository->create($this->command('product', '150', 'inactive_only', 'value'));
+        self::assertTrue($this->repository->deactivate(new DeactivateRuleCommand(
+            new RuleIdentity('product', '150', 'inactive_only', 'value'),
+        )));
+        $this->repository->create($this->command('product', '151', 'other_subject_dimension', 'value'));
+        sort($expectedKeys, SORT_STRING);
+
+        $firstPage = $this->managementQuery->findActiveDimensionKeys(
+            new ActiveDimensionKeysCriteria($subject),
+            new PageRequest(page: 1, perPage: 20),
+        );
+        self::assertSame(25, $firstPage->total);
+        self::assertSame(25, $firstPage->filtered);
+        self::assertCount(20, $firstPage->data);
+        self::assertTrue($firstPage->hasNext);
+        self::assertFalse($firstPage->hasPrevious);
+
+        $secondPage = $this->managementQuery->findActiveDimensionKeys(
+            new ActiveDimensionKeysCriteria($subject),
+            new PageRequest(page: 2, perPage: 20),
+        );
+        self::assertCount(5, $secondPage->data);
+        self::assertFalse($secondPage->hasNext);
+        self::assertTrue($secondPage->hasPrevious);
+
+        $observedKeys = array_map(
+            static fn($dto): string => $dto->dimensionKey,
+            [...$firstPage->data, ...$secondPage->data],
+        );
+        self::assertSame(25, count($observedKeys));
+        self::assertSame(25, count(array_unique($observedKeys)));
+        self::assertSame($expectedKeys, $observedKeys);
     }
 
     #[Test]
@@ -297,11 +372,11 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         $active = $this->activeRuleReader->findActiveForSubjects(new SubjectCollection(...$subjects));
         self::assertCount(2, $active);
         self::assertSame(['category', 'product'], array_map(
-            static fn (Rule $rule): string => $rule->subject->subjectType,
+            static fn(Rule $rule): string => $rule->subject->subjectType,
             $active->items(),
         ));
         self::assertSame(['5', '2'], array_map(
-            static fn (Rule $rule): string => $rule->subject->subjectId,
+            static fn(Rule $rule): string => $rule->subject->subjectId,
             $active->items(),
         ));
 
@@ -339,9 +414,10 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
             self::assertSame($effect, $found->effect);
         }
 
-        self::assertCount(count($values), $this->managementQuery->findByCriteria(new RuleCriteria(
-            new Subject('product', '150'),
-        )));
+        self::assertCount(count($values), $this->managementQuery->findByCriteria(
+            new RuleCriteria(new Subject('product', '150')),
+            new PageRequest(),
+        )->data);
 
         $evaluation = new EligibilityEvaluationService($this->activeRuleReader);
         foreach ($values as $value => $effect) {
@@ -354,7 +430,7 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
                 $decision->reasonCode,
             );
             self::assertSame([$value], array_map(
-                static fn ($reference): string => $reference->dimensionValue,
+                static fn($reference): string => $reference->dimensionValue,
                 $decision->dimensionOutcomes->items()[0]->matchedRules->items(),
             ));
         }
@@ -373,34 +449,35 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         self::assertNotNull($found);
         self::assertSame(str_repeat('v', 255), $found->dimensionValue);
 
-        $this->assertInvalid(static fn (): CreateRuleCommand => new CreateRuleCommand(
+        $this->assertInvalid(static fn(): CreateRuleCommand => new CreateRuleCommand(
             new Subject(str_repeat('s', 65), 'id'),
             'key',
             'value',
             RuleEffectEnum::ALLOW,
         ));
-        $this->assertInvalid(static fn (): CreateRuleCommand => new CreateRuleCommand(
+        $this->assertInvalid(static fn(): CreateRuleCommand => new CreateRuleCommand(
             new Subject('type', str_repeat('i', 192)),
             'key',
             'value',
             RuleEffectEnum::ALLOW,
         ));
-        $this->assertInvalid(static fn (): CreateRuleCommand => new CreateRuleCommand(
+        $this->assertInvalid(static fn(): CreateRuleCommand => new CreateRuleCommand(
             new Subject('type', 'id'),
             str_repeat('k', 65),
             'value',
             RuleEffectEnum::ALLOW,
         ));
-        $this->assertInvalid(static fn (): CreateRuleCommand => new CreateRuleCommand(
+        $this->assertInvalid(static fn(): CreateRuleCommand => new CreateRuleCommand(
             new Subject('type', 'id'),
             'key',
             str_repeat('v', 256),
             RuleEffectEnum::ALLOW,
         ));
 
-        self::assertCount(1, $this->managementQuery->findByCriteria(new RuleCriteria(
-            new Subject(str_repeat('s', 64), str_repeat('i', 191)),
-        )));
+        self::assertCount(1, $this->managementQuery->findByCriteria(
+            new RuleCriteria(new Subject(str_repeat('s', 64), str_repeat('i', 191))),
+            new PageRequest(),
+        )->data);
     }
 
     #[Test]
@@ -478,8 +555,309 @@ final class PdoRuleRepositoryIntegrationTest extends TestCase
         $this->repository->cleanupSubject(new CleanupSubjectCommand($subject));
         $this->repository->cleanupSubject(new CleanupSubjectCommand($subject));
 
-        self::assertCount(0, $this->managementQuery->findByCriteria(new RuleCriteria($subject)));
-        self::assertCount(1, $this->managementQuery->findByCriteria(new RuleCriteria($otherSubject)));
+        self::assertCount(0, $this->managementQuery->findByCriteria(new RuleCriteria($subject), new PageRequest())->data);
+        self::assertCount(1, $this->managementQuery->findByCriteria(new RuleCriteria($otherSubject), new PageRequest())->data);
+    }
+
+    #[Test]
+    public function paginatedManagementReadsSupportDefaultsExplicitPagesAndPerPageNormalization(): void
+    {
+        $subject = new Subject('product', '150');
+
+        $emptyResult = $this->managementQuery->findByCriteria(new RuleCriteria($subject), new PageRequest());
+        self::assertSame(0, $emptyResult->total);
+        self::assertSame(0, $emptyResult->filtered);
+        self::assertSame([], $emptyResult->data);
+        self::assertFalse($emptyResult->hasNext);
+        self::assertFalse($emptyResult->hasPrevious);
+
+        $expectedValues = [];
+        for ($index = 0; $index < 25; $index++) {
+            $value = sprintf('v%02d', $index);
+            $expectedValues[] = $value;
+            $this->repository->create($this->command('product', '150', 'country', $value));
+        }
+        $this->repository->create($this->command('product', '151', 'country', 'other-subject-value'));
+
+        $defaultPage = $this->managementQuery->findByCriteria(new RuleCriteria($subject), new PageRequest());
+        self::assertSame(1, $defaultPage->page);
+        self::assertSame(20, $defaultPage->perPage);
+        self::assertSame(25, $defaultPage->total);
+        self::assertSame(25, $defaultPage->filtered);
+        self::assertCount(20, $defaultPage->data);
+        self::assertTrue($defaultPage->hasNext);
+        self::assertFalse($defaultPage->hasPrevious);
+        self::assertSame(array_slice($expectedValues, 0, 20), array_map(
+            static fn(Rule $rule): string => $rule->dimensionValue,
+            $defaultPage->data,
+        ));
+
+        $explicitPage = $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject),
+            new PageRequest(page: 2, perPage: 10),
+        );
+        self::assertSame(2, $explicitPage->page);
+        self::assertSame(10, $explicitPage->perPage);
+        self::assertTrue($explicitPage->hasNext);
+        self::assertTrue($explicitPage->hasPrevious);
+        self::assertSame(array_slice($expectedValues, 10, 10), array_map(
+            static fn(Rule $rule): string => $rule->dimensionValue,
+            $explicitPage->data,
+        ));
+
+        $lastPage = $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject),
+            new PageRequest(page: 3, perPage: 10),
+        );
+        self::assertFalse($lastPage->hasNext);
+        self::assertTrue($lastPage->hasPrevious);
+        self::assertCount(5, $lastPage->data);
+
+        $clamped = $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject),
+            new PageRequest(perPage: 9999),
+        );
+        self::assertSame(200, $clamped->perPage);
+
+        foreach ([$defaultPage, $explicitPage, $lastPage] as $page) {
+            foreach ($page->data as $rule) {
+                self::assertSame('150', $rule->subject->subjectId);
+            }
+        }
+    }
+
+    #[Test]
+    public function inspectRulesRejectsUnsupportedSortRequestsAgainstRealPersistence(): void
+    {
+        $service = new EligibilityManagementService(
+            $this->repository,
+            $this->managementQuery,
+            $this->repository,
+            new PdoSavepointTransactionRunner($this->pdo),
+        );
+        $subject = new Subject('product', '150');
+        $this->repository->create($this->command('product', '150', 'country', 'EG'));
+
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        $service->inspectRules(
+            new RuleCriteria($subject),
+            new PageRequest(sortBy: 'dimension_value', sortDirection: 'DESC'),
+        );
+    }
+
+    #[Test]
+    #[DataProvider('nonCanonicalRuleSortRequests')]
+    public function findByCriteriaRejectsNonCanonicalSortRequestsAtTheRepositoryBoundary(
+        ?string $sortBy,
+        ?string $sortDirection,
+    ): void {
+        $subject = new Subject('product', '150');
+        $this->repository->create($this->command('product', '150', 'country', 'EG'));
+
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject),
+            new PageRequest(sortBy: $sortBy, sortDirection: $sortDirection),
+        );
+    }
+
+    #[Test]
+    #[DataProvider('nonCanonicalRuleSortRequests')]
+    public function findActiveDimensionKeysRejectsNonCanonicalSortRequestsAtTheRepositoryBoundary(
+        ?string $sortBy,
+        ?string $sortDirection,
+    ): void {
+        $subject = new Subject('product', '150');
+        $this->repository->create($this->command('product', '150', 'country', 'EG'));
+
+        $this->expectException(InvalidEligibilityInputException::class);
+
+        $this->managementQuery->findActiveDimensionKeys(
+            new ActiveDimensionKeysCriteria($subject),
+            new PageRequest(sortBy: $sortBy, sortDirection: $sortDirection),
+        );
+    }
+
+    /** @return iterable<string, array{?string, ?string}> */
+    public static function nonCanonicalRuleSortRequests(): iterable
+    {
+        yield 'dimension_value ASC' => ['dimension_value', 'ASC'];
+        yield 'dimension_value DESC' => ['dimension_value', 'DESC'];
+        yield 'dimension_key DESC' => ['dimension_key', 'DESC'];
+        yield 'dimension_key with null direction' => ['dimension_key', null];
+        yield 'null sortBy with ASC direction' => [null, 'ASC'];
+    }
+
+    #[Test]
+    public function repositoryBoundaryAcceptsOnlyTheTwoCanonicalSortRequestShapes(): void
+    {
+        $subject = new Subject('product', '150');
+        $this->repository->create($this->command('product', '150', 'country', 'EG'));
+
+        self::assertCount(1, $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject),
+            new PageRequest(),
+        )->data);
+        self::assertCount(1, $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject),
+            new PageRequest(sortBy: 'dimension_key', sortDirection: 'ASC'),
+        )->data);
+        self::assertCount(1, $this->managementQuery->findActiveDimensionKeys(
+            new ActiveDimensionKeysCriteria($subject),
+            new PageRequest(),
+        )->data);
+        self::assertCount(1, $this->managementQuery->findActiveDimensionKeys(
+            new ActiveDimensionKeysCriteria($subject),
+            new PageRequest(sortBy: 'dimension_key', sortDirection: 'ASC'),
+        )->data);
+    }
+
+    #[Test]
+    public function canonicalOrderingRemainsDeterministicWhenDimensionValuesRepeatAcrossDimensions(): void
+    {
+        $subject = new Subject('product', '150');
+        $this->repository->create($this->command('product', '150', 'beta', 'X'));
+        $this->repository->create($this->command('product', '150', 'alpha', 'X'));
+        $this->repository->create($this->command('product', '150', 'alpha', 'Y'));
+
+        $page = $this->managementQuery->findByCriteria(new RuleCriteria($subject), new PageRequest());
+
+        self::assertSame(3, $page->total);
+        self::assertSame(3, $page->filtered);
+        self::assertSame(
+            [['alpha', 'X'], ['alpha', 'Y'], ['beta', 'X']],
+            array_map(
+                static fn(Rule $rule): array => [$rule->dimensionKey, $rule->dimensionValue],
+                $page->data,
+            ),
+        );
+
+        // The repeated dimension_value "X" under two different dimension_keys
+        // is exactly why an explicit `dimension_value`-primary sort would be
+        // non-deterministic/ambiguous; the contract rejects that request
+        // instead of silently exposing it.
+        $this->expectException(InvalidEligibilityInputException::class);
+        $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject),
+            new PageRequest(sortBy: 'dimension_value', sortDirection: 'ASC'),
+        );
+    }
+
+    #[Test]
+    public function lifecycleSummaryProvesRealPersistenceAggregatesAndSubjectIsolation(): void
+    {
+        $subject = new Subject('product', '150');
+        $otherSubject = new Subject('product', '151');
+
+        $empty = $this->managementQuery->summarizeLifecycle(new RuleLifecycleSummaryCriteria($subject));
+        self::assertSame(0, $empty->totalRules);
+        self::assertSame(0, $empty->activeRules);
+        self::assertSame(0, $empty->inactiveRules);
+
+        $this->repository->create($this->command('product', '150', 'country', 'EG'));
+        $this->repository->create($this->command('product', '150', 'country', 'SA'));
+        self::assertTrue($this->repository->deactivate(new DeactivateRuleCommand(
+            new RuleIdentity('product', '150', 'country', 'SA'),
+        )));
+        $this->repository->create($this->command('product', '150', 'customer_type', 'retail'));
+        $this->repository->create($this->command('product', '151', 'country', 'EG'));
+
+        $subjectSummary = $this->managementQuery->summarizeLifecycle(new RuleLifecycleSummaryCriteria($subject));
+        self::assertSame(3, $subjectSummary->totalRules);
+        self::assertSame(2, $subjectSummary->activeRules);
+        self::assertSame(1, $subjectSummary->inactiveRules);
+
+        $dimensionSummary = $this->managementQuery->summarizeLifecycle(
+            new RuleLifecycleSummaryCriteria($subject, 'country'),
+        );
+        self::assertSame(2, $dimensionSummary->totalRules);
+        self::assertSame(1, $dimensionSummary->activeRules);
+        self::assertSame(1, $dimensionSummary->inactiveRules);
+
+        $otherSummary = $this->managementQuery->summarizeLifecycle(new RuleLifecycleSummaryCriteria($otherSubject));
+        self::assertSame(1, $otherSummary->totalRules);
+        self::assertSame(1, $otherSummary->activeRules);
+        self::assertSame(0, $otherSummary->inactiveRules);
+    }
+
+    #[Test]
+    public function invalidPersistedLifecycleByteMakesLifecycleSummaryClassifyPersistedStateFailureRatherThanUndercount(): void
+    {
+        $subject = new Subject('product', '150');
+        $this->repository->create($this->command('product', '150', 'country', 'EG'));
+        self::assertTrue($this->repository->deactivate(new DeactivateRuleCommand(
+            new RuleIdentity('product', '150', 'country', 'EG'),
+        )));
+        $this->repository->create($this->command('product', '150', 'country', 'SA'));
+        $this->insertRawRow('product', '150', 'country', 'KW', RuleEffectEnum::ALLOW->value, 'invalid');
+
+        try {
+            $this->managementQuery->summarizeLifecycle(new RuleLifecycleSummaryCriteria($subject));
+            self::fail(
+                'Expected InvalidPersistedRuleStateException instead of a silently undercounted summary '
+                . 'for an unrecognized persisted lifecycle byte.',
+            );
+        } catch (InvalidPersistedRuleStateException $exception) {
+            self::assertInstanceOf(EligibilityExceptionInterface::class, $exception);
+            self::assertInstanceOf(MaatifyException::class, $exception);
+        }
+
+        // The dimension-scoped summary excluding the corrupted row's dimension
+        // is unaffected: valid summaries continue to PASS.
+        $this->repository->create($this->command('product', '150', 'customer_type', 'retail'));
+        $validSummary = $this->managementQuery->summarizeLifecycle(
+            new RuleLifecycleSummaryCriteria($subject, 'customer_type'),
+        );
+        self::assertSame(1, $validSummary->totalRules);
+        self::assertSame(1, $validSummary->activeRules);
+        self::assertSame(0, $validSummary->inactiveRules);
+    }
+
+    #[Test]
+    public function invalidPersistedEffectBytesAreClassifiedAsPersistedStateFailures(): void
+    {
+        $this->insertRawRow('product', '150', 'country', 'EG', 'maybe', RuleLifecycleEnum::ACTIVE->value);
+
+        try {
+            $this->managementQuery->findByIdentity(new RuleIdentity('product', '150', 'country', 'EG'));
+            self::fail('Expected InvalidPersistedRuleStateException for malformed persisted effect.');
+        } catch (InvalidPersistedRuleStateException $exception) {
+            self::assertInstanceOf(EligibilityExceptionInterface::class, $exception);
+            self::assertInstanceOf(MaatifyException::class, $exception);
+            self::assertInstanceOf(\ValueError::class, $exception->getPrevious());
+        }
+    }
+
+    #[Test]
+    public function invalidPersistedCanonicalComponentIsClassifiedAsPersistedStateFailure(): void
+    {
+        $this->insertRawRow('product', '150', 'country', ' EG', RuleEffectEnum::ALLOW->value, RuleLifecycleEnum::ACTIVE->value);
+
+        try {
+            $this->managementQuery->findByCriteria(new RuleCriteria(new Subject('product', '150')), new PageRequest());
+            self::fail('Expected InvalidPersistedRuleStateException for malformed persisted canonical component.');
+        } catch (InvalidPersistedRuleStateException $exception) {
+            self::assertInstanceOf(EligibilityExceptionInterface::class, $exception);
+            self::assertInstanceOf(InvalidEligibilityInputException::class, $exception->getPrevious());
+        }
+    }
+
+    private function insertRawRow(
+        string $subjectType,
+        string $subjectId,
+        string $dimensionKey,
+        string $dimensionValue,
+        string $effect,
+        string $lifecycle,
+    ): void {
+        $statement = $this->pdo->prepare(
+            'INSERT INTO `maa_eligibility_rules` '
+            . '(`subject_type`, `subject_id`, `dimension_key`, `dimension_value`, `effect`, `lifecycle`) '
+            . 'VALUES (?, ?, ?, ?, ?, ?)',
+        );
+        $statement->execute([$subjectType, $subjectId, $dimensionKey, $dimensionValue, $effect, $lifecycle]);
     }
 
     private function command(

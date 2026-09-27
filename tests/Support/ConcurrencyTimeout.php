@@ -14,9 +14,7 @@ final class ConcurrencyTimeout
 
     private const NANOSECONDS_PER_SECOND = 1_000_000_000;
 
-    private function __construct()
-    {
-    }
+    private function __construct() {}
 
     public static function deadline(): int
     {

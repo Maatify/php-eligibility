@@ -5,26 +5,26 @@ declare(strict_types=1);
 namespace Maatify\Eligibility\Tests\Unit;
 
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
-use Maatify\Eligibility\Management\Command\DesiredRule;
-use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\ValueObject\DesiredRule;
+use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
-use Maatify\Eligibility\Management\Query\RuleCriteria;
-use Maatify\Eligibility\Management\Result\ActiveDimensionKeyCollection;
-use Maatify\Eligibility\Evaluation\Decision\DimensionOutcome;
-use Maatify\Eligibility\Evaluation\Decision\DimensionReasonEnum;
-use Maatify\Eligibility\Evaluation\Decision\RuleReference;
-use Maatify\Eligibility\Evaluation\Decision\RuleReferenceCollection;
+use Maatify\Eligibility\Management\Criteria\RuleCriteria;
+use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyDTO;
+use Maatify\Eligibility\Evaluation\ValueObject\DimensionOutcome;
+use Maatify\Eligibility\Evaluation\Enum\DimensionReasonEnum;
+use Maatify\Eligibility\Evaluation\ValueObject\RuleReference;
+use Maatify\Eligibility\Evaluation\ValueObject\RuleReferenceCollection;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
-use Maatify\Eligibility\Rule\Rule;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Rule\RuleIdentity;
+use Maatify\Eligibility\ValueObject\Rule;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\ValueObject\RuleIdentity;
 use Maatify\Eligibility\Tests\Support\NonStrictConsumer;
-use Maatify\Eligibility\Common\Validation\CanonicalString;
-use Maatify\Eligibility\Evaluation\Value\Context;
-use Maatify\Eligibility\Evaluation\Value\ContextDimension;
-use Maatify\Eligibility\Evaluation\Value\ContextValue;
-use Maatify\Eligibility\Evaluation\Value\ContextValueCollection;
-use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Common\CanonicalString;
+use Maatify\Eligibility\Evaluation\ValueObject\Context;
+use Maatify\Eligibility\Evaluation\ValueObject\ContextDimension;
+use Maatify\Eligibility\Evaluation\ValueObject\ContextValue;
+use Maatify\Eligibility\Evaluation\ValueObject\ContextValueCollection;
+use Maatify\Eligibility\ValueObject\Subject;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -63,7 +63,7 @@ final class CanonicalBoundsTest extends TestCase
             DimensionReasonEnum::PASSED_ALLOW_LIST,
             new RuleReferenceCollection($reference),
         );
-        $activeKeys = new ActiveDimensionKeyCollection($dimensionKey);
+        $activeKeys = new ActiveDimensionKeyDTO($dimensionKey);
 
         self::assertSame($subjectType, $identity->subjectType);
         self::assertSame($subjectId, $rule->subject->subjectId);
@@ -74,7 +74,7 @@ final class CanonicalBoundsTest extends TestCase
         self::assertSame($dimensionValue, $contextValues->values()[0]);
         self::assertSame($dimensionKey, $context->getDimension($dimensionKey)?->dimensionKey);
         self::assertSame($dimensionKey, $outcome->dimensionKey);
-        self::assertTrue($activeKeys->contains($dimensionKey));
+        self::assertSame($dimensionKey, $activeKeys->dimensionKey);
     }
 
     #[Test]
@@ -126,11 +126,11 @@ final class CanonicalBoundsTest extends TestCase
         self::assertSame(255, strlen($exactDimensionValue));
         self::assertSame($exactDimensionValue, new ContextValue($exactDimensionValue)->value);
 
-        $this->assertInvalid(static fn (): ContextDimension => new ContextDimension(
+        $this->assertInvalid(static fn(): ContextDimension => new ContextDimension(
             str_repeat('é', 33),
             new ContextValueCollection(new ContextValue('value')),
         ));
-        $this->assertInvalid(static fn (): ContextValue => new ContextValue(str_repeat('é', 128)));
+        $this->assertInvalid(static fn(): ContextValue => new ContextValue(str_repeat('é', 128)));
     }
 
     #[Test]
@@ -138,17 +138,16 @@ final class CanonicalBoundsTest extends TestCase
     {
         $subject = new Subject('product', '150');
 
-        $this->assertInvalid(static fn (): CreateRuleCommand => NonStrictConsumer::createRuleCommand(
+        $this->assertInvalid(static fn(): CreateRuleCommand => NonStrictConsumer::createRuleCommand(
             $subject,
             'country',
             str_repeat('v', CanonicalString::DIMENSION_VALUE_MAX_BYTES + 1),
         ));
-        $this->assertInvalid(static fn (): RuleCriteria => NonStrictConsumer::ruleCriteria(
+        $this->assertInvalid(static fn(): RuleCriteria => NonStrictConsumer::ruleCriteria(
             $subject,
             str_repeat('k', CanonicalString::DIMENSION_KEY_MAX_BYTES + 1),
-            25,
         ));
-        $this->assertInvalid(static fn (): CreateRuleCommand => NonStrictConsumer::createRuleCommand(
+        $this->assertInvalid(static fn(): CreateRuleCommand => NonStrictConsumer::createRuleCommand(
             $subject,
             1,
             'EG',
@@ -160,18 +159,17 @@ final class CanonicalBoundsTest extends TestCase
     {
         $context = new Context(ContextDimension::fromStrings('country', 'EG'));
         $values = new ContextValueCollection(new ContextValue('EG'));
-        $keys = new ActiveDimensionKeyCollection('country');
 
-        $this->assertInvalid(static fn (): ?ContextDimension => $context->getDimension(
+        $this->assertInvalid(static fn(): ?ContextDimension => $context->getDimension(
             str_repeat('k', CanonicalString::DIMENSION_KEY_MAX_BYTES + 1),
         ));
-        $this->assertInvalid(static fn (): bool => $context->hasDimension(
+        $this->assertInvalid(static fn(): bool => $context->hasDimension(
             str_repeat('k', CanonicalString::DIMENSION_KEY_MAX_BYTES + 1),
         ));
-        $this->assertInvalid(static fn (): bool => $values->contains(
+        $this->assertInvalid(static fn(): bool => $values->contains(
             str_repeat('v', CanonicalString::DIMENSION_VALUE_MAX_BYTES + 1),
         ));
-        $this->assertInvalid(static fn (): bool => $keys->contains(
+        $this->assertInvalid(static fn(): ActiveDimensionKeyDTO => new ActiveDimensionKeyDTO(
             str_repeat('k', CanonicalString::DIMENSION_KEY_MAX_BYTES + 1),
         ));
     }

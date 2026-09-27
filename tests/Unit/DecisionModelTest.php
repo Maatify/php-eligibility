@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace Maatify\Eligibility\Tests\Unit;
 
-use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
-use Maatify\Eligibility\Evaluation\Decision\DimensionOutcome;
-use Maatify\Eligibility\Evaluation\Decision\DimensionOutcomeCollection;
-use Maatify\Eligibility\Evaluation\Decision\DimensionReasonEnum;
-use Maatify\Eligibility\Evaluation\Decision\EligibilityDecision;
-use Maatify\Eligibility\Evaluation\Decision\RuleReference;
-use Maatify\Eligibility\Evaluation\Decision\RuleReferenceCollection;
+use Maatify\Eligibility\Evaluation\Enum\DecisionReasonEnum;
+use Maatify\Eligibility\Evaluation\ValueObject\DimensionOutcome;
+use Maatify\Eligibility\Evaluation\ValueObject\DimensionOutcomeCollection;
+use Maatify\Eligibility\Evaluation\Enum\DimensionReasonEnum;
+use Maatify\Eligibility\Evaluation\ValueObject\EligibilityDecision;
+use Maatify\Eligibility\Evaluation\ValueObject\RuleReference;
+use Maatify\Eligibility\Evaluation\ValueObject\RuleReferenceCollection;
 use Maatify\Eligibility\Exception\EligibilityExceptionInterface;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
-use Maatify\Eligibility\Rule\Rule;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\ValueObject\Rule;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\ValueObject\Subject;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -209,8 +209,7 @@ final class DecisionModelTest extends TestCase
         string $dimensionValue,
         RuleEffectEnum $effect,
         string $dimensionKey = 'country',
-    ): RuleReference
-    {
+    ): RuleReference {
         return RuleReference::fromRule(
             Rule::active(new Subject('product', '150'), $dimensionKey, $dimensionValue, $effect),
         );

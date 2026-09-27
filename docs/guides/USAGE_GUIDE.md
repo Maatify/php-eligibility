@@ -5,7 +5,8 @@ It explains what the package provides, which public API surface to choose, what
 to send, what to receive, and which responsibilities remain with the Host.
 
 The root [Package Reference](../../ELIGIBILITY_PACKAGE_REFERENCE.md) remains
-the canonical normative RC1 contract. This guide does not replace it or repeat
+the canonical RC2 public/runtime/behavioral contract and complete Public Runtime
+API inventory. This guide does not replace it or repeat
 its full acceptance matrix.
 
 ## Overview
@@ -21,12 +22,17 @@ defines the meaning of Subject types and Context dimensions, wires the package's
 PDO adapters, manages the package-owned schema, and maps the typed result to its
 own API or UI behavior.
 
-This guide describes the **Pre-Stable `v1.0.0-rc.1` Release Candidate**:
+This guide describes the **target Pre-Stable `v1.0.0-rc.2` source/release
+line**:
 
 - package: `maatify/php-eligibility`
-- release: `v1.0.0-rc.1`
-- stability: Pre-Stable Release Candidate
-- distribution: [Packagist](https://packagist.org/packages/maatify/php-eligibility)
+- target release: `v1.0.0-rc.2`
+- stability: Pre-Stable source/release line
+- intended distribution channel: [Packagist](https://packagist.org/packages/maatify/php-eligibility)
+- Published state: repository source alone does not establish it; exact
+  external availability is determined by the exact version tag through the
+  approved Composer distribution source
+- Published Stable: none
 
 For local development, install dependencies with Composer before running the
 examples:
@@ -69,7 +75,7 @@ connection for every Eligibility adapter and the shared transaction runner.
 - Direct-PDO MySQL-compatible persistence adapters with package-owned tables,
   typed semantic failures, and shared transaction/savepoint composition.
 - Deterministic ordering for returned collections and input-order preservation
-  for `SubjectDecisionCollection`.
+  for `SubjectDecisionCollectionDTO`.
 
 ## What Eligibility does NOT provide
 
@@ -82,7 +88,8 @@ connection for every Eligibility adapter and the shared transaction runner.
 - It does not provide controllers, HTTP responses, UI messages, translations,
   framework bindings, ORM integration, or a query builder.
 - It does not infer behavior between different Subjects or dimensions.
-- It is a Pre-Stable Release Candidate and does not define a Stable release line.
+- It targets a Pre-Stable source/release line and does not define a Stable
+  release line.
 
 ## Host responsibilities
 
@@ -93,11 +100,10 @@ The Host must:
 - Define stable Subject-type and dimension-key semantics and perform any
   domain-specific validation or normalization before the package boundary.
 - Decide which Context dimensions are required for each application flow.
-- Construct the package-owned PDO adapters and schema using a trusted database
-  configuration.
-- Use one PDO connection for `PdoRuleCommandRepository`,
-  `PdoRuleManagementQuery`, `PdoActiveRuleReader`, and
-  `PdoSavepointTransactionRunner`.
+- Create/configure the caller-owned PDO and apply the schema using a trusted
+  database configuration, then pass it to `PdoEligibilityRuntimeFactory`.
+- Use the factory's two service methods for the default Management and
+  Evaluation composition; all components use that same PDO connection.
 - Own the outer transaction when Eligibility mutation is composed with a larger
   Host operation.
 - Combine the Eligibility decision with the Host domain's own lifecycle and
@@ -114,14 +120,15 @@ Use the smallest public surface that matches the task:
 | Evaluate several Subjects in deterministic input order | [Evaluate many Subjects](#evaluate-many-subjects) | [`batch-evaluation.php`](../../examples/batch-evaluation.php) |
 | Create a Rule | [Create a Rule](#create-a-rule) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Read one Rule | [Read one Rule](#read-one-rule) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
-| Read Rules by criteria | [Read Rules by criteria](#read-rules-by-criteria) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
-| Find active dimension keys | [Find active dimension keys](#find-active-dimension-keys) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
+| Read Rules by criteria | [Read Rules by criteria](#read-rules-by-criteria-paginated) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
+| Read Rule lifecycle summary | [Read the Rule lifecycle summary](#read-the-rule-lifecycle-summary) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
+| Find active dimension keys | [Find active dimension keys](#find-active-dimension-keys-paginated) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Change a Rule effect | [Update a Rule effect](#update-a-rule-effect) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Deactivate a Rule | [Deactivate a Rule](#deactivate-and-reactivate-a-rule) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Reactivate a Rule | [Deactivate a Rule](#deactivate-and-reactivate-a-rule) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
 | Replace one complete dimension atomically | [Replace dimension Rules](#replace-dimension-rules) | [`replace-dimension-rules.php`](../../examples/replace-dimension-rules.php) |
 | Remove all Rules for one Subject | [Clean up a Subject](#clean-up-a-subject) | [`management-lifecycle.php`](../../examples/management-lifecycle.php) |
-| Wire production PDO adapters | [Production PDO wiring](#production-pdo-wiring) | [`persistence-wiring.php`](../../examples/persistence-wiring.php) |
+| Construct the default PDO runtime | [Production PDO wiring](#production-pdo-wiring) | [`persistence-wiring.php`](../../examples/persistence-wiring.php) |
 | Participate in a Host-owned transaction | [Host-owned transactions](#host-owned-transactions) | [`replace-dimension-rules.php`](../../examples/replace-dimension-rules.php) |
 | Handle typed package failures | [Typed exceptions](#typed-exceptions) | [`exception-handling.php`](../../examples/exception-handling.php) |
 
@@ -147,7 +154,7 @@ Evaluate one external Subject against the active Rules loaded for it.
 #### Public call and return type
 
 ```php
-use Maatify\Eligibility\Evaluation\Contract\EligibilityEvaluationServiceInterface;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationServiceInterface;
 
 $decision = $evaluation->decide($subject, $context);
 // EligibilityDecision
@@ -191,13 +198,13 @@ read path.
 #### Input, public call, and return type
 
 ```php
-use Maatify\Eligibility\Common\Value\SubjectCollection;
+use Maatify\Eligibility\ValueObject\SubjectCollection;
 
 $decisions = $evaluation->decideMany(
     new SubjectCollection($first, $second),
     $context,
 );
-// SubjectDecisionCollection
+// SubjectDecisionCollectionDTO
 ```
 
 The interface signature is:
@@ -206,12 +213,12 @@ The interface signature is:
 decideMany(
     SubjectCollection $subjects,
     Context $context
-): SubjectDecisionCollection
+): SubjectDecisionCollectionDTO
 ```
 
 #### Observable behavior
 
-The returned `SubjectDecisionCollection` preserves the accepted input Subject
+The returned `SubjectDecisionCollectionDTO` preserves the accepted input Subject
 order. An empty collection is valid and returns an empty result. Duplicate
 Subject identities are rejected, and the canonical path uses one bounded bulk
 load rather than a query per Subject.
@@ -275,43 +282,79 @@ direct SQL.
   Rules remain management-visible but are ignored by evaluation.
 - **Runnable example:** [`management-lifecycle.php`](../../examples/management-lifecycle.php).
 
-### Read Rules by criteria
+### Read Rules by criteria (paginated)
 
-- **Purpose:** Read a bounded collection for one Subject, optionally filtered
-  by dimension key and lifecycle.
+- **Purpose:** Read a paginated collection for one Subject, optionally
+  filtered by dimension key, lifecycle, and effect.
 - **Input:** `RuleCriteria(Subject $subject, ?dimensionKey,
-  ?RuleLifecycleEnum $lifecycle, int $maxResults)`; `maxResults` is 1–500 and
-  defaults to 100.
-- **Public call:** `$management->inspectRules($criteria)`.
-- **Return type:** `RuleCollection`.
-- **Observable behavior:** Results are canonically ordered. Without a lifecycle
-  filter, both active and inactive Rules can be returned. The bound is applied
-  by the management query.
+  ?RuleLifecycleEnum $lifecycle, ?RuleEffectEnum $effect)` plus a
+  `Maatify\Persistence\Pdo\Pagination\PageRequest` (page, per-page, sort).
+- **Public call:** `$management->inspectRules($criteria, $pageRequest)`.
+- **Return type:** `Maatify\Persistence\Pdo\Pagination\PageResult<Rule>`
+  (`data`, `page`, `perPage`, `total`, `filtered`, `totalPages`, `hasNext`,
+  `hasPrevious`, `sortBy`, `sortDirection`).
+- **Observable behavior:** `total` counts every persisted Rule for the Subject
+  before the optional `RuleCriteria` filters; `filtered` counts Rules after
+  those filters. Results follow the canonical fixed order: `dimension_key`
+  ascending, then `dimension_value` ascending. Page/per-page normalization
+  (default per-page 20, bounds 1–200) is delegated to `maatify/persistence`.
+  `PageRequest.sortBy`/`sortDirection` accept only `null` (canonical order) or
+  the explicit equivalent `dimension_key` ascending; any other explicit sort
+  request raises `InvalidEligibilityInputException` rather than being
+  silently ignored.
+- **Relevant typed failures:** Invalid criteria or an unsupported explicit sort
+  request raises `InvalidEligibilityInputException`; a malformed persisted Rule
+  row raises `InvalidPersistedRuleStateException`; unknown storage failures
+  propagate unchanged.
+- **Transaction/concurrency:** Read-only; no package-owned transaction is
+  opened.
+- **Host responsibility:** Use the paginated result for management or
+  inspection; do not treat it as a replacement for the active bulk evaluation
+  reader, and do not build Host-global pagination on top of it.
+- **Runnable example:** [`management-lifecycle.php`](../../examples/management-lifecycle.php).
+
+### Find active dimension keys (paginated)
+
+- **Purpose:** Discover which dimensions currently have at least one active
+  Rule for one Subject.
+- **Input:** `ActiveDimensionKeysCriteria(Subject $subject)` plus a
+  `PageRequest`.
+- **Public call:** `$management->inspectActiveDimensionKeys($query, $pageRequest)`.
+- **Return type:** `PageResult<ActiveDimensionKeyDTO>`.
+- **Observable behavior:** Only active Rules contribute keys; returned keys are
+  distinct and in canonical ascending bytewise order. `total` and `filtered`
+  are always equal for this query, because no optional domain filter exists
+  beyond the active-visibility contract itself. Only the canonical ascending
+  `dimension_key` sort is supported; any other explicit sort request raises
+  `InvalidEligibilityInputException`.
+- **Relevant typed failures:** Invalid Subject input or an unsupported explicit
+  sort request raises `InvalidEligibilityInputException`; a malformed
+  persisted dimension key raises `InvalidPersistedRuleStateException`; unknown
+  storage failures propagate unchanged.
+- **Transaction/concurrency:** Read-only; no package-owned transaction is
+  opened.
+- **Host responsibility:** Interpret the keys according to Host-owned business
+  definitions.
+- **Runnable example:** [`management-lifecycle.php`](../../examples/management-lifecycle.php).
+
+### Read the Rule lifecycle summary
+
+- **Purpose:** Get an aggregate active/inactive Rule count for one Subject,
+  optionally scoped to one exact dimension, without loading every Rule into
+  PHP.
+- **Input:** `RuleLifecycleSummaryCriteria(Subject $subject, ?dimensionKey)`.
+- **Public call:** `$management->inspectRuleLifecycleSummary($criteria)`.
+- **Return type:** `RuleLifecycleSummaryDTO` (`totalRules`, `activeRules`,
+  `inactiveRules`; `totalRules === activeRules + inactiveRules`).
+- **Observable behavior:** The aggregate is computed in the database. An empty
+  Subject/dimension scope returns exactly `0`/`0`/`0`.
 - **Relevant typed failures:** Invalid criteria raises
   `InvalidEligibilityInputException`; unknown storage failures propagate
   unchanged.
 - **Transaction/concurrency:** Read-only; no package-owned transaction is
   opened.
-- **Host responsibility:** Use the bounded result for management or inspection;
-  do not treat it as a replacement for the active bulk evaluation reader.
-- **Runnable example:** [`management-lifecycle.php`](../../examples/management-lifecycle.php).
-
-### Find active dimension keys
-
-- **Purpose:** Discover which dimensions currently have at least one active
-  Rule for one Subject.
-- **Input:** `ActiveDimensionKeysQuery(Subject $subject)`.
-- **Public call:** `$management->inspectActiveDimensionKeys($query)`.
-- **Return type:** `ActiveDimensionKeyCollection`.
-- **Observable behavior:** Only active Rules contribute keys; returned keys are
-  unique and in canonical bytewise order.
-- **Relevant typed failures:** Invalid Subject input raises
-  `InvalidEligibilityInputException`; unknown storage failures propagate
-  unchanged.
-- **Transaction/concurrency:** Read-only; no package-owned transaction is
-  opened.
-- **Host responsibility:** Interpret the keys according to Host-owned business
-  definitions.
+- **Host responsibility:** Use this for lightweight operational counts instead
+  of paginating through every Rule just to count lifecycle state.
 - **Runnable example:** [`management-lifecycle.php`](../../examples/management-lifecycle.php).
 
 ### Update a Rule effect
@@ -368,13 +411,15 @@ direct SQL.
   collection deactivates all active Rules for that dimension without hard
   deletion. Repeating the same desired set is idempotent.
 - **Relevant typed failures:** Invalid command or duplicate desired values raise
-  `InvalidEligibilityInputException`. A duplicate natural identity is converted
-  to `RuleIdentityConflictException` only when the concrete persistence boundary
-  has the documented driver-specific duplicate evidence. The public exception
-  inventory contains `RuleConcurrencyConflictException`, but the current RC1
-  concrete PDO paths do not automatically throw or classify arbitrary
-  concurrency/driver failures as that exception. Unknown storage failures
-  propagate unchanged.
+  `InvalidEligibilityInputException`. At the package-owned PDO
+  command/mutation boundary, documented exact driver error number `1062`
+  converts to `RuleIdentityConflictException`, while documented exact driver
+  error numbers `1205` and `1213` convert to
+  `RuleConcurrencyConflictException`. Each typed conversion preserves the
+  original `PDOException` as `previous`. Every other unknown or unclassified
+  PDO/storage failure propagates unchanged. Generic SQLSTATE values such as
+  `HY000` or `40001` alone are not classification evidence, and the boundary
+  does not blanket-wrap `PDOException` or `Throwable`.
 - **Transaction/concurrency:** `EligibilityManagementService` depends on
   `SavepointTransactionRunnerInterface`; production PDO wiring supplies
   `PdoSavepointTransactionRunner`. The service locks the Subject coordination
@@ -431,9 +476,13 @@ These are the types a consumer needs to understand to call the public API.
   `RuleEffectEnum` for one new active Rule.
 - **`RuleIdentity`** — Subject type, Subject ID, dimension key, and dimension
   value; effect and lifecycle are intentionally not part of identity.
-- **`RuleCriteria`** — bounded management read criteria for Subject, optional
-  dimension key, optional lifecycle, and max result count.
-- **`ActiveDimensionKeysQuery`** — Subject query for active dimension keys.
+- **`RuleCriteria`** — paginated management read criteria for Subject,
+  optional dimension key, optional lifecycle, and optional effect.
+- **`ActiveDimensionKeysCriteria`** — Subject query for active dimension keys.
+- **`RuleLifecycleSummaryCriteria`** — Subject and optional exact dimension key
+  scope for the lifecycle count summary.
+- **`Maatify\Persistence\Pdo\Pagination\PageRequest`** — page, per-page, and
+  optional sort input shared by both paginated Management reads.
 - **`DesiredRule` / `DesiredRuleCollection`** — desired values and effects for
   one replacement; desired values must be unique and are canonically ordered.
 - **`ReplaceDimensionRulesCommand`** — Subject, dimension key, and complete
@@ -445,15 +494,21 @@ These are the types a consumer needs to understand to call the public API.
 - **`EligibilityDecision`** — `eligible`, `reasonCode`, and ordered dimension
   outcomes. `UNRESTRICTED` means eligible with no active Rule dimensions;
   `ELIGIBLE` and `DENIED` include dimension outcomes.
-- **`SubjectDecisionResult`** — one Subject paired with its
+- **`SubjectDecisionDTO`** — one Subject paired with its
   `EligibilityDecision`.
-- **`SubjectDecisionCollection`** — ordered distinct batch results matching the
+- **`SubjectDecisionCollectionDTO`** — ordered distinct batch results matching the
   supplied Subject order.
 - **`Rule`** — Subject, dimension key, dimension value, effect, and lifecycle;
   `naturalIdentity()` returns its `RuleIdentity`.
 - **`RuleCollection`** — unique Rules in canonical identity order.
-- **`ActiveDimensionKeyCollection`** — unique active dimension keys in
-  canonical order.
+- **`Maatify\Persistence\Pdo\Pagination\PageResult<T>`** — one page of paginated
+  Management results (`data`, `page`, `perPage`, `total`, `filtered`,
+  `totalPages`, `hasNext`, `hasPrevious`, `sortBy`, `sortDirection`); used for
+  both `inspectRules()` (`PageResult<Rule>`) and `inspectActiveDimensionKeys()`
+  (`PageResult<ActiveDimensionKeyDTO>`).
+- **`ActiveDimensionKeyDTO`** — one canonical active dimension key.
+- **`RuleLifecycleSummaryDTO`** — `totalRules`/`activeRules`/`inactiveRules`
+  count summary; `totalRules === activeRules + inactiveRules`.
 
 The decision trace also contains dimension outcomes and matched Rule references
 through the public decision model. Consumers should use the machine-readable
@@ -462,27 +517,20 @@ presentation text in the Host.
 
 ## Production PDO wiring
 
-The RC1 persistence implementation is direct PDO. The
-`EligibilityManagementService` depends on
-`SavepointTransactionRunnerInterface`; production PDO composition constructs
-`PdoSavepointTransactionRunner` from the same PDO connection as the three
-Eligibility adapters, then wires their separate capabilities into the two
-services:
+The RC2 persistence implementation is direct PDO. The recommended production
+construction path accepts a Host-created PDO and uses the package factory:
 
 ```php
-$commandRepository = new PdoRuleCommandRepository($pdo);
-$managementQuery = new PdoRuleManagementQuery($pdo);
-$activeRuleReader = new PdoActiveRuleReader($pdo);
-$transactionRunner = new PdoSavepointTransactionRunner($pdo);
-
-$management = new EligibilityManagementService(
-    $commandRepository,
-    $managementQuery,
-    $commandRepository,
-    $transactionRunner,
-);
-$evaluation = new EligibilityEvaluationService($activeRuleReader);
+$factory = new PdoEligibilityRuntimeFactory($pdo);
+$management = $factory->createManagementService();
+$evaluation = $factory->createEvaluationService();
 ```
+
+`PdoEligibilityRuntimeFactory` does not create/configure PDO, apply schema, or
+own credentials. It returns the public service interfaces and preserves the
+same-PDO transaction boundary. Direct adapter/service construction remains an
+advanced extension path when a consumer genuinely needs explicit composition;
+ordinary consumers do not need to know `RuleMutationSupportInterface`.
 
 Apply `schema/eligibility_rules.sql` as an installation asset. It is safe to
 reapply with `CREATE TABLE IF NOT EXISTS`, but it is not an automatic migration
@@ -495,7 +543,7 @@ runnable construction-only example.
 
 `replaceDimensionRules()` and `cleanupSubject()` use the shared
 `SavepointTransactionRunnerInterface`. In production PDO composition, that
-interface is supplied by `PdoSavepointTransactionRunner`. When no outer
+interface is supplied internally by the factory as `PdoSavepointTransactionRunner`. When no outer
 transaction is active, the runner owns the complete operation transaction. When
 a Host transaction is already active on the same PDO connection, the runner
 creates an operation-local savepoint, releases it on success, and rolls back to
@@ -518,12 +566,31 @@ Package-defined failures implement
   or a lifecycle/effect mutation.
 - `RuleIdentityConflictException` — a create would duplicate a natural Rule
   identity; the original driver exception is preserved where applicable.
-- `RuleConcurrencyConflictException` — a public exception class in the package
-  inventory. The current RC1 concrete PDO paths do not use it to classify
-  arbitrary concurrency or driver failures; unknown external failures are not
-  converted automatically.
+- `RuleConcurrencyConflictException` — a documented exact MySQL/MariaDB driver
+  error number `1205` or `1213` at the package-owned PDO command/mutation
+  boundary. The original `PDOException` is preserved as `previous`. This does
+  not classify arbitrary concurrency or driver failures; generic SQLSTATE
+  values such as `HY000` or `40001` alone are not evidence, and the PDO
+  boundary does not blanket-wrap `PDOException` or `Throwable`.
+- `InvalidPersistedRuleStateException` — package-owned malformed persisted
+  Eligibility Rule state. It covers Rule hydration corruption (a non-array
+  row shape, non-string column keys, a missing or non-string required persisted
+  column, an invalid persisted canonical Subject/dimension component, or a
+  persisted `effect`/`lifecycle` value not represented by
+  `RuleEffectEnum`/`RuleLifecycleEnum`) and lifecycle-summary aggregate
+  inconsistency where the independent persisted total differs from active
+  plus inactive counts because a persisted lifecycle value is unrecognized.
+  It extends the shared `maatify/exceptions` `SystemMaatifyException` (System
+  category, HTTP 500, unsafe). On the hydration path, an original
+  `InvalidEligibilityInputException` or `ValueError` is preserved as
+  `previous` when wrapping occurs; the summary mismatch has no wrapped
+  Throwable by itself.
 
-Unknown external `PDOException` or other `Throwable` values propagate unchanged.
+An exact documented driver error number `1062` is classified as
+`RuleIdentityConflictException`; exact documented driver error numbers `1205`
+and `1213` are classified as `RuleConcurrencyConflictException`. Every other
+unknown or unclassified external `PDOException`, PDO/storage failure, or other
+`Throwable` propagates unchanged.
 Consumers may catch the package marker for a package-level boundary, or catch a
 specific exception when the application needs different recovery behavior.
 
@@ -532,13 +599,20 @@ database-free typed validation example.
 
 ## Runnable examples
 
+Manual database-backed examples intentionally emit `SKIP:` when their explicit
+local `ELIGIBILITY_DB_*` environment is absent or unsafe. The maintained
+`composer test:examples` smoke gate provisions the canonical disposable
+environment, runs every discovered standalone `examples/*.php` process, and
+treats an unexpected `SKIP:` as a failure. It shares the same Compose lifecycle
+as Integration and the Consumer Harness.
+
 | Example | Demonstrates |
 |---|---|
 | [`basic-evaluation.php`](../../examples/basic-evaluation.php) | PDO wiring, one Rule, and one Subject decision. |
 | [`batch-evaluation.php`](../../examples/batch-evaluation.php) | Ordered `SubjectCollection` and `decideMany()`. |
 | [`management-lifecycle.php`](../../examples/management-lifecycle.php) | Create, inspect, criteria reads, active dimensions, effect, deactivate, and reactivate. |
 | [`replace-dimension-rules.php`](../../examples/replace-dimension-rules.php) | Atomic complete-dimension replacement and Host-owned transaction participation. |
-| [`persistence-wiring.php`](../../examples/persistence-wiring.php) | Same-PDO production adapter and service construction. |
+| [`persistence-wiring.php`](../../examples/persistence-wiring.php) | Caller-owned PDO → `PdoEligibilityRuntimeFactory` → Management / Evaluation service interfaces. |
 | [`exception-handling.php`](../../examples/exception-handling.php) | Typed package exception handling without a database. |
 
 Every example declares strict types, requires the production Composer autoload,

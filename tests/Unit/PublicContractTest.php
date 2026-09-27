@@ -7,42 +7,49 @@ namespace Maatify\Eligibility\Tests\Unit;
 use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
 use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
-use Maatify\Eligibility\Management\Command\DesiredRule;
-use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\ValueObject\DesiredRule;
+use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
 use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
-use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Management\Query\RuleCriteria;
-use Maatify\Eligibility\Management\Result\ActiveDimensionKeyCollection;
-use Maatify\Eligibility\Evaluation\Result\SubjectDecisionCollection;
-use Maatify\Eligibility\Evaluation\Result\SubjectDecisionResult;
-use Maatify\Eligibility\Evaluation\Contract\EligibilityEvaluationServiceInterface;
+use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleLifecycleSummaryCriteria;
+use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyDTO;
+use Maatify\Eligibility\Management\DTO\RuleLifecycleSummaryDTO;
+use Maatify\Eligibility\Evaluation\DTO\SubjectDecisionCollectionDTO;
+use Maatify\Eligibility\Evaluation\DTO\SubjectDecisionDTO;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationServiceInterface;
 use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Management\Contract\EligibilityManagementServiceInterface;
+use Maatify\Eligibility\Management\Service\EligibilityManagementServiceInterface;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
-use Maatify\Eligibility\Evaluation\Decision\EligibilityDecision;
+use Maatify\Eligibility\Factory\Pdo\PdoEligibilityRuntimeFactory;
+use Maatify\Eligibility\Evaluation\ValueObject\EligibilityDecision;
 use Maatify\Eligibility\Exception\EligibilityExceptionInterface;
 use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Exception\RuleConcurrencyConflictException;
 use Maatify\Eligibility\Exception\RuleIdentityConflictException;
+use Maatify\Eligibility\Exception\InvalidPersistedRuleStateException;
 use Maatify\Eligibility\Exception\RuleNotFoundException;
-use Maatify\Eligibility\Rule\Repository\ActiveRuleReaderInterface;
-use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
-use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
-use Maatify\Eligibility\Rule\Repository\RuleManagementQueryInterface;
-use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
-use Maatify\Eligibility\Rule\Rule;
-use Maatify\Eligibility\Rule\RuleCollection;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Rule\RuleIdentity;
-use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Eligibility\Evaluation\Repository\ActiveRuleReaderInterface;
+use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
+use Maatify\Eligibility\Management\Repository\RuleCommandRepositoryInterface;
+use Maatify\Eligibility\Management\Repository\RuleManagementQueryInterface;
+use Maatify\Eligibility\Management\Repository\RuleMutationSupportInterface;
+use Maatify\Eligibility\ValueObject\Rule;
+use Maatify\Eligibility\ValueObject\RuleCollection;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\ValueObject\RuleIdentity;
+use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\NonStrictConsumer;
-use Maatify\Eligibility\Common\Value\Subject;
-use Maatify\Eligibility\Common\Value\SubjectCollection;
+use Maatify\Eligibility\ValueObject\Subject;
+use Maatify\Eligibility\ValueObject\SubjectCollection;
 use Maatify\Exceptions\Contracts\ApiAwareExceptionInterface;
 use Maatify\Exceptions\Exception\Conflict\ConflictMaatifyException;
+use Maatify\Exceptions\Exception\MaatifyException;
 use Maatify\Exceptions\Exception\NotFound\NotFoundMaatifyException;
+use Maatify\Exceptions\Exception\System\SystemMaatifyException;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use Maatify\Persistence\Pdo\Transaction\PdoTransactionRunner;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
@@ -52,9 +59,43 @@ use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
+use PDO;
 
 final class PublicContractTest extends TestCase
 {
+    #[Test]
+    public function pdoRuntimeFactoryExposesOnlyTheLockedPublicConstructionContract(): void
+    {
+        $reflection = new ReflectionClass(PdoEligibilityRuntimeFactory::class);
+
+        self::assertTrue($reflection->isFinal());
+        self::assertTrue($reflection->isReadOnly());
+        self::assertSame('Maatify\\Eligibility\\Factory\\Pdo', $reflection->getNamespaceName());
+        self::assertSame(['pdo'], array_map(
+            static fn(\ReflectionProperty $property): string => $property->getName(),
+            $reflection->getProperties(),
+        ));
+        self::assertSame([
+            '__construct',
+            'createManagementService',
+            'createEvaluationService',
+        ], array_map(
+            static fn(ReflectionMethod $method): string => $method->getName(),
+            $reflection->getMethods(ReflectionMethod::IS_PUBLIC),
+        ));
+
+        $constructor = $reflection->getMethod('__construct');
+        self::assertSame(PDO::class, self::parameterTypeName($constructor->getParameters()[0]));
+        self::assertSame(
+            EligibilityManagementServiceInterface::class,
+            self::namedReturnTypeName($reflection->getMethod('createManagementService')),
+        );
+        self::assertSame(
+            EligibilityEvaluationServiceInterface::class,
+            self::namedReturnTypeName($reflection->getMethod('createEvaluationService')),
+        );
+    }
+
     #[Test]
     public function subjectBatchCollectionAcceptsEmptyInputAndPreservesOrder(): void
     {
@@ -84,9 +125,9 @@ final class PublicContractTest extends TestCase
         $firstDecision = EligibilityDecision::unrestricted();
         $secondDecision = EligibilityDecision::unrestricted();
 
-        $results = new SubjectDecisionCollection(
-            new SubjectDecisionResult($firstSubject, $firstDecision),
-            new SubjectDecisionResult($secondSubject, $secondDecision),
+        $results = new SubjectDecisionCollectionDTO(
+            new SubjectDecisionDTO($firstSubject, $firstDecision),
+            new SubjectDecisionDTO($secondSubject, $secondDecision),
         );
 
         self::assertSame($firstSubject, $results->items()[0]->subject);
@@ -103,35 +144,27 @@ final class PublicContractTest extends TestCase
 
         $this->expectException(InvalidEligibilityInputException::class);
 
-        new SubjectDecisionCollection(
-            new SubjectDecisionResult($subject, $decision),
-            new SubjectDecisionResult(new Subject('product', '150'), $decision),
+        new SubjectDecisionCollectionDTO(
+            new SubjectDecisionDTO($subject, $decision),
+            new SubjectDecisionDTO(new Subject('product', '150'), $decision),
         );
     }
 
     #[Test]
-    public function activeDimensionKeysAreCanonicalStringsInBytewiseOrder(): void
+    public function activeDimensionKeyDtoIsACanonicalString(): void
     {
-        $keys = new ActiveDimensionKeyCollection('customer_type', 'country', 'customer_segment');
+        $key = new ActiveDimensionKeyDTO('country');
 
-        self::assertSame(['country', 'customer_segment', 'customer_type'], $keys->items());
-        self::assertTrue($keys->contains('country'));
+        self::assertSame('country', $key->dimensionKey);
+        self::assertSame(['dimensionKey' => 'country'], $key->jsonSerialize());
     }
 
     #[Test]
-    public function activeDimensionKeysRejectDuplicateKeys(): void
+    public function activeDimensionKeyDtoRejectsNonStrings(): void
     {
         $this->expectException(InvalidEligibilityInputException::class);
 
-        new ActiveDimensionKeyCollection('country', 'country');
-    }
-
-    #[Test]
-    public function activeDimensionKeysRejectNonStrings(): void
-    {
-        $this->expectException(InvalidEligibilityInputException::class);
-
-        new ActiveDimensionKeyCollection('country', 1);
+        new ActiveDimensionKeyDTO(1);
     }
 
     #[Test]
@@ -184,19 +217,21 @@ final class PublicContractTest extends TestCase
     }
 
     #[Test]
-    public function criteriaRepresentSubjectDimensionLifecycleAndBoundedRead(): void
+    public function criteriaRepresentSubjectDimensionLifecycleAndEffect(): void
     {
         $criteria = new RuleCriteria(
             new Subject('product', '150'),
             'country',
             RuleLifecycleEnum::INACTIVE,
-            25,
+            RuleEffectEnum::DENY,
         );
 
         self::assertSame('country', $criteria->dimensionKey);
         self::assertSame(RuleLifecycleEnum::INACTIVE, $criteria->lifecycle);
-        self::assertSame(25, $criteria->maxResults);
-        self::assertSame(RuleCriteria::DEFAULT_MAX_RESULTS, (new RuleCriteria(new Subject('product', '1')))->maxResults);
+        self::assertSame(RuleEffectEnum::DENY, $criteria->effect);
+        self::assertNull((new RuleCriteria(new Subject('product', '1')))->effect);
+        self::assertFalse((new ReflectionClass(RuleCriteria::class))->hasConstant('DEFAULT_MAX_RESULTS'));
+        self::assertFalse((new ReflectionClass(RuleCriteria::class))->hasConstant('MAX_MAX_RESULTS'));
     }
 
     #[Test]
@@ -205,22 +240,6 @@ final class PublicContractTest extends TestCase
         $this->expectException(InvalidEligibilityInputException::class);
 
         new RuleCriteria(new Subject('product', '150'), 1);
-    }
-
-    #[Test]
-    public function criteriaRejectZeroMaxResults(): void
-    {
-        $this->expectException(InvalidEligibilityInputException::class);
-
-        new RuleCriteria(new Subject('product', '150'), null, null, 0);
-    }
-
-    #[Test]
-    public function criteriaRejectMaxResultsAboveBound(): void
-    {
-        $this->expectException(InvalidEligibilityInputException::class);
-
-        new RuleCriteria(new Subject('product', '150'), null, null, RuleCriteria::MAX_MAX_RESULTS + 1);
     }
 
     #[Test]
@@ -240,13 +259,13 @@ final class PublicContractTest extends TestCase
 
         $this->expectException(InvalidEligibilityInputException::class);
 
-        NonStrictConsumer::ruleCriteria($subject, 'country', '25');
+        NonStrictConsumer::ruleCriteria($subject, 1);
     }
 
     #[Test]
     public function activeDimensionQueryUsesATypedSubjectContract(): void
     {
-        $query = new ActiveDimensionKeysQuery(new Subject('product', '150'));
+        $query = new ActiveDimensionKeysCriteria(new Subject('product', '150'));
 
         self::assertSame('product', $query->subject->subjectType);
     }
@@ -306,8 +325,9 @@ final class PublicContractTest extends TestCase
         foreach (
             [
                 'findByIdentity' => Rule::class,
-                'findByCriteria' => RuleCollection::class,
-                'findActiveDimensionKeys' => ActiveDimensionKeyCollection::class,
+                'findByCriteria' => PageResult::class,
+                'findActiveDimensionKeys' => PageResult::class,
+                'summarizeLifecycle' => RuleLifecycleSummaryDTO::class,
             ] as $methodName => $returnType
         ) {
             self::assertSame(
@@ -315,6 +335,8 @@ final class PublicContractTest extends TestCase
                 self::namedReturnTypeName($managementQuery->getMethod($methodName)),
             );
         }
+        self::assertCount(2, $managementQuery->getMethod('findByCriteria')->getParameters());
+        self::assertCount(2, $managementQuery->getMethod('findActiveDimensionKeys')->getParameters());
 
         self::assertSame(
             RuleCollection::class,
@@ -342,7 +364,19 @@ final class PublicContractTest extends TestCase
             self::namedReturnTypeName($managementService->getMethod('replaceDimensionRules')),
         );
         self::assertSame(
-            SubjectDecisionCollection::class,
+            PageResult::class,
+            self::namedReturnTypeName($managementService->getMethod('inspectRules')),
+        );
+        self::assertSame(
+            PageResult::class,
+            self::namedReturnTypeName($managementService->getMethod('inspectActiveDimensionKeys')),
+        );
+        self::assertSame(
+            RuleLifecycleSummaryDTO::class,
+            self::namedReturnTypeName($managementService->getMethod('inspectRuleLifecycleSummary')),
+        );
+        self::assertSame(
+            SubjectDecisionCollectionDTO::class,
             self::namedReturnTypeName($evaluationService->getMethod('decideMany')),
         );
 
@@ -411,10 +445,12 @@ final class PublicContractTest extends TestCase
             CleanupSubjectCommand::class,
             DesiredRule::class,
             RuleCriteria::class,
-            ActiveDimensionKeysQuery::class,
-            ActiveDimensionKeyCollection::class,
-            SubjectDecisionResult::class,
-            SubjectDecisionCollection::class,
+            ActiveDimensionKeysCriteria::class,
+            ActiveDimensionKeyDTO::class,
+            RuleLifecycleSummaryCriteria::class,
+            RuleLifecycleSummaryDTO::class,
+            SubjectDecisionDTO::class,
+            SubjectDecisionCollectionDTO::class,
             SubjectCollection::class,
         ];
 
@@ -462,5 +498,46 @@ final class PublicContractTest extends TestCase
         self::assertInstanceOf(EligibilityExceptionInterface::class, $concurrency);
         self::assertInstanceOf(ConflictMaatifyException::class, $concurrency);
         self::assertSame($previous, $concurrency->getPrevious());
+    }
+
+    #[Test]
+    public function persistedStateExceptionUsesTheSystemHierarchyAndRetainsPrevious(): void
+    {
+        $causeFromInput = new InvalidEligibilityInputException('malformed persisted component');
+        $wrappingInput = new InvalidPersistedRuleStateException('invalid persisted component', $causeFromInput);
+
+        self::assertInstanceOf(EligibilityExceptionInterface::class, $wrappingInput);
+        self::assertInstanceOf(SystemMaatifyException::class, $wrappingInput);
+        self::assertInstanceOf(ApiAwareExceptionInterface::class, $wrappingInput);
+        self::assertSame($causeFromInput, $wrappingInput->getPrevious());
+        self::assertSame(500, $wrappingInput->getHttpStatus());
+        self::assertFalse($wrappingInput->isSafe());
+
+        $causeFromValueError = new \ValueError('not a backed enum case');
+        $wrappingValueError = new InvalidPersistedRuleStateException('invalid persisted effect', $causeFromValueError);
+        self::assertSame($causeFromValueError, $wrappingValueError->getPrevious());
+    }
+
+    #[Test]
+    public function everyEligibilityExceptionImplementsTheMarkerAndAMaatifyHierarchy(): void
+    {
+        $identity = new RuleIdentity('product', '150', 'country', 'EG');
+        $exceptions = [
+            new InvalidEligibilityInputException('invalid'),
+            new RuleNotFoundException($identity),
+            new RuleIdentityConflictException($identity),
+            new RuleConcurrencyConflictException(),
+            new InvalidPersistedRuleStateException('invalid persisted state'),
+        ];
+
+        foreach ($exceptions as $exception) {
+            self::assertInstanceOf(EligibilityExceptionInterface::class, $exception);
+            // ApiAwareExceptionInterface alone would only prove interface
+            // compatibility; MaatifyException proves the exception is
+            // actually built on the shared maatify/exceptions class
+            // hierarchy, not merely a same-shaped independent implementation.
+            self::assertInstanceOf(MaatifyException::class, $exception);
+            self::assertInstanceOf(ApiAwareExceptionInterface::class, $exception);
+        }
     }
 }

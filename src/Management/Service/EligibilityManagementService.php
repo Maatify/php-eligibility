@@ -10,20 +10,32 @@ use Maatify\Eligibility\Management\Command\DeactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\ReactivateRuleCommand;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
 use Maatify\Eligibility\Management\Command\UpdateRuleEffectCommand;
-use Maatify\Eligibility\Management\Query\ActiveDimensionKeysQuery;
-use Maatify\Eligibility\Management\Query\RuleCriteria;
-use Maatify\Eligibility\Management\Result\ActiveDimensionKeyCollection;
-use Maatify\Eligibility\Management\Contract\EligibilityManagementServiceInterface;
+use Maatify\Eligibility\Management\Criteria\ActiveDimensionKeysCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleLifecycleSummaryCriteria;
+use Maatify\Eligibility\Management\DTO\ActiveDimensionKeyDTO;
+use Maatify\Eligibility\Management\DTO\RuleLifecycleSummaryDTO;
+use Maatify\Eligibility\Management\Service\EligibilityManagementServiceInterface;
+use Maatify\Eligibility\Exception\InvalidEligibilityInputException;
 use Maatify\Eligibility\Exception\RuleNotFoundException;
-use Maatify\Eligibility\Rule\Repository\RuleCommandRepositoryInterface;
-use Maatify\Eligibility\Rule\Repository\RuleManagementQueryInterface;
-use Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface;
-use Maatify\Eligibility\Rule\Rule;
-use Maatify\Eligibility\Rule\RuleCollection;
-use Maatify\Eligibility\Rule\RuleIdentity;
-use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Eligibility\Management\Repository\RuleCommandRepositoryInterface;
+use Maatify\Eligibility\Management\Repository\RuleManagementQueryInterface;
+use Maatify\Eligibility\Management\Repository\RuleMutationSupportInterface;
+use Maatify\Eligibility\ValueObject\Rule;
+use Maatify\Eligibility\ValueObject\RuleIdentity;
+use Maatify\Eligibility\Enum\RuleLifecycleEnum;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 
+/**
+ * Application boundary for Rule inspection and lifecycle mutations.
+ *
+ * Replacement and Subject cleanup run inside the injected transaction runner;
+ * replacement also acquires the Subject coordination lock before comparing and
+ * applying the desired state, making the operation safe against concurrent
+ * mutation attempts under the package persistence contract.
+ */
 final class EligibilityManagementService implements EligibilityManagementServiceInterface
 {
     public function __construct(
@@ -31,15 +43,15 @@ final class EligibilityManagementService implements EligibilityManagementService
         private readonly RuleManagementQueryInterface $managementQuery,
         private readonly RuleMutationSupportInterface $mutationSupport,
         private readonly SavepointTransactionRunnerInterface $transactionRunner,
-    )
-    {
-    }
+    ) {}
 
+    /** Persists a new active Rule and surfaces natural-identity conflicts from the repository. */
     public function createRule(CreateRuleCommand $command): Rule
     {
         return $this->commandRepository->create($command);
     }
 
+    /** Reads either lifecycle state and throws when the natural identity is absent. */
     public function inspectRule(RuleIdentity $identity): Rule
     {
         $rule = $this->managementQuery->findByIdentity($identity);
@@ -50,16 +62,62 @@ final class EligibilityManagementService implements EligibilityManagementService
         return $rule;
     }
 
-    public function inspectRules(RuleCriteria $criteria): RuleCollection
+    /**
+     * Reads one canonically ordered page selected by the supplied management criteria.
+     *
+     * @return PageResult<Rule>
+     */
+    public function inspectRules(RuleCriteria $criteria, PageRequest $pageRequest): PageResult
     {
-        return $this->managementQuery->findByCriteria($criteria);
+        $this->assertCanonicalDimensionKeySort($pageRequest);
+
+        return $this->managementQuery->findByCriteria($criteria, $pageRequest);
     }
 
-    public function inspectActiveDimensionKeys(ActiveDimensionKeysQuery $query): ActiveDimensionKeyCollection
-    {
-        return $this->managementQuery->findActiveDimensionKeys($query);
+    /**
+     * Returns one canonically ordered page of active dimension keys for a Subject.
+     *
+     * @return PageResult<ActiveDimensionKeyDTO>
+     */
+    public function inspectActiveDimensionKeys(
+        ActiveDimensionKeysCriteria $query,
+        PageRequest $pageRequest,
+    ): PageResult {
+        $this->assertCanonicalDimensionKeySort($pageRequest);
+
+        return $this->managementQuery->findActiveDimensionKeys($query, $pageRequest);
     }
 
+    /** Returns the Rule lifecycle count summary for the supplied criteria scope. */
+    public function inspectRuleLifecycleSummary(RuleLifecycleSummaryCriteria $criteria): RuleLifecycleSummaryDTO
+    {
+        return $this->managementQuery->summarizeLifecycle($criteria);
+    }
+
+    /**
+     * Rejects any explicit sort request other than the canonical `dimension_key`
+     * ascending order accepted by the public pagination contract: both fields
+     * `null` (implicit canonical order), or the explicit equivalent pair
+     * `sortBy = dimension_key` and `sortDirection = ASC`. This mirrors the
+     * same guard enforced at the `RuleManagementQueryInterface` PDO boundary
+     * so the contract does not depend on the Service alone.
+     */
+    private function assertCanonicalDimensionKeySort(PageRequest $pageRequest): void
+    {
+        if ($pageRequest->sortBy === null && $pageRequest->sortDirection === null) {
+            return;
+        }
+
+        if ($pageRequest->sortBy === 'dimension_key' && $pageRequest->sortDirection === 'ASC') {
+            return;
+        }
+
+        throw new InvalidEligibilityInputException(
+            'Unsupported Rule management sort request; only canonical ascending dimension_key order is supported.',
+        );
+    }
+
+    /** Changes only effect state; a missing natural identity becomes RuleNotFoundException. */
     public function updateRuleEffect(UpdateRuleEffectCommand $command): void
     {
         $this->assertMutationSucceeded(
@@ -68,6 +126,7 @@ final class EligibilityManagementService implements EligibilityManagementService
         );
     }
 
+    /** Marks an existing Rule inactive without deleting its natural identity. */
     public function deactivateRule(DeactivateRuleCommand $command): void
     {
         $this->assertMutationSucceeded(
@@ -76,6 +135,7 @@ final class EligibilityManagementService implements EligibilityManagementService
         );
     }
 
+    /** Marks an existing Rule active again without creating a second identity. */
     public function reactivateRule(ReactivateRuleCommand $command): void
     {
         $this->assertMutationSucceeded(
@@ -84,6 +144,10 @@ final class EligibilityManagementService implements EligibilityManagementService
         );
     }
 
+    /**
+     * Atomically reconciles one Subject + dimension with desired state while
+     * preserving unrelated dimensions and using lifecycle updates for existing identities.
+     */
     public function replaceDimensionRules(ReplaceDimensionRulesCommand $command): void
     {
         $this->transactionRunner->run(function () use ($command): void {
@@ -152,6 +216,7 @@ final class EligibilityManagementService implements EligibilityManagementService
         });
     }
 
+    /** Atomically removes the Subject's Rules and package-owned coordination metadata. */
     public function cleanupSubject(CleanupSubjectCommand $command): void
     {
         $this->transactionRunner->run(function () use ($command): void {

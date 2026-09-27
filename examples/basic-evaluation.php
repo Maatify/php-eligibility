@@ -2,37 +2,28 @@
 
 declare(strict_types=1);
 
-use Maatify\Eligibility\Common\Value\Subject;
-use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Evaluation\Value\Context;
-use Maatify\Eligibility\Evaluation\Value\ContextDimension;
+use Maatify\Eligibility\ValueObject\Subject;
+use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationServiceInterface;
+use Maatify\Eligibility\Evaluation\ValueObject\Context;
+use Maatify\Eligibility\Evaluation\ValueObject\ContextDimension;
 use Maatify\Eligibility\Management\Command\CleanupSubjectCommand;
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
-use Maatify\Eligibility\Management\Service\EligibilityManagementService;
-use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
-use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
-use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
+use Maatify\Eligibility\Management\Service\EligibilityManagementServiceInterface;
+use Maatify\Eligibility\Factory\Pdo\PdoEligibilityRuntimeFactory;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
 
 require __DIR__ . '/../vendor/autoload.php';
 
 /**
- * @return array{management: EligibilityManagementService, evaluation: EligibilityEvaluationService}
+ * @return array{management: EligibilityManagementServiceInterface, evaluation: EligibilityEvaluationServiceInterface}
  */
 function wireServices(PDO $pdo): array
 {
-    $commandRepository = new PdoRuleCommandRepository($pdo);
-    $managementQuery = new PdoRuleManagementQuery($pdo);
+    $factory = new PdoEligibilityRuntimeFactory($pdo);
 
     return [
-        'management' => new EligibilityManagementService(
-            $commandRepository,
-            $managementQuery,
-            $commandRepository,
-            new PdoSavepointTransactionRunner($pdo),
-        ),
-        'evaluation' => new EligibilityEvaluationService(new PdoActiveRuleReader($pdo)),
+        'management' => $factory->createManagementService(),
+        'evaluation' => $factory->createEvaluationService(),
     ];
 }
 
@@ -47,7 +38,7 @@ function connectFromEnvironmentOrSkip(): PDO
     ];
     $missing = array_values(array_filter(
         $required,
-        static fn (string $name): bool => getenv($name) === false || getenv($name) === '',
+        static fn(string $name): bool => getenv($name) === false || getenv($name) === '',
     ));
 
     if ($missing !== []) {
@@ -82,12 +73,12 @@ function connectFromEnvironmentOrSkip(): PDO
     $pdo = new PDO(
         sprintf(
             'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
-            getenv('ELIGIBILITY_DB_HOST'),
-            getenv('ELIGIBILITY_DB_PORT'),
-            getenv('ELIGIBILITY_DB_NAME'),
+            (string) getenv('ELIGIBILITY_DB_HOST'),
+            (string) getenv('ELIGIBILITY_DB_PORT'),
+            (string) getenv('ELIGIBILITY_DB_NAME'),
         ),
-        getenv('ELIGIBILITY_DB_USER'),
-        getenv('ELIGIBILITY_DB_PASSWORD'),
+        (string) getenv('ELIGIBILITY_DB_USER'),
+        (string) getenv('ELIGIBILITY_DB_PASSWORD'),
         [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_EMULATE_PREPARES => false,

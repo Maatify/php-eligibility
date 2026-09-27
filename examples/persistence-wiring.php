@@ -2,12 +2,7 @@
 
 declare(strict_types=1);
 
-use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
-use Maatify\Eligibility\Management\Service\EligibilityManagementService;
-use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
-use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
-use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
-use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
+use Maatify\Eligibility\Factory\Pdo\PdoEligibilityRuntimeFactory;
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -22,7 +17,7 @@ function connectWiringDatabaseOrSkip(): PDO
     ];
     $missing = array_values(array_filter(
         $required,
-        static fn (string $name): bool => getenv($name) === false || getenv($name) === '',
+        static fn(string $name): bool => getenv($name) === false || getenv($name) === '',
     ));
 
     if ($missing !== []) {
@@ -57,12 +52,12 @@ function connectWiringDatabaseOrSkip(): PDO
     $pdo = new PDO(
         sprintf(
             'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
-            getenv('ELIGIBILITY_DB_HOST'),
-            getenv('ELIGIBILITY_DB_PORT'),
-            getenv('ELIGIBILITY_DB_NAME'),
+            (string) getenv('ELIGIBILITY_DB_HOST'),
+            (string) getenv('ELIGIBILITY_DB_PORT'),
+            (string) getenv('ELIGIBILITY_DB_NAME'),
         ),
-        getenv('ELIGIBILITY_DB_USER'),
-        getenv('ELIGIBILITY_DB_PASSWORD'),
+        (string) getenv('ELIGIBILITY_DB_USER'),
+        (string) getenv('ELIGIBILITY_DB_PASSWORD'),
         [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_EMULATE_PREPARES => false,
@@ -76,19 +71,10 @@ function connectWiringDatabaseOrSkip(): PDO
 
 $pdo = connectWiringDatabaseOrSkip();
 
-// Every adapter and the shared transaction runner receive this exact PDO instance.
-$commandRepository = new PdoRuleCommandRepository($pdo);
-$managementQuery = new PdoRuleManagementQuery($pdo);
-$activeRuleReader = new PdoActiveRuleReader($pdo);
-$transactionRunner = new PdoSavepointTransactionRunner($pdo);
-
-$management = new EligibilityManagementService(
-    $commandRepository,
-    $managementQuery,
-    $commandRepository,
-    $transactionRunner,
-);
-$evaluation = new EligibilityEvaluationService($activeRuleReader);
+// The Host owns this PDO and the factory builds both services over it.
+$factory = new PdoEligibilityRuntimeFactory($pdo);
+$management = $factory->createManagementService();
+$evaluation = $factory->createEvaluationService();
 
 echo sprintf(
     "PDO wiring ready: %s and %s share one PDO connection.\n",

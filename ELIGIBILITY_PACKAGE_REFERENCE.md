@@ -2,11 +2,32 @@
 
 ## Status
 
-This document is the canonical RC1 design and behavioral contract for `maatify/php-eligibility`.
+This document is the canonical RC2 public/runtime/behavioral contract for
+`maatify/php-eligibility` and owns the complete Public Runtime API inventory.
 
-The RC1 implementation MUST conform to the boundaries, invariants, decision semantics, lifecycle rules, ordering rules, and operational contracts defined here. Changes to these semantics require an explicit documentation decision before implementation changes are accepted.
+The RC2 implementation MUST conform to the boundaries, invariants, decision semantics, lifecycle rules, ordering rules, and operational contracts defined here. Changes to these semantics require an explicit documentation decision before implementation changes are accepted.
 
 This document freezes externally observable behavior without prematurely freezing internal class names, table names, column names, indexes, or framework-specific wiring.
+
+## RC2 source topology
+
+The implemented RC2 source topology is:
+
+```text
+Source Topology: Multi Capability
+
+Capabilities:
+- Evaluation
+- Management
+```
+
+The package identity represents the `Eligibility` Domain boundary; no
+redundant `src/Eligibility/` directory exists. The canonical placement law is
+`Domain → Capability → Responsibility → Technology`. RC2 applies the direct
+Pre-Stable FQCN migration recorded in
+[`docs/decisions/DEC-001-rc2-canonical-source-topology-and-pre-stable-fqcn-migration.md`](docs/decisions/DEC-001-rc2-canonical-source-topology-and-pre-stable-fqcn-migration.md):
+RC1 names are historical release context, and RC2 provides no legacy aliases,
+wrappers, proxy classes, or other compatibility shims.
 
 ## Purpose
 
@@ -48,7 +69,7 @@ This applies to:
 - `dimension_key`;
 - `dimension_value`.
 
-For RC1, every canonical string MUST:
+For RC2, every canonical string MUST:
 
 - be valid UTF-8;
 - be non-empty;
@@ -70,10 +91,10 @@ The same rule applies to numeric-looking Context values.
 
 Malformed UTF-8, null values, non-string values at typed package boundaries, empty strings, whitespace-only strings, and strings with leading/trailing whitespace MUST be rejected through typed validation errors rather than silently transformed.
 
-RC1 does not restrict business values to ASCII. Persistence MUST preserve the exact validated UTF-8 sequence and MUST NOT silently normalize or truncate it.
+RC2 does not restrict business values to ASCII. Persistence MUST preserve the exact validated UTF-8 sequence and MUST NOT silently normalize or truncate it.
 
-RC1 canonical package bounds are resolved and apply at every semantic package
-boundary, not only at SQL columns. `Maatify\Eligibility\Common\Validation\CanonicalString`
+RC2 canonical package bounds are resolved and apply at every semantic package
+boundary, not only at SQL columns. `Maatify\Eligibility\Common\CanonicalString`
 is the production source of truth and measures bytes with `strlen()` after valid
 UTF-8 validation:
 
@@ -86,7 +107,7 @@ UTF-8 validation:
 
 Every public/raw boundary for these components MUST reject an over-limit value
 with `InvalidEligibilityInputException` before constructing contract state or
-performing persistence work. These are canonical RC1 package bounds, not merely
+performing persistence work. These are canonical RC2 package bounds, not merely
 SQL column-size choices.
 
 ## Subject
@@ -147,7 +168,7 @@ This allows future projects to introduce a dimension without changing Product, C
 
 ### Canonical Context shape
 
-For RC1, Context shape is strict:
+For RC2, Context shape is strict:
 
 - a `dimension_key` may appear at most once in one Context;
 - duplicate dimension entries for the same `dimension_key` are invalid input;
@@ -168,7 +189,7 @@ country absent
 
 means the Context does not supply a country dimension.
 
-There is no separate RC1 representation for:
+There is no separate RC2 representation for:
 
 ```text
 country = []
@@ -220,7 +241,7 @@ payment_method:tap        country:KW                allow
 shipping_provider:aramex  country:EG                deny
 ```
 
-Rules are exact. RC1 has no implicit wildcard, fuzzy match, range expression, script, callback, priority, score, or executable expression language.
+Rules are exact. RC2 has no implicit wildcard, fuzzy match, range expression, script, callback, priority, score, or executable expression language.
 
 ## Canonical Rule identity
 
@@ -274,13 +295,13 @@ Database collation MUST NOT change package matching semantics. Persistence MUST 
 
 ## Canonical ordering
 
-Deterministic ordering is part of the RC1 observable contract and MUST NOT depend on database default collation or row-return order.
+Deterministic ordering is part of the RC2 observable contract and MUST NOT depend on database default collation or row-return order.
 
 Canonical string ordering is ascending binary/bytewise ordering over the validated UTF-8 byte sequence.
 
 Canonical tuple ordering compares each component in sequence and moves to the next component only when the previous component compares equal.
 
-The following orderings are fixed for RC1:
+The following orderings are fixed for RC2:
 
 - active-dimension key collections: `dimension_key` ascending;
 - `DimensionOutcome` collections: `dimension_key` ascending;
@@ -294,14 +315,14 @@ Adapters MAY use a different internal ordering when useful, but public/domain re
 
 ## Canonical Rule lifecycle
 
-RC1 uses an explicit active/inactive Rule lifecycle.
+RC2 uses an explicit active/inactive Rule lifecycle.
 
 A Rule's natural identity remains unique regardless of active state. Deactivation does not create a second identity and reactivation does not create a new Rule.
 
 Canonical lifecycle behavior:
 
 - `create` always creates the new Rule in the active state;
-- individual RC1 `create` does not accept an initial inactive state;
+- individual RC2 `create` does not accept an initial inactive state;
 - active Rules participate in evaluation;
 - inactive Rules are ignored completely by evaluation;
 - a Rule may be deactivated;
@@ -312,7 +333,7 @@ Canonical lifecycle behavior:
 
 ### Lifecycle operation orthogonality
 
-Lifecycle and effect mutations are separate state transitions in RC1:
+Lifecycle and effect mutations are separate state transitions in RC2:
 
 - `updateEffect` changes only the Rule effect and MUST preserve the current active/inactive state;
 - `deactivate` changes only lifecycle state to inactive and MUST preserve the current effect;
@@ -322,7 +343,7 @@ Therefore updating the effect of an inactive Rule leaves that Rule inactive unti
 
 ### Lifecycle command idempotency
 
-RC1 state-setting commands are idempotent when the target Rule exists:
+RC2 state-setting commands are idempotent when the target Rule exists:
 
 - deactivating an already inactive Rule succeeds with no state change;
 - reactivating an already active Rule succeeds with no state change;
@@ -335,7 +356,7 @@ The distinction between idempotency and absence is canonical:
 
 `replaceDimensionRules()` has its own set-replacement semantics defined below and may reuse/reactivate existing persistent Rule identities.
 
-RC1 MUST NOT rely on duplicate active rows, effect-specific duplicates, ambiguous restore behavior, or create-as-update behavior.
+RC2 MUST NOT rely on duplicate active rows, effect-specific duplicates, ambiguous restore behavior, or create-as-update behavior.
 
 Physical cleanup of all Eligibility data for a deleted external Subject is a separate management operation.
 
@@ -388,7 +409,7 @@ Decision for this dimension: denied
 
 The evaluator MAY short-circuit internal work only if doing so does not lose matched-Rule trace information required by the canonical Decision contract.
 
-Overall RC1 Decision construction MUST still evaluate all ruled dimensions so the final Decision contains a complete deterministic trace.
+Overall RC2 Decision construction MUST still evaluate all ruled dimensions so the final Decision contains a complete deterministic trace.
 
 ### 4. ALLOW Rules create an allow-list for that dimension
 
@@ -427,7 +448,7 @@ Decision: passes the country dimension.
 
 ### 6. Missing Context values are explicit
 
-Because present Context dimensions cannot be empty in RC1, a missing Context value means the dimension key is absent from the Context entirely.
+Because present Context dimensions cannot be empty in RC2, a missing Context value means the dimension key is absent from the Context entirely.
 
 If the Subject has ALLOW Rules for a dimension but the Context omits that dimension, the dimension fails because the allow-list cannot be satisfied.
 
@@ -439,7 +460,7 @@ The Decision trace MUST distinguish this case from a DENY-only dimension that re
 
 The Host is responsible for deciding which Context dimensions it is required to resolve before asking Eligibility for a Decision.
 
-To support safe Host integration, RC1 management/query contracts MUST allow the Host to discover the active dimension keys that currently govern a supplied Subject.
+To support safe Host integration, RC2 management/query contracts MUST allow the Host to discover the active dimension keys that currently govern a supplied Subject.
 
 This introspection is informational only; Eligibility does not infer that every active dimension is mandatory Host input because DENY-only dimensions legally pass when absent.
 
@@ -473,7 +494,7 @@ is denied because the country dimension fails.
 
 ### 8. Eligibility does not infer relationships between dimensions
 
-RC1 does not implement arbitrary boolean expression trees such as:
+RC2 does not implement arbitrary boolean expression trees such as:
 
 ```text
 (country = EG AND customer_type = retail)
@@ -481,7 +502,7 @@ OR
 (country = KW AND customer_type = wholesale)
 ```
 
-The RC1 model intentionally stays bounded:
+The RC2 model intentionally stays bounded:
 
 - OR across supplied/matched values within one dimension;
 - AND across dimensions;
@@ -491,7 +512,7 @@ More complex policy composition requires an explicit future package design rathe
 
 ## Canonical Decision contract
 
-The public Decision contract MUST be typed and immutable. A boolean-only public result is insufficient for RC1.
+The public Decision contract MUST be typed and immutable. A boolean-only public result is insufficient for RC2.
 
 A Decision MUST expose at least:
 
@@ -523,7 +544,7 @@ RuleReference
 - effect
 ```
 
-An implementation MAY additionally expose a stable package-owned Rule identifier if the contracts/schema slice chooses one, but RC1 Decision correctness MUST NOT depend on a database-specific surrogate ID.
+An implementation MAY additionally expose a stable package-owned Rule identifier if the contracts/schema slice chooses one, but RC2 Decision correctness MUST NOT depend on a database-specific surrogate ID.
 
 ### Decision invariants
 
@@ -567,7 +588,7 @@ Dimension outcomes and matched Rule collections MUST follow canonical ordering.
 
 ### Stable machine reason semantics
 
-RC1 owns stable machine-readable reason semantics.
+RC2 owns stable machine-readable reason semantics.
 
 Overall Decision reasons:
 
@@ -609,13 +630,13 @@ Therefore:
 
 The presence of matching ALLOW Rules inside a `DENIED_BY_RULE` trace does not weaken DENY precedence; it exists only for complete machine diagnostics.
 
-Exact PHP enum/class names are implementation-stage naming decisions, but these semantics are canonical and MUST remain machine-stable for RC1.
+The concrete PHP names are recorded in the current Public Runtime API inventory; these semantics are canonical and MUST remain machine-stable for RC2.
 
 Human-facing translated messages are not owned by Eligibility. The Host maps machine-readable Decisions to customer/admin/API presentation.
 
 ## Single and batch evaluation
 
-RC1 MUST support both single-Subject and batch evaluation.
+RC2 MUST support both single-Subject and batch evaluation.
 
 Conceptually:
 
@@ -635,7 +656,7 @@ Batch semantics are canonical:
 - results MUST preserve the accepted input Subject order;
 - single and batch paths MUST use identical evaluation semantics and produce equivalent Decisions for the same Subject/Context pair.
 
-Batch evaluation is a first-class RC1 requirement so consumers such as Catalog listings, checkout method lists, and admin diagnostics do not require one persistence read per Subject.
+Batch evaluation is a first-class RC2 requirement so consumers such as Catalog listings, checkout method lists, and admin diagnostics do not require one persistence read per Subject.
 
 The persistence/evaluation design MUST support loading Rules for a supplied candidate set in bounded bulk operations and MUST NOT require an N+1 query pattern as the canonical batch path.
 
@@ -647,7 +668,7 @@ Eligibility is an evaluator, not a Host-domain query planner.
 
 It does not own the complete universe of Product, Category, Payment Method, Shipping Method, or other external Subject identities and therefore MUST NOT pretend that it can globally discover every eligible or ineligible Host entity by itself.
 
-For RC1:
+For RC2:
 
 - the Host owns Catalog/domain search, sorting, and pagination;
 - the Host may supply a candidate Subject set for batch Eligibility evaluation;
@@ -658,19 +679,19 @@ A Host MUST NOT assume that applying `LIMIT/OFFSET` first and then filtering tha
 
 Therefore `decideMany()` is suitable for evaluating a supplied candidate set, but it is not by itself a solution for eligibility-aware global filtering or pagination.
 
-If a project requires eligibility-aware SQL/search pagination across a large Host dataset, that requires an explicit integration design such as a projection, query adapter, materialized eligibility view, or search index. It is not silently folded into the RC1 core.
+If a project requires eligibility-aware SQL/search pagination across a large Host dataset, that requires an explicit integration design such as a projection, query adapter, materialized eligibility view, or search index. It is not silently folded into the RC2 core.
 
 ## Management responsibilities
 
-RC1 MUST provide typed application contracts sufficient for a Host to manage Eligibility Rules without direct SQL access from application/domain code.
+RC2 MUST provide typed application contracts sufficient for a Host to manage Eligibility Rules without direct SQL access from application/domain code.
 
 The management surface MUST support the capability to:
 
 - create a Rule for an external Subject and exact dimension value;
 - inspect Rules for a Subject across both active and inactive lifecycle states;
-- inspect/filter Rules by dimension using bounded reads;
-- filter management Rule reads by lifecycle state when required;
-- inspect the active dimension keys governing a Subject;
+- inspect/filter paginated Rules by dimension, lifecycle, and effect;
+- inspect the active dimension keys governing a Subject, paginated;
+- inspect a Rule lifecycle count summary for a Subject, optionally scoped to one dimension;
 - update an existing Rule's effect;
 - deactivate a Rule;
 - reactivate an inactive Rule;
@@ -683,9 +704,110 @@ Management Rule representations MUST expose lifecycle state explicitly so caller
 
 Management reads MUST be capable of returning inactive Rules. An adapter or service MUST NOT silently hide inactive Rules from the management surface merely because the evaluator ignores them.
 
-Lifecycle filtering MAY be represented through typed criteria/query contracts; exact class names are an implementation-stage decision.
+Dimension, lifecycle, and effect filtering are represented through the typed `RuleCriteria` contract; concrete names and signatures are recorded in the current Public Runtime API inventory.
 
 Active-dimension queries describe evaluation state and therefore consider active Rules only. Management Rule collections may include active and inactive Rules according to the requested criteria. All returned collections MUST follow canonical ordering.
+
+### Host/Admin boundary
+
+Admin is a Host use case, not a distinct Eligibility Capability: there is no
+`Admin` namespace or capability inside the package. The package owns Rule
+identity, effect, active/inactive lifecycle, Eligibility dimension/value
+semantics, and the Management reads/mutations/counts documented in this
+section. The Host owns authentication, authorization, roles/permissions,
+HTTP routes/controllers/UI, exports, Product/Category/Customer name
+resolution, Host-domain search, Host dataset pagination, Host joins, and Host
+actor identity. No Host table, repository, model, foreign key, name
+resolution, or global Subject inventory may enter Eligibility. A generic root
+Admin capability, Dashboard/Statistics/Report subsystem, Host Subject
+inventory, or HTTP/UI/permissions/export surface inside the package is
+explicitly out of scope; those concerns stay at the Host/project-aware layer.
+
+### Paginated Rule management reads
+
+Management Rule reads are paginated rather than bounded by a fixed
+`maxResults`. The public contract is:
+
+```text
+inspectRules(RuleCriteria $criteria, PageRequest $pageRequest): PageResult<Rule>
+```
+
+`RuleCriteria` carries only the domain filters (Subject, optional dimension
+key, optional lifecycle, optional effect); `PageRequest` and `PageResult` are
+the stable published types from `Maatify\Persistence\Pdo\Pagination`. Eligibility
+does not implement a package-local page/per-page normalization, sort-resolution
+engine, offset engine, or pagination metadata engine; those mechanics are
+delegated to `maatify/persistence`'s `PdoPaginator`. Shared per-page bounds are
+those of the approved Pagination configuration: default `20`, minimum `1`,
+maximum `200`.
+
+For one supplied Subject:
+
+```text
+total    = all persisted Rules belonging to that Subject, before optional
+           RuleCriteria filters.
+filtered = persisted Rules after optional dimensionKey + lifecycle + effect
+           filters.
+```
+
+The public Rule page ordering contract is one canonical sort, not a generic
+Admin sorter: primary `dimension_key` ascending, tie-breaker `dimension_value`
+ascending. This is because, within one Subject, `(dimension_key,
+dimension_value)` is the natural Rule identity remainder and therefore gives
+deterministic complete ordering. `PageRequest.sortBy`/`sortDirection` accept
+only `null` (meaning this canonical order) or the explicit equivalent
+(`sortBy = dimension_key`, `sortDirection = ASC`); any other explicit sort
+request is invalid Eligibility Management input and MUST produce
+`InvalidEligibilityInputException`. No alternative public sort key is exposed.
+
+### Paginated active-dimension discovery
+
+Active-dimension discovery is likewise paginated rather than an unbounded
+collection, because there is no proven small hard domain bound for distinct
+active dimensions for a Subject:
+
+```text
+inspectActiveDimensionKeys(ActiveDimensionKeysCriteria $criteria, PageRequest $pageRequest): PageResult<ActiveDimensionKeyDTO>
+```
+
+Semantics: scope is one Subject; visibility is active Rules only; the result
+is distinct dimension keys; inactive-only dimensions are excluded; ordering is
+`dimension_key` ascending. For this query `total === filtered`, because no
+optional domain filter exists beyond the query's intrinsic active-visibility
+contract. Only canonical ascending `dimension_key` ordering is supported;
+other explicit sort requests are rejected with
+`InvalidEligibilityInputException`.
+
+### Rule lifecycle summary
+
+```text
+inspectRuleLifecycleSummary(RuleLifecycleSummaryCriteria $criteria): RuleLifecycleSummaryDTO
+```
+
+`RuleLifecycleSummaryCriteria` requires a Subject and accepts an optional
+exact dimension key filter; a `null` dimension key summarizes all Rules for
+the Subject. There is no pagination, lifecycle filter, effect filter, time
+window, or Host dimension on this criteria — it always summarizes complete
+lifecycle state for its Subject/dimension scope. `RuleLifecycleSummaryDTO`
+exposes `totalRules`, `activeRules`, and `inactiveRules` with the invariant
+`totalRules === activeRules + inactiveRules`, all `>= 0`. The PDO
+implementation computes this aggregate in the database; it MUST NOT load all
+Rules into PHP to calculate it. An empty Subject/dimension scope returns
+exactly `0`/`0`/`0`. The PDO implementation also reads an independent total
+count for the same scope and MUST classify a mismatch between that
+independent total and `activeRules + inactiveRules` (for example caused by an
+unrecognized persisted `lifecycle` byte) as `InvalidPersistedRuleStateException`
+rather than silently returning an undercounted summary.
+
+### Non-goals for this operational-read surface
+
+The following remain outside the Management operational-read surface unless a
+later documented decision adds them: a generic `Dashboard`/`Statistics`/
+`Report` subsystem, a Host Subject inventory, Host-domain search, HTTP/UI/
+permissions/export, schema migration, timestamps/audit history, time-window
+analytics, and any generic reporting taxonomy or universal metric shape. These
+either belong to the Host/project-aware layer or are intentionally outside
+Eligibility's package boundary.
 
 ### Atomic dimension replacement
 
@@ -696,7 +818,7 @@ product:150
 country allow-list = {EG, KW, SA}
 ```
 
-RC1 therefore MUST support a typed operation conceptually equivalent to:
+RC2 therefore MUST support a typed operation conceptually equivalent to:
 
 ```text
 replaceDimensionRules(Subject, dimensionKey, desiredRules)
@@ -731,7 +853,7 @@ This contract applies to `replaceDimensionRules()` and `cleanupSubject()`. The s
 
 ### Transaction and concurrency boundaries
 
-The following caller-visible concurrency guarantees are part of RC1. Their implementation remains inside the package persistence boundary and MUST NOT be reproduced by Hosts:
+The following caller-visible concurrency guarantees are part of RC2. Their implementation remains inside the package persistence boundary and MUST NOT be reproduced by Hosts:
 
 - persistence MUST enforce one Rule per natural identity (`subject_type + subject_id + dimension_key + dimension_value`), independent of `effect` and lifecycle state;
 - concurrent creates for the same natural identity MUST NOT create duplicate Rules. One successful create may win; a competing create MUST produce the typed natural-identity conflict when the duplicate is proven, or the typed concurrency/uniqueness conflict when safe classification or resolution is not possible;
@@ -746,7 +868,7 @@ Exact SQL locking, lock mode, retry policy, isolation level, and database-specif
 
 Because Eligibility intentionally has no foreign keys to Host-owned Subjects, the Host requires an official cleanup path when an external Subject is permanently removed.
 
-RC1 MUST therefore expose a typed operation conceptually equivalent to physically removing all Eligibility Rules owned by a supplied Subject identity.
+RC2 MUST therefore expose a typed operation conceptually equivalent to physically removing all Eligibility Rules owned by a supplied Subject identity.
 
 Subject cleanup is the canonical hard-delete boundary for orphan removal. It is distinct from ordinary Rule deactivation and dimension replacement.
 
@@ -761,12 +883,19 @@ This cleanup capability MUST NOT require the Eligibility package to query or und
 
 Management conflicts and invalid input MUST surface through typed package/domain errors rather than raw storage-driver exceptions when Eligibility owns a stable semantic classification. Unknown or external infrastructure failures remain external failures and MAY propagate unchanged; they MUST NOT be silently swallowed or converted by a blind catch-all.
 
-RC1 error semantics MUST distinguish at least:
+RC2 error semantics MUST distinguish at least:
 
 - invalid structural input;
 - natural-identity conflict on create;
 - requested Rule not found for commands that require an existing Rule;
-- concurrency/uniqueness conflict that could not be resolved safely.
+- concurrency/uniqueness conflict that could not be resolved safely;
+- malformed persisted Rule state, including malformed Rule hydration state
+  (an invalid persisted canonical component, or a persisted `effect`/`lifecycle`
+  value not represented by its enum) and a package-owned lifecycle-summary
+  inconsistency where the independent persisted total differs from the active
+  plus inactive counts because a persisted lifecycle value is unrecognized;
+  these are distinct from an unknown/external storage failure, which continues
+  to propagate unchanged.
 
 The exception ownership contract required by the adopted package standards is:
 
@@ -779,7 +908,7 @@ The exception ownership contract required by the adopted package standards is:
 - any `PDOException` or `Throwable` not explicitly classified by such evidence MUST propagate unchanged. Blind catch-all wrapping is forbidden. When a semantic wrapper is used, it MUST preserve the original throwable as `previous` where supported;
 - repository and read operations MUST never swallow storage failures, and service orchestration MUST allow these exceptions to propagate rather than hiding them.
 
-Exact named exception class inventory and constructor names remain implementation-stage decisions; the marker name, shared hierarchy ownership, semantic-conversion boundary, and propagation behavior above are frozen for RC1.
+Named exception classes and constructor contracts are recorded in the current Public Runtime API inventory; the marker name, shared hierarchy ownership, semantic-conversion boundary, and propagation behavior above are frozen for RC2.
 
 Public/domain contracts MUST remain typed and MUST NOT use associative arrays as their API model.
 
@@ -989,7 +1118,7 @@ This keeps the package usable for guests, API clients, B2B accounts, organizatio
 
 ## Multi-tenancy and scope
 
-RC1 does NOT add `tenant_id`, `scope_key`, organization identity, or another tenancy concept to the Eligibility domain model.
+RC2 does NOT add `tenant_id`, `scope_key`, organization identity, or another tenancy concept to the Eligibility domain model.
 
 Tenant isolation is a Host/storage-boundary responsibility. A multi-tenant Host MUST provide isolated persistence/connection/schema/database scope such that one tenant cannot observe or mutate another tenant's Eligibility Rules.
 
@@ -997,11 +1126,11 @@ The package MUST NOT silently add a global cross-tenant Rule namespace merely be
 
 If a future use case genuinely requires tenant identity to participate in the business meaning of an Eligibility Decision rather than storage isolation, that requires an explicit future design decision.
 
-## Persistence principles for RC1
+## Persistence principles for RC2
 
-### D2 — Resolved database compatibility contract
+### Database compatibility contract
 
-For RC1, Eligibility persistence targets **MySQL-compatible database-server
+For RC2, Eligibility persistence targets **MySQL-compatible database-server
 semantics through direct PDO**. The database compatibility contract is
 capability-based, not product-version-based.
 
@@ -1018,10 +1147,10 @@ Separately, the PHP runtime executing this package MUST provide `ext-pdo` and
 `ext-pdo_mysql`. These are PHP runtime requirements, not capabilities supplied by
 the database server.
 
-The RC1 reproducibility fixture is `mysql:8.4.11`. That fixture version is test
+The RC2 reproducibility fixture is `mysql:8.4.11`. That fixture version is test
 infrastructure evidence only and is not a minimum supported product version.
 
-The B3 schema bounds canonical UTF-8 inputs by bytes, before persistence:
+The schema bounds canonical UTF-8 inputs by bytes, before persistence:
 
 | Canonical component | Maximum bytes | Storage |
 |---|---:|---|
@@ -1038,24 +1167,40 @@ must not trim, normalize, coerce, or truncate input. Repository results are
 hydrated and then normalized by the existing package collections to canonical
 bytewise ordering.
 
+The default public direct-PDO construction class is
+`Maatify\Eligibility\Factory\Pdo\PdoEligibilityRuntimeFactory`. Its exact
+constructor is `__construct(PDO $pdo)`, and its only public service methods are
+`createManagementService(): EligibilityManagementServiceInterface` and
+`createEvaluationService(): EligibilityEvaluationServiceInterface`. The caller
+owns PDO creation/configuration, credentials, schema application, and any
+outer transaction; the factory owns no connection or container state and uses
+the same caller PDO for every component it creates.
+
 The concrete direct-PDO adapters are
-`Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository`,
-`Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery`, and
-`Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader`. They are
+`Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository`,
+`Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery`, and
+`Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader`. They are
 constructed from the same PDO connection while keeping mutation, management
 query, evaluation-read, and internal mutation-support responsibilities
-separate. `PdoSavepointTransactionRunner` is also constructed from that same
-PDO connection and is wired as the service's transaction dependency. The
-command adapter implements only `RuleCommandRepositoryInterface` and
-`RuleMutationSupportInterface`.
+separate. The factory wires these components and
+`PdoSavepointTransactionRunner` into the two service graphs. Direct adapter and
+service construction remains available as an advanced explicit composition
+boundary. The command adapter implements `RuleCommandRepositoryInterface` and
+the package-internal `RuleMutationSupportInterface`; that internal contract is
+not part of ordinary consumer wiring.
 The command adapter's internal auto-increment `BIGINT UNSIGNED` primary key is infrastructure-only
-and is not part of `Rule`, `RuleIdentity`, `RuleReference`, Decisions, or B2
-public contracts. B3 converts only MySQL/MariaDB driver error code `1062` to
-`RuleIdentityConflictException` and preserves the original `PDOException` as
-`previous`; unknown storage failures propagate unchanged. No Eligibility table
-has a Host foreign key or Host join.
+and is not part of `Rule`, `RuleIdentity`, `RuleReference`, Decisions, or the
+public contracts. At the PDO boundary, documented driver error number `1062`
+converts to `RuleIdentityConflictException`, while documented driver error
+numbers `1205` and `1213` convert to `RuleConcurrencyConflictException`.
+Each typed conversion preserves the original `PDOException` as
+`$exception->getPrevious()`. Every other unknown or unclassified PDO/storage
+failure propagates unchanged. This classification does not blanket-wrap PDO
+or `Throwable`, classify generic SQLSTATE classes or codes such as `23xxx`,
+`HY000`, or `40001`, or infer a semantic conflict without a documented
+driver error number. No Eligibility table has a Host foreign key or Host join.
 
-The final RC1 schema and adapter MUST preserve these principles:
+The final RC2 schema and adapter MUST preserve these principles:
 
 - Eligibility-owned tables only;
 - no foreign keys to Host-owned Subject or Context domains;
@@ -1067,17 +1212,20 @@ The final RC1 schema and adapter MUST preserve these principles:
 - individual create persists new Rules active;
 - explicit typed ALLOW/DENY storage;
 - management storage reads preserve and expose lifecycle state;
-- bounded management reads;
+- paginated Management reads using the approved shared pagination contract;
 - bulk Rule loading for supplied Subject sets;
 - canonical package-defined ordering for returned Rule and Decision collections;
 - concurrency-safe mutation behavior where uniqueness/lifecycle invariants require it;
 - typed conflict translation rather than raw driver errors;
-- direct PDO for the RC1 persistence implementation, with no ORM and no external query builder;
+- direct PDO for the RC2 persistence implementation, with no ORM and no external query builder;
 - no dependency on a framework or HTTP runtime.
 
-Exact table/column names, indexes, maximum lengths, timestamp fields, optional surrogate Rule IDs, and adapter internals are implementation/schema-slice decisions, but they MUST be explicitly documented and verified before RC1 release readiness.
+The executable table, column, index, and bounds details are owned by
+`schema/eligibility_rules.sql` and `schema/README.md`. Adapter mechanics that
+are not part of the public contract remain implementation details under this
+normative persistence contract.
 
-The RC1 persistence implementation MUST use direct PDO. It MUST NOT use an ORM or an external query builder. Repository and interface substitution boundaries MAY remain part of the public architecture, but every RC1 persistence implementation MUST preserve this direct-PDO requirement; a non-PDO implementation MUST NOT be presented as an RC1 alternative. Eligibility MUST NOT require Laravel, Doctrine, Slim, or another framework runtime.
+The RC2 persistence implementation MUST use direct PDO. It MUST NOT use an ORM or an external query builder. Repository and interface substitution boundaries MAY remain part of the public architecture, but every RC2 persistence implementation MUST preserve this direct-PDO requirement; a non-PDO implementation MUST NOT be presented as an RC2 alternative. Eligibility MUST NOT require Laravel, Doctrine, Slim, or another framework runtime.
 
 The package itself owns no cache semantics. Hosts may cache derived Decisions or loaded Rules only if their invalidation strategy preserves canonical Rule mutations and Decision correctness.
 
@@ -1123,94 +1271,120 @@ Host Input
   → Observable Result
 ```
 
-This workflow is normative at the responsibility and observable-behavior level. The implemented Public Runtime API inventory below is the authoritative record of the concrete RC1 PHP classes, signatures, adapters, and dependency wiring. Documentation MUST NOT invent classes or wiring that are absent from that inventory and the current source.
+This workflow is normative at the responsibility and observable-behavior level. The implemented Public Runtime API inventory below is the authoritative record of the current RC2 concrete PHP classes, FQCNs, signatures, adapters, and dependency wiring. Documentation MUST NOT invent classes or wiring that are absent from that inventory and the current source.
 
 1. The Host validates the external Subject and resolves its business Context. It constructs the canonical typed Subject and immutable Context using the exact string rules and Context shape defined in this reference. Host-owned semantic normalization, such as choosing an uppercase country code, occurs before the package boundary.
 2. The Host calls the public Eligibility API for one Subject or an ordered batch of Subjects. The public operation is conceptually `decide(Subject, Context)` or `decideMany(Subjects, Context)`; these labels describe the frozen capability and do not freeze concrete PHP names.
 3. The package-owned Domain Service orchestrates evaluation. It applies the canonical rule semantics, requests active Rules only through `ActiveRuleReaderInterface`, and uses bounded bulk loading for the batch path. It does not query or join Host-owned Subject, Product, Category, Payment, Shipping, Customer, or geography tables.
-4. The Integration Boundary consists of the package-owned command, management-query, evaluation-read, and internal mutation-support contracts backed by the direct-PDO RC1 adapters, plus the released Persistence transaction runner. The Host constructs `PdoRuleCommandRepository`, `PdoRuleManagementQuery`, `PdoActiveRuleReader`, and `PdoSavepointTransactionRunner` from the same PDO connection and wires each required capability explicitly to `EligibilityManagementService` or `EligibilityEvaluationService`. Together they preserve exact validated strings, active/inactive lifecycle state, natural-identity uniqueness, canonical ordering, transaction participation, and the concurrency guarantees above. Repository/interface substitution MUST NOT be used to introduce a non-PDO RC1 persistence implementation.
+4. The default Integration Boundary is caller-owned PDO → `PdoEligibilityRuntimeFactory` → `EligibilityManagementServiceInterface` and `EligibilityEvaluationServiceInterface`. The factory builds the package-owned command, management-query, evaluation-read, internal mutation-support, and released Persistence transaction-runner components from that same PDO. Together they preserve exact validated strings, active/inactive lifecycle state, natural-identity uniqueness, canonical ordering, transaction participation, and the concurrency guarantees above. Direct adapter/service construction remains an advanced explicit composition path; ordinary consumers do not wire `RuleMutationSupportInterface`. Repository/interface substitution MUST NOT be used to introduce a non-PDO RC2 persistence implementation.
 5. The Host receives a typed immutable `EligibilityDecision` (or an ordered collection of typed Subject Decisions for batch evaluation), including its machine-readable reason and complete dimension/matched-Rule traces. The Host then combines that Decision with its own domain lifecycle and visibility rules where applicable, for example `intrinsically visible AND eligible`; `eligible=true` MUST NOT be interpreted as Product, Category, Payment Method, Shipping Method, or other Host-domain publication/availability.
 
 Rule management follows the same boundary: the Host submits typed management commands/criteria through the public package contracts, the Domain Service coordinates the mutation or read, and the package-owned persistence boundary produces the typed management result or documented typed failure. Application/domain code MUST NOT require direct SQL access.
 
-The Consumer Verification Harness required by the adopted Testing and CI Standards exists and is part of the maintained RC1 verification contract. It installs and consumes the package through production Composer autoload, exercises the public contracts against the real MySQL persistence boundary, and verifies clean consumer and database states before and after the workflow. The maintained harness executes twice from clean consumer/database states and reports both runs as a current verification gate.
+The Consumer Verification Harness required by the adopted Testing and CI Standards exists and is part of the maintained current-source verification contract. It installs and consumes the package through production Composer autoload, exercises the public contracts against the real MySQL persistence boundary, proves independent-process natural-identity concurrency, and verifies clean consumer and database states before and after the workflow. The maintained Harness executes twice from clean consumer/database states using the synthetic development identity `dev-rc2-current-source`; current-source Harness verification is not published-release verification. Local Integration, CI Integration, Harness, and database-backed example smoke share the repository-owned Compose lifecycle documented by DEC-005.
 
 ## Public Runtime API inventory
 
-This inventory records the public Runtime API currently implemented across the
-historical B1–B4 slices. The B1–B4 labels preserve slice provenance; the entries
-below describe the current code, not missing capabilities. B1 introduced the
-model and validation types; B2 introduced commands, interfaces, results, and
-semantic exceptions; B3 introduced the concrete direct-PDO persistence
-implementation and canonical-bound extensions; B4 introduced the concrete
-evaluator and application-service runtime.
+This inventory records the public Runtime API currently implemented in the RC2
+source tree. The entries below describe the current code and capabilities.
+The source history is preserved in Git and the release history, not in this
+current API taxonomy. The current inventory covers the model, commands, query contracts, typed
+results, service boundaries, semantic exceptions, concrete runtime services,
+and direct-PDO persistence adapters. The public default PDO runtime
+construction path is part of this current RC2 contract.
 
-### B1 model and validation types
+### Model and validation types
 
-- `Maatify\Eligibility\Common\Validation\CanonicalString::validate(mixed $value, string $field): string` validates a generic canonical package string without transforming it. Its semantic bounded methods and constants are the single source of truth for the four RC1 canonical component limits; canonical ordering remains intentionally generic and unbounded.
-- `Maatify\Eligibility\Common\Value\Subject` represents `subjectType` and `subjectId`.
-- `Maatify\Eligibility\Evaluation\Value\ContextValue`, `ContextValueCollection`, `ContextDimension`, and `Context` represent the immutable Context shape. `Context` exposes `getDimension(mixed $dimensionKey): ?ContextDimension` and `hasDimension(mixed $dimensionKey): bool`.
-- `Maatify\Eligibility\Rule\Rule`, `RuleIdentity`, `RuleCollection`, `RuleEffectEnum`, and `RuleLifecycleEnum` represent typed Rules, natural identity, effects, lifecycle, and canonical Rule collections. `RuleCollection` exposes active and inactive lifecycle state through each returned `Rule`.
-- `Maatify\Eligibility\Evaluation\Decision\EligibilityDecision`, `DimensionOutcome`, `DimensionOutcomeCollection`, `RuleReference`, `RuleReferenceCollection`, `DecisionReasonEnum`, and `DimensionReasonEnum` represent immutable typed Decisions and complete matched-Rule traces.
-- `Maatify\Eligibility\Exception\EligibilityExceptionInterface` is the single package marker. `InvalidEligibilityInputException` is the B1 typed validation error and uses the shared `maatify/exceptions` hierarchy.
+- `Maatify\Eligibility\Common\CanonicalString::validate(mixed $value, string $field): string` validates a generic canonical package string without transforming it. Its semantic bounded methods and constants are the single source of truth for the four RC2 canonical component limits; canonical ordering remains intentionally generic and unbounded.
+- `Maatify\Eligibility\ValueObject\Subject` represents `subjectType` and `subjectId`.
+- `Maatify\Eligibility\Evaluation\ValueObject\ContextValue`, `ContextValueCollection`, `ContextDimension`, and `Context` represent the immutable Context shape. `Context` exposes `getDimension(mixed $dimensionKey): ?ContextDimension` and `hasDimension(mixed $dimensionKey): bool`.
+- `Maatify\Eligibility\ValueObject\Rule`, `RuleIdentity`, and `RuleCollection` represent typed Rules, natural identity, and canonical Rule collections. `RuleCollection` exposes active and inactive lifecycle state through each returned `Rule`.
+- `Maatify\Eligibility\Enum\RuleEffectEnum` and `Maatify\Eligibility\Enum\RuleLifecycleEnum` represent Rule effects and lifecycle states.
+- `Maatify\Eligibility\Evaluation\ValueObject\EligibilityDecision`, `DimensionOutcome`, `DimensionOutcomeCollection`, `RuleReference`, and `RuleReferenceCollection` represent immutable typed Decisions and complete matched-Rule traces.
+- `Maatify\Eligibility\Evaluation\Enum\DecisionReasonEnum` and `Maatify\Eligibility\Evaluation\Enum\DimensionReasonEnum` provide the machine-readable decision and dimension reason enums.
+- `Maatify\Eligibility\Exception\EligibilityExceptionInterface` is the single package marker. `InvalidEligibilityInputException` is the typed validation error and uses the shared `maatify/exceptions` hierarchy.
 
-### B2 commands and query contracts
+### Commands and query contracts
 
-- `Maatify\Eligibility\Common\Value\SubjectCollection` is the ordered, duplicate-free B2 batch value. It accepts an empty batch and exposes `count()`, iteration, `items(): list<Subject>`, and JSON serialization.
+- `Maatify\Eligibility\ValueObject\SubjectCollection` is the ordered, duplicate-free batch value. It accepts an empty batch and exposes `count()`, iteration, `items(): list<Subject>`, and JSON serialization.
 - `CreateRuleCommand(Subject $subject, mixed $dimensionKey, mixed $dimensionValue, RuleEffectEnum $effect)` represents creation of a new active Rule. It has no initial lifecycle input.
 - `UpdateRuleEffectCommand(RuleIdentity $identity, RuleEffectEnum $effect)` represents an effect mutation.
 - `DeactivateRuleCommand(RuleIdentity $identity)` and `ReactivateRuleCommand(RuleIdentity $identity)` represent explicit lifecycle mutations.
 - `DesiredRule(mixed $dimensionValue, RuleEffectEnum $effect)` represents one desired active value/effect pair without lifecycle state. `DesiredRuleCollection` rejects duplicate dimension values, orders values canonically, and accepts an empty set.
 - `ReplaceDimensionRulesCommand(Subject $subject, mixed $dimensionKey, DesiredRuleCollection $desiredRules)` represents complete desired active-set replacement intent.
 - `CleanupSubjectCommand(Subject $subject)` represents idempotent Subject cleanup intent.
-- `RuleCriteria(Subject $subject, mixed $dimensionKey = null, ?RuleLifecycleEnum $lifecycle = null, mixed $maxResults = 100)` represents a bounded management read. A dimension filter is optional, lifecycle filtering is optional, and `maxResults` must be an integer from `1` through `500`. This is a bounded read limit, not Host-global pagination or search.
-- `ActiveDimensionKeysQuery(Subject $subject)` represents active-dimension introspection for one Subject.
+- `RuleCriteria(Subject $subject, mixed $dimensionKey = null, ?RuleLifecycleEnum $lifecycle = null, ?RuleEffectEnum $effect = null)` represents a paginated management read for one Subject. Dimension, lifecycle, and effect filters are all optional. `RuleCriteria` carries no pagination state itself; the caller supplies pagination separately as a `Maatify\Persistence\Pdo\Pagination\PageRequest`.
+- `ActiveDimensionKeysCriteria(Subject $subject)` represents active-dimension introspection for one Subject; the caller likewise supplies a `PageRequest` separately.
+- `RuleLifecycleSummaryCriteria(Subject $subject, mixed $dimensionKey = null)` represents the input to the Rule lifecycle count summary; the optional dimension key is an exact filter, and a `null` dimension key summarizes every Rule for the Subject. This criteria is intentionally not paginated: it has no lifecycle filter, effect filter, or time-window input, because it always summarizes complete lifecycle state for its Subject/dimension scope.
 
-### B2 typed results and service boundaries
+### Typed results and service boundaries
 
-- `ActiveDimensionKeyCollection` contains only canonical dimension-key strings, rejects duplicates, and returns them in ascending bytewise order.
-- `SubjectDecisionResult` associates one `Subject` with one `EligibilityDecision`. `SubjectDecisionCollection` rejects duplicate Subject identities, accepts an empty result, and preserves the supplied result order.
-- `EligibilityEvaluationServiceInterface` exposes `decide(Subject $subject, Context $context): EligibilityDecision` and `decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollection`. The interface is the public evaluation seam defined in the historical B2 slice and is implemented by the concrete `EligibilityEvaluationService` documented under the B4 runtime slice below.
-- `EligibilityManagementServiceInterface` exposes typed Rule creation, identity inspection, bounded Rule inspection, active-dimension inspection, effect/lifecycle mutations, replacement intent, and Subject cleanup. Its state-setting methods return `void` except `createRule(...): Rule`; `inspectRule(...): Rule` has a typed Rule-not-found contract.
+- `ActiveDimensionKeyDTO` wraps one canonical dimension-key string, validated at construction.
+- `RuleLifecycleSummaryDTO` carries `totalRules`, `activeRules`, and `inactiveRules`; the constructor enforces `totalRules === activeRules + inactiveRules` and non-negative counts.
+- `SubjectDecisionDTO` associates one `Subject` with one `EligibilityDecision`. `SubjectDecisionCollectionDTO` rejects duplicate Subject identities, accepts an empty result, and preserves the supplied result order.
+- `EligibilityEvaluationServiceInterface` exposes `decide(Subject $subject, Context $context): EligibilityDecision` and `decideMany(SubjectCollection $subjects, Context $context): SubjectDecisionCollectionDTO`. It is implemented by the concrete `EligibilityEvaluationService` documented under the current runtime services below.
+- `EligibilityManagementServiceInterface` exposes typed Rule creation, identity inspection, paginated Rule inspection, paginated active-dimension inspection, a lifecycle count summary, effect/lifecycle mutations, replacement intent, and Subject cleanup. Its state-setting methods return `void` except `createRule(...): Rule`; `inspectRule(...): Rule` has a typed Rule-not-found contract; `inspectRules(RuleCriteria, PageRequest): PageResult<Rule>` and `inspectActiveDimensionKeys(ActiveDimensionKeysCriteria, PageRequest): PageResult<ActiveDimensionKeyDTO>` delegate pagination mechanics to `maatify/persistence`; `inspectRuleLifecycleSummary(RuleLifecycleSummaryCriteria): RuleLifecycleSummaryDTO` returns the aggregate lifecycle count.
 - `RuleCommandRepositoryInterface` is the replaceable command/mutation persistence contract. It exposes only canonical Rule creation, effect/lifecycle mutations, and Subject cleanup.
-- `RuleManagementQueryInterface` is the replaceable management-query persistence contract. It exposes natural-identity lookup, bounded management reads, and active-dimension lookup, including inactive Rules where criteria allow them.
+- `RuleManagementQueryInterface` is the replaceable management-query persistence contract. It exposes natural-identity lookup, paginated management reads (`findByCriteria(RuleCriteria, PageRequest): PageResult<Rule>`), paginated active-dimension lookup (`findActiveDimensionKeys(ActiveDimensionKeysCriteria, PageRequest): PageResult<ActiveDimensionKeyDTO>`), and the lifecycle summary aggregate (`summarizeLifecycle(RuleLifecycleSummaryCriteria): RuleLifecycleSummaryDTO`), including inactive Rules where criteria allow them.
 - `ActiveRuleReaderInterface` is the replaceable evaluation-read persistence contract. It exposes only bounded bulk loading of active Rules for a supplied `SubjectCollection`.
 - `RuleMutationSupportInterface` is a package-internal Eligibility-specific persistence contract. It owns only the coordination lock, complete Subject + dimension mutation read, and coordination cleanup required by atomic replacement and cleanup; it is not a Management Query or Evaluation Read contract.
 
-### B4 concrete runtime services
+### Concrete runtime services
 
-- `Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService` implements `EligibilityEvaluationServiceInterface` and depends only on `ActiveRuleReaderInterface`. It loads active Rules through one reader bulk call for a batch and delegates both single and batch calls to the shared pure `Maatify\Eligibility\Evaluation\Engine\EligibilityRuleEvaluator`; `PdoActiveRuleReader` internally chunks large Subject collections at its configured bound, and the service preserves input order.
+- `Maatify\Eligibility\Factory\Pdo\PdoEligibilityRuntimeFactory` is the
+  default framework-neutral construction surface. It accepts exactly one
+  caller-owned `PDO` and exposes only
+  `createManagementService(): EligibilityManagementServiceInterface` and
+  `createEvaluationService(): EligibilityEvaluationServiceInterface`.
+
+- `Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService` implements `EligibilityEvaluationServiceInterface` and depends only on `ActiveRuleReaderInterface`. It loads active Rules through one reader bulk call for a batch and delegates both single and batch calls to the shared pure `Maatify\Eligibility\Evaluation\Service\EligibilityRuleEvaluator`; `PdoActiveRuleReader` internally chunks large Subject collections at its configured bound, and the service preserves input order.
 - `Maatify\Eligibility\Management\Service\EligibilityManagementService` implements `EligibilityManagementServiceInterface`. It maps missing identity mutation results to `RuleNotFoundException` and coordinates create, inspect, lifecycle/effect, replacement, and cleanup behavior without SQL. Its dependencies are explicit: `RuleCommandRepositoryInterface` for command mutations, `RuleManagementQueryInterface` for management reads, `RuleMutationSupportInterface` for atomic replacement/cleanup support, and `Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface` for shared transaction/savepoint execution.
-- `Maatify\Eligibility\Evaluation\Engine\EligibilityRuleEvaluator` is package-internal shared evaluation logic. It groups active Rules by dimension, evaluates every ruled dimension, applies DENY precedence, preserves the complete matching trace, and constructs the existing immutable Decision types in canonical order.
+- `Maatify\Eligibility\Evaluation\Service\EligibilityRuleEvaluator` is package-internal shared evaluation logic. It groups active Rules by dimension, evaluates every ruled dimension, applies DENY precedence, preserves the complete matching trace, and constructs the existing immutable Decision types in canonical order.
 
-### B2 semantic exceptions
+### Semantic exceptions
 
 - `RuleNotFoundException` extends the shared `ResourceNotFoundMaatifyException` hierarchy and identifies the requested `RuleIdentity`.
 - `RuleIdentityConflictException` extends the shared `GenericConflictMaatifyException` hierarchy and identifies a conflicting natural identity.
 - `RuleConcurrencyConflictException` extends the shared `GenericConflictMaatifyException` hierarchy for an unresolved Rule uniqueness/concurrency condition.
+- `InvalidPersistedRuleStateException` extends the shared `SystemMaatifyException` hierarchy (System category, HTTP 500, unsafe, `ErrorCodeEnum::MAATIFY_ERROR`). It signals package-owned malformed persisted Rule state: Rule hydration corruption such as a non-array row shape, non-string column keys, a missing or non-string required persisted column, an invalid persisted canonical Subject/dimension component, or a persisted `effect`/`lifecycle` value not represented by `RuleEffectEnum`/`RuleLifecycleEnum`; and lifecycle-summary persisted inconsistency where an independent total differs from active plus inactive because a persisted lifecycle value is unrecognized. It preserves the original `InvalidEligibilityInputException` or `ValueError` as `previous` where the conversion is caused by one of those.
 
-All three B2 semantic exceptions implement `EligibilityExceptionInterface`. B3
-classifies only proven MySQL/MariaDB duplicate-key driver code `1062` at the
-repository boundary; other PDO/storage failures propagate unchanged. The B2
-contracts are implemented by the concrete evaluation and management services
-listed under the B4 runtime slice, while the concrete PDO persistence adapters
+All four semantic exceptions implement `EligibilityExceptionInterface`. At the
+PDO repository boundary, documented driver error number `1062` is classified
+as `RuleIdentityConflictException`, and documented driver error numbers
+`1205` and `1213` are classified as `RuleConcurrencyConflictException`.
+Each typed conversion preserves the original `PDOException` as
+`$exception->getPrevious()`. Every other unknown or unclassified PDO/storage
+failure propagates unchanged. The boundary does not blanket-wrap PDO or
+`Throwable`, classify generic SQLSTATE classes or codes such as `23xxx`,
+`HY000`, or `40001`, or infer a semantic conflict without a documented
+driver error number.
+`PdoRuleHydrationTrait` classifies the hydration-corruption conditions above as
+`InvalidPersistedRuleStateException` rather than leaking a native
+`UnexpectedValueException`/`ValueError`, preserving the original validation
+failure as `previous` where applicable. `PdoRuleManagementQuery` classifies a
+lifecycle-summary independent-total mismatch as the same exception instead of
+silently returning an undercounted summary; this path does not wrap a native
+Throwable by itself. Neither path blanket-catches `\Throwable`, and an unknown
+`PDOException` or other unclassified storage failure continues to propagate
+unchanged. The public contracts are implemented by the concrete evaluation and
+management services listed above, while the concrete PDO persistence adapters
 are listed separately below.
 
-### B3 persistence implementation and bounds extensions
+### Persistence implementation and bounds
 
-- `Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository` is the concrete direct-PDO implementation of `RuleCommandRepositoryInterface` and `RuleMutationSupportInterface`. It provides both Eligibility-specific capabilities over the same PDO connection without owning generic transaction/savepoint mechanics.
-- `Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery` is the concrete direct-PDO implementation of `RuleManagementQueryInterface`. It provides exact identity reads, bounded management reads, lifecycle visibility, and active-dimension reads.
-- `Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader` is the concrete direct-PDO implementation of `ActiveRuleReaderInterface`. It provides the active-only bounded bulk read used by evaluation.
+- `Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository` is the concrete direct-PDO implementation of `RuleCommandRepositoryInterface` and `RuleMutationSupportInterface`. It provides both Eligibility-specific capabilities over the same PDO connection without owning generic transaction/savepoint mechanics.
+- `Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery` is the concrete direct-PDO implementation of `RuleManagementQueryInterface`. It provides exact identity reads, paginated management reads, lifecycle visibility, paginated active-dimension reads, and the lifecycle summary aggregate. It delegates page/per-page normalization, sort resolution, count execution, and pagination metadata to `Maatify\Persistence\Pdo\Pagination\PdoPaginator`, owning only its domain filter/count SQL and row mapping; the lifecycle summary aggregate (`SUM(CASE ...)`) is computed in the database rather than by loading Rules into PHP.
+- `Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader` is the concrete direct-PDO implementation of `ActiveRuleReaderInterface`. It provides the active-only bounded bulk read used by evaluation.
 - `PdoRuleHydrationTrait` is an internal implementation helper for shared PDO row binding and Rule hydration; it is not a public contract or business-service abstraction.
-- `Maatify\Eligibility\Rule\Repository\RuleMutationSupportInterface` is a package-internal mutation-support contract used by `EligibilityManagementService` for the complete Subject + dimension read, Subject coordination lock, and coordination cleanup; it is not an additional Host-facing service method.
+- `Maatify\Eligibility\Management\Repository\RuleMutationSupportInterface` is a package-internal mutation-support contract used by `EligibilityManagementService` for the complete Subject + dimension read, Subject coordination lock, and coordination cleanup; it is not an additional Host-facing service method.
 - The current implementation uses the package-owned `maa_eligibility_subject_locks` table as an explicit coordination row per Subject. Replacement and management cleanup create-or-lock this row inside their transaction before reading or mutating Rules, so an initially empty dimension is serialized without relying on database gap-lock behavior. Cleanup removes the coordination row for the cleaned Subject. The table has no Host foreign key or join.
 - When the Host already owns a transaction, the shared `PdoSavepointTransactionRunner` creates an operation-local savepoint, releases it on success, and rolls back to it on failure while leaving the Host transaction active. Savepoint cleanup is best-effort and never replaces the original operation Throwable. This uses transactional MySQL-compatible savepoint capability without declaring a minimum database product version.
-- The B3 slice introduced the bounded `Maatify\Eligibility\Common\Validation\CanonicalString` methods and constants; they are now the single source of truth for the four canonical byte bounds, and every semantic boundary routes through them.
-- The concrete evaluator and application-service implementations listed above are present, while the B2 interfaces remain the public replaceable seams for consumers and persistence adapters.
+- The bounded `Maatify\Eligibility\Common\CanonicalString` methods and constants are the single source of truth for the four canonical byte bounds, and every semantic boundary routes through them.
+- The concrete evaluator and application-service implementations listed above are present, while the public interfaces remain the replaceable seams for consumers and persistence adapters.
 
-## RC1 exclusions
+## RC2 exclusions
 
-The following are explicitly outside the first RC scope unless a later documented decision adds them before implementation freeze:
+The following are explicitly outside the RC2 scope unless a later documented decision changes that scope:
 
 - arbitrary executable expressions;
 - nested boolean Rule trees;
@@ -1233,7 +1407,7 @@ The following are explicitly outside the first RC scope unless a later documente
 - global eligible/ineligible Host-entity discovery;
 - built-in tenant identity or tenant routing.
 
-These exclusions keep RC1 a focused Eligibility engine rather than an unbounded generic business-rules platform.
+These exclusions keep RC2 a focused Eligibility engine rather than an unbounded generic business-rules platform.
 
 ## Canonical acceptance scenarios
 
@@ -1290,11 +1464,19 @@ Before a persistence adapter or Release Candidate can be considered correct, exe
 49. `replaceDimensionRules()` called inside a Host-owned outer transaction participates without committing or rolling back that transaction, and the Host's commit or rollback determines durability;
 50. a package-owned multi-step mutation commits only a complete successful state, attempts rollback only while its transaction is active after failure, and rethrows the original `Throwable` unless an explicitly documented semantic conversion applies;
 51. concurrent creates for one natural Rule identity result in exactly one persistent Rule, with the competing operation returning the typed natural-identity or concurrency/uniqueness conflict rather than creating a duplicate;
-52. concurrent `replaceDimensionRules()` operations preserve natural-identity uniqueness and complete-dimension atomicity, while evaluation and management reads observe either a coherent committed state before or after the replacement and never a mixed intermediate state.
+52. concurrent `replaceDimensionRules()` operations preserve natural-identity uniqueness and complete-dimension atomicity, while evaluation and management reads observe either a coherent committed state before or after the replacement and never a mixed intermediate state;
+53. paginated Rule management reads prove complete, duplicate-free identity coverage across pages for a Subject with more than 500 Rules;
+54. Rule pagination supports default and explicit page/per-page requests, with per-page normalization above the configured maximum delegated to the shared paginator;
+55. Rule Criteria effect filtering narrows Management reads independently of, and in combination with, lifecycle filtering;
+56. the Rule lifecycle summary reports internally consistent active/inactive counts for a Subject and an optional dimension scope, including a 500+ Rule state, and returns `0`/`0`/`0` for an empty scope;
+57. paginated active-dimension discovery returns distinct active dimension keys in canonical ascending order across a page boundary, excludes inactive-only dimensions, and is Subject-isolated;
+58. an unsupported explicit Rule pagination sort request is rejected with `InvalidEligibilityInputException` rather than silently falling back to the canonical order;
+59. malformed persisted Rule state — invalid persisted effect bytes, an invalid persisted canonical component, or an unrecognized persisted lifecycle value that makes the Rule lifecycle summary's independent total inconsistent with its active/inactive counts — is classified as `InvalidPersistedRuleStateException` (preserving the original cause as `previous` where the classification wraps an `InvalidEligibilityInputException` or `ValueError`), while an unknown/external storage failure continues to propagate unchanged.
+60. the default public PDO construction path builds Management and Evaluation over the caller-owned PDO without exposing internal mutation-support wiring, and preserves transaction-local visibility on that same PDO.
 
 These scenarios are the minimum golden behavioral suite, not an exhaustive test list.
 
-## Architectural target
+## Ecosystem architecture
 
 The intended ecosystem relationship is:
 
@@ -1313,11 +1495,11 @@ Promotion ────────────┘               │
 
 Owning domains remain independently reusable. Eligibility remains independently reusable. The Host composes them.
 
-## RC1 success condition
+## RC2 completeness and release-contract condition
 
-The first Release Candidate is successful only when a Host can install one framework-neutral package and use the same stable typed model to manage and evaluate customer/country-style business Eligibility for multiple unrelated Subject types without adding domain-specific restriction tables or coupling those domains to one another.
+The RC2 Release Candidate is complete only when a Host can install one framework-neutral package and use the same stable typed model to manage and evaluate customer/country-style business Eligibility for multiple unrelated Subject types without adding domain-specific restriction tables or coupling those domains to one another.
 
-RC1 success additionally requires:
+RC2 success additionally requires:
 
 - canonical valid-UTF-8 string identity and exact matching semantics implemented consistently;
 - canonical Context shape invariants enforced;

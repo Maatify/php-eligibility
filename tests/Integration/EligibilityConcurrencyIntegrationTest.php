@@ -5,26 +5,27 @@ declare(strict_types=1);
 namespace Maatify\Eligibility\Tests\Integration;
 
 use Maatify\Eligibility\Management\Command\CreateRuleCommand;
-use Maatify\Eligibility\Management\Command\DesiredRule;
-use Maatify\Eligibility\Management\Command\DesiredRuleCollection;
+use Maatify\Eligibility\Management\ValueObject\DesiredRule;
+use Maatify\Eligibility\Management\ValueObject\DesiredRuleCollection;
 use Maatify\Eligibility\Management\Command\ReplaceDimensionRulesCommand;
-use Maatify\Eligibility\Management\Query\RuleCriteria;
+use Maatify\Eligibility\Management\Criteria\RuleCriteria;
 use Maatify\Eligibility\Evaluation\Service\EligibilityEvaluationService;
 use Maatify\Eligibility\Management\Service\EligibilityManagementService;
-use Maatify\Eligibility\Evaluation\Decision\DecisionReasonEnum;
-use Maatify\Eligibility\Rule\Repository\PdoActiveRuleReader;
-use Maatify\Eligibility\Rule\Repository\PdoRuleCommandRepository;
-use Maatify\Eligibility\Rule\Repository\PdoRuleManagementQuery;
-use Maatify\Eligibility\Rule\RuleEffectEnum;
-use Maatify\Eligibility\Rule\RuleLifecycleEnum;
+use Maatify\Eligibility\Evaluation\Enum\DecisionReasonEnum;
+use Maatify\Eligibility\Evaluation\Repository\Pdo\PdoActiveRuleReader;
+use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleCommandRepository;
+use Maatify\Eligibility\Management\Repository\Pdo\PdoRuleManagementQuery;
+use Maatify\Eligibility\Enum\RuleEffectEnum;
+use Maatify\Eligibility\Enum\RuleLifecycleEnum;
 use Maatify\Eligibility\Tests\Support\ConcurrencyTimeout;
 use Maatify\Eligibility\Tests\Support\IntegrationDatabase;
-use Maatify\Eligibility\Evaluation\Value\Context;
-use Maatify\Eligibility\Evaluation\Value\ContextDimension;
-use Maatify\Eligibility\Common\Value\Subject;
+use Maatify\Eligibility\Evaluation\ValueObject\Context;
+use Maatify\Eligibility\Evaluation\ValueObject\ContextDimension;
+use Maatify\Eligibility\ValueObject\Subject;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use PDO;
 
@@ -171,7 +172,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
 
         self::assertSame(1, $this->countAllRules());
         self::assertSame(RuleEffectEnum::ALLOW, $this->managementQuery->findByIdentity(
-            new \Maatify\Eligibility\Rule\RuleIdentity('product', '150', 'country', 'EG'),
+            new \Maatify\Eligibility\ValueObject\RuleIdentity('product', '150', 'country', 'EG'),
         )?->effect);
     }
 
@@ -212,7 +213,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             self::assertSame('REPLACED', $this->readLine($workerA, 'worker A replacement result'));
 
             $observerQuery = new PdoRuleManagementQuery($observer);
-            self::assertCount(0, $observerQuery->findByCriteria(new RuleCriteria($subject)));
+            self::assertCount(0, $observerQuery->findByCriteria(new RuleCriteria($subject), new PageRequest())->data);
 
             $this->signal($workerA, 'COMMIT');
             self::assertSame('DONE', $this->readLine($workerA, 'worker A commit result'));
@@ -230,15 +231,18 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             }
         }
 
-        $rules = $this->managementQuery->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Rule\RuleLifecycleEnum::ACTIVE));
+        $rules = $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Enum\RuleLifecycleEnum::ACTIVE),
+            new PageRequest(),
+        );
         self::assertSame(
             [
                 ['KW', RuleEffectEnum::ALLOW],
                 ['SA', RuleEffectEnum::DENY],
             ],
             array_map(
-                static fn (\Maatify\Eligibility\Rule\Rule $rule): array => [$rule->dimensionValue, $rule->effect],
-                $rules->items(),
+                static fn(\Maatify\Eligibility\ValueObject\Rule $rule): array => [$rule->dimensionValue, $rule->effect],
+                $rules->data,
             ),
         );
     }
@@ -300,15 +304,15 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                 $subject,
                 'country',
                 lifecycle: RuleLifecycleEnum::ACTIVE,
-            ));
+            ), new PageRequest());
             self::assertSame(
                 [['OLD', RuleEffectEnum::ALLOW]],
                 array_map(
-                    static fn (\Maatify\Eligibility\Rule\Rule $rule): array => [
+                    static fn(\Maatify\Eligibility\ValueObject\Rule $rule): array => [
                         $rule->dimensionValue,
                         $rule->effect,
                     ],
-                    $committedBefore->items(),
+                    $committedBefore->data,
                 ),
             );
             self::assertSame(DecisionReasonEnum::ELIGIBLE, $observerEvaluation->decide(
@@ -328,18 +332,18 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
                 $subject,
                 'country',
                 lifecycle: RuleLifecycleEnum::ACTIVE,
-            ));
+            ), new PageRequest());
             self::assertSame(
                 [
                     ['B', RuleEffectEnum::ALLOW],
                     ['B2', RuleEffectEnum::DENY],
                 ],
                 array_map(
-                    static fn (\Maatify\Eligibility\Rule\Rule $rule): array => [
+                    static fn(\Maatify\Eligibility\ValueObject\Rule $rule): array => [
                         $rule->dimensionValue,
                         $rule->effect,
                     ],
-                    $committedAfter->items(),
+                    $committedAfter->data,
                 ),
             );
             self::assertSame(DecisionReasonEnum::ELIGIBLE, $observerEvaluation->decide(
@@ -363,12 +367,148 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             }
         }
 
-        $rules = $this->managementQuery->findByCriteria(new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Rule\RuleLifecycleEnum::ACTIVE));
+        $rules = $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Enum\RuleLifecycleEnum::ACTIVE),
+            new PageRequest(),
+        );
         self::assertSame(['B', 'B2'], array_map(
-            static fn (\Maatify\Eligibility\Rule\Rule $rule): string => $rule->dimensionValue,
-            $rules->items(),
+            static fn(\Maatify\Eligibility\ValueObject\Rule $rule): string => $rule->dimensionValue,
+            $rules->data,
         ));
         self::assertSame(5, $this->countAllRules());
+    }
+
+    #[Test]
+    public function concurrentReplaceObservesRealLockWaitTimeoutAsTypedConcurrencyConflict(): void
+    {
+        $subject = new Subject('product', '761');
+        $workerA = null;
+        $workerB = null;
+        $primaryFailure = null;
+        try {
+            $workerA = $this->startWorker([
+                'hold-replace',
+                $subject->subjectType,
+                $subject->subjectId,
+                'country',
+                $this->encodeDesired([
+                    ['EG', RuleEffectEnum::ALLOW->value],
+                ]),
+            ]);
+            self::assertSame('LOCKED', $this->readLine($workerA, 'worker A subject lock'));
+
+            $workerB = $this->startWorker([
+                'replace-lock-timeout',
+                $subject->subjectType,
+                $subject->subjectId,
+                'country',
+                $this->encodeDesired([
+                    ['SA', RuleEffectEnum::DENY->value],
+                ]),
+            ]);
+            self::assertSame('STARTED', $this->readLine($workerB, 'worker B start event'));
+            self::assertSame('ATTEMPTING_LOCK', $this->readLine($workerB, 'worker B subject lock attempt'));
+            self::assertSame(
+                'RESULT:CONCURRENCY:PDOException:1205',
+                $this->readLine($workerB, 'worker B lock-wait-timeout concurrency result'),
+            );
+
+            $this->signal($workerA, 'REPLACE');
+            self::assertSame('REPLACED', $this->readLine($workerA, 'worker A replacement result'));
+            $this->signal($workerA, 'COMMIT');
+            self::assertSame('DONE', $this->readLine($workerA, 'worker A commit result'));
+        } catch (\Throwable $exception) {
+            $primaryFailure = $exception;
+            throw $exception;
+        } finally {
+            $this->closeWorkers($workerA, $workerB, $primaryFailure !== null);
+        }
+
+        $rules = $this->managementQuery->findByCriteria(
+            new RuleCriteria($subject, lifecycle: \Maatify\Eligibility\Enum\RuleLifecycleEnum::ACTIVE),
+            new PageRequest(),
+        );
+        self::assertSame(
+            ['EG'],
+            array_map(
+                static fn(\Maatify\Eligibility\ValueObject\Rule $rule): string => $rule->dimensionValue,
+                $rules->data,
+            ),
+        );
+        self::assertSame(1, $this->countAllRules());
+    }
+
+    #[Test]
+    public function concurrentCrossSubjectLockingProducesGenuineMySqlDeadlockClassification(): void
+    {
+        $subjectA = new Subject('product', '900');
+        $subjectB = new Subject('product', '901');
+        $workerA = null;
+        $workerB = null;
+        $primaryFailure = null;
+        $victimLabel = null;
+        $winnerLabel = null;
+        try {
+            $workerA = $this->startWorker([
+                'cross-lock-deadlock',
+                $subjectA->subjectType,
+                $subjectA->subjectId,
+                $subjectB->subjectType,
+                $subjectB->subjectId,
+            ]);
+            self::assertSame('LOCKED', $this->readLine($workerA, 'worker A own-subject lock'));
+
+            $workerB = $this->startWorker([
+                'cross-lock-deadlock',
+                $subjectB->subjectType,
+                $subjectB->subjectId,
+                $subjectA->subjectType,
+                $subjectA->subjectId,
+            ]);
+            self::assertSame('LOCKED', $this->readLine($workerB, 'worker B own-subject lock'));
+
+            $this->signal($workerA, 'CROSS_LOCK');
+            $this->signal($workerB, 'CROSS_LOCK');
+
+            $pending = ['A' => $workerA, 'B' => $workerB];
+            [$firstLabel, $firstLine] = $this->readLineFromEither($pending, 'first worker deadlock result');
+            unset($pending[$firstLabel]);
+            [$secondLabel, $secondLine] = $this->readLineFromEither($pending, 'second worker deadlock result');
+
+            $outcomes = [$firstLabel => $firstLine, $secondLabel => $secondLine];
+            foreach ($outcomes as $label => $line) {
+                if ($line === 'RESULT:CONCURRENCY:PDOException:1213') {
+                    $victimLabel = $label;
+                } elseif ($line === 'RESULT:SUCCESS') {
+                    $winnerLabel = $label;
+                }
+            }
+
+            self::assertNotNull($victimLabel, sprintf(
+                'Expected exactly one worker to report a genuine MySQL deadlock (driver 1213) '
+                . 'classified as RuleConcurrencyConflictException with a PDOException previous; observed: %s',
+                json_encode($outcomes, JSON_THROW_ON_ERROR),
+            ));
+            self::assertNotNull($winnerLabel, sprintf(
+                'Expected exactly one worker to win the circular lock wait and complete the cross-subject lock; observed: %s',
+                json_encode($outcomes, JSON_THROW_ON_ERROR),
+            ));
+            self::assertNotSame($victimLabel, $winnerLabel);
+
+            $winnerWorker = $winnerLabel === 'A' ? $workerA : $workerB;
+            self::assertSame(
+                'DONE',
+                $this->readLine($winnerWorker, sprintf('winning worker %s commit confirmation', $winnerLabel)),
+            );
+        } catch (\Throwable $exception) {
+            $primaryFailure = $exception;
+            throw $exception;
+        } finally {
+            $this->closeWorkers($workerA, $workerB, $primaryFailure !== null);
+        }
+
+        self::assertSame(2, $this->countSubjectLocks($subjectA, $subjectB));
+        self::assertSame(0, $this->countAllRules());
     }
 
     /** @param list<array{0: string, 1: string}> $desired */
@@ -390,6 +530,21 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         }
 
         return (int) $statement->fetchColumn();
+    }
+
+    private function countSubjectLocks(Subject ...$subjects): int
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT COUNT(*) FROM `maa_eligibility_subject_locks` WHERE `subject_type` = ? AND `subject_id` = ?',
+        );
+
+        $count = 0;
+        foreach ($subjects as $subject) {
+            $statement->execute([$subject->subjectType, $subject->subjectId]);
+            $count += (int) $statement->fetchColumn();
+        }
+
+        return $count;
     }
 
     /**
@@ -496,6 +651,87 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
             }
             if ($chunk !== '') {
                 $buffer .= $chunk;
+            }
+        }
+    }
+
+    /**
+     * Reads the next line from whichever of several workers produces one
+     * first, without assuming which worker resolves first. Used to observe a
+     * genuine MySQL deadlock result where the victim is not deterministic.
+     *
+     * @param array<string, array{process: resource, stdin: resource, stdout: resource, stderr: resource}> $workers
+     * @return array{0: string, 1: string}
+     */
+    private function readLineFromEither(array $workers, string $event): array
+    {
+        $deadline = ConcurrencyTimeout::deadline();
+
+        while (true) {
+            foreach ($workers as $label => $worker) {
+                $pipe = $worker['stdout'];
+                $pipeId = get_resource_id($pipe);
+                $buffer = $this->stdoutBuffers[$pipeId] ?? '';
+                $lineEnd = strpos($buffer, PHP_EOL);
+                if ($lineEnd !== false) {
+                    $line = substr($buffer, 0, $lineEnd);
+                    $this->stdoutBuffers[$pipeId] = substr($buffer, $lineEnd + strlen(PHP_EOL));
+
+                    return [$label, trim($line)];
+                }
+
+                if (feof($pipe)) {
+                    $this->stdoutBuffers[$pipeId] = $buffer;
+                    $this->failWorkersWait($workers, sprintf(
+                        'Concurrency worker %s closed its output while waiting for %s.',
+                        $label,
+                        $event,
+                    ));
+                }
+            }
+
+            if (ConcurrencyTimeout::expired($deadline)) {
+                $this->failWorkersWait($workers, sprintf(
+                    'Timed out waiting for %s after %d seconds.',
+                    $event,
+                    ConcurrencyTimeout::SECONDS,
+                ));
+            }
+
+            [$seconds, $microseconds] = ConcurrencyTimeout::selectTimeout($deadline);
+            $read = [];
+            foreach ($workers as $worker) {
+                $read[] = $worker['stdout'];
+            }
+            $write = null;
+            $except = null;
+            $ready = @stream_select($read, $write, $except, $seconds, $microseconds);
+            if ($ready === false) {
+                $this->failWorkersWait($workers, sprintf(
+                    'Could not wait for %s because worker output polling failed.',
+                    $event,
+                ));
+            }
+            if ($ready === 0) {
+                $this->failWorkersWait($workers, sprintf(
+                    'Timed out waiting for %s after %d seconds.',
+                    $event,
+                    ConcurrencyTimeout::SECONDS,
+                ));
+            }
+
+            foreach ($read as $readyPipe) {
+                $pipeId = get_resource_id($readyPipe);
+                $chunk = fread($readyPipe, 8192);
+                if ($chunk === false) {
+                    $this->failWorkersWait($workers, sprintf(
+                        'Could not read %s from the concurrency workers.',
+                        $event,
+                    ));
+                }
+                if ($chunk !== '') {
+                    $this->stdoutBuffers[$pipeId] = ($this->stdoutBuffers[$pipeId] ?? '') . $chunk;
+                }
             }
         }
     }
@@ -608,8 +844,7 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         ?array $workerB,
         bool $preserveOriginalFailure = false,
         bool $allowNonZeroExit = false,
-    ): void
-    {
+    ): void {
         $cleanupFailure = null;
         foreach ([$workerA, $workerB] as $worker) {
             try {
@@ -649,6 +884,22 @@ final class EligibilityConcurrencyIntegrationTest extends TestCase
         $diagnostic = $this->readAvailable($worker['stderr']);
         if ($diagnostic !== '') {
             $message .= ' stderr: ' . $diagnostic;
+        }
+
+        self::fail($message);
+    }
+
+    /**
+     * @param array<string, array{process: resource, stdin: resource, stdout: resource, stderr: resource}> $workers
+     * @return never
+     */
+    private function failWorkersWait(array $workers, string $message): never
+    {
+        foreach ($workers as $label => $worker) {
+            $diagnostic = $this->readAvailable($worker['stderr']);
+            if ($diagnostic !== '') {
+                $message .= sprintf(' worker %s stderr: %s', $label, $diagnostic);
+            }
         }
 
         self::fail($message);

@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] - 2026-09-28
+
+This entry describes the release payload prepared for `v1.0.0-rc.2`. This
+entry's heading, date, and release-tag link identify the intended release
+target; they are not publication evidence by themselves. Published state is
+established only when the exact version is externally resolvable and
+installable through the approved Composer distribution source.
+
+### Added
+
+- Paginated Rule Management inspection and active-dimension discovery, plus the Rule lifecycle summary.
+- Typed classification of malformed persisted Rule state through `InvalidPersistedRuleStateException`.
+- Public `PdoEligibilityRuntimeFactory` for caller-owned PDO construction.
+- `llms.txt` AI consumer navigation and maintained external-consumer/concurrency verification capability.
+
+### Changed
+
+- The canonical source topology is now the implemented Evaluation + Management capability split.
+- The RC1-to-RC2 pre-Stable FQCN migration is reflected in the current public/runtime contract; the Eligibility business and evaluation semantics are unchanged.
+- Default Host wiring uses `PdoEligibilityRuntimeFactory`; direct adapters/services remain an advanced explicit composition path.
+- Package Reference, Usage Guide, README, schema documentation, security state, and contributor verification guidance are synchronized for RC2.
+- Composer 2.10 policy enforcement and the repository-owned real-MySQL verification lifecycle are documented as current contributor gates.
+
+### Fixed
+
+- Malformed persisted Rule/lifecycle state classification and lifecycle-summary undercount behavior.
+- Stale or incomplete current-source verification, presentation, and consumer-navigation contracts.
+
+### Compatibility note
+
+RC1 concrete FQCNs moved to the RC2 canonical source topology. No RC1
+compatibility aliases or shims are retained. The structural migration does not
+change the package's Eligibility business or evaluation semantics.
+
 ## [1.0.0-rc.1] - 2026-09-18
 
 ### Added
@@ -32,3 +66,6 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - B1 structural and invariant failures now use a typed Eligibility exception backed by the shared Maatify validation hierarchy, `RuleReference` now exposes the canonical direct fields, and the runtime PCRE extension contract is declared.
+
+[1.0.0-rc.2]: https://github.com/Maatify/php-eligibility/releases/tag/v1.0.0-rc.2
+[1.0.0-rc.1]: https://github.com/Maatify/php-eligibility/releases/tag/v1.0.0-rc.1

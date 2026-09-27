@@ -1,0 +1,31 @@
+# Maatify Eligibility
+
+> Framework-neutral PHP eligibility rules and typed decisions for managing and evaluating external Subjects in supplied Contexts, with direct PDO persistence and deterministic public runtime behavior.
+
+Use the Package Reference for the canonical public/runtime/behavioral contract
+and complete Public Runtime API inventory. Use the Usage Guide for integration
+and workflow guidance. The maintained `examples/` directory contains runnable
+Public API examples. The README is the overview, installation, Quick Usage,
+and Public Runtime API overview. This file is navigation and interpretation
+only; it is not a second contract.
+
+Visible in the repository does not mean supported consumer contract. `src/`
+internals, tests, fixtures, `AGENTS.md`, Engineering Standards,
+undocumented implementation APIs, and contributor-only material are not
+Supported Consumer Contract merely because they are visible here.
+
+## Primary Documentation
+
+- [README.md](README.md) — overview, installation, Quick Usage, and Public Runtime API overview.
+- [ELIGIBILITY_PACKAGE_REFERENCE.md](ELIGIBILITY_PACKAGE_REFERENCE.md) — canonical public/runtime/behavioral contract and complete Public Runtime API inventory.
+- [docs/guides/USAGE_GUIDE.md](docs/guides/USAGE_GUIDE.md) — consumer integration and workflow guidance.
+- [examples/](examples/) — maintained runnable Public API examples.
+
+## Release and Security
+
+- [CHANGELOG.md](CHANGELOG.md) — RC2 release delta and historical release history.
+- [SECURITY.md](SECURITY.md) — pre-Stable security state, reporting route, and scope.
+
+## Optional
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — contributor workflow and local verification.
