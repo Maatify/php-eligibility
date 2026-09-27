@@ -425,11 +425,17 @@ Resolve the latest-compatible dependencies and run the local aggregate gate:
 
 ```bash
 composer update --no-interaction --prefer-dist --no-progress
-tools/check-local.sh                # local gates, Unit, and Golden; does not run dependency-resolution matrices
-docker compose -f docker-compose.integration.yml up -d --wait
-tools/check-local.sh --with-integration   # adds real-MySQL Integration + Harness
-docker compose -f docker-compose.integration.yml down
+tools/check-local.sh                     # Docker-free local gates, Unit, and Golden
+tools/check-local.sh --with-integration  # adds fresh Integration, Harness, and examples lifecycles
+composer test:integration                # focused fresh real-MySQL Integration lifecycle
+composer test:harness                     # focused fresh Consumer Harness lifecycle
+composer test:examples                     # focused fresh standalone-example smoke lifecycle
 ```
+
+The maintained verification commands require Composer `2.10.x`, a working
+Docker daemon with `docker compose`, PHP `^8.4`, and `pdo_mysql`. Each real
+service command provisions and tears down its own disposable Compose project
+with a dynamic loopback-only MySQL port; manual service startup is not needed.
 
 The latest-compatible Composer policy sequence corresponding to `ci-quality` is:
 

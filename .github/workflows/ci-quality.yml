@@ -37,6 +37,8 @@ jobs:
           composer --version | grep -Eq '^Composer version 2\.10\.'
       - name: Validate composer.json
         run: composer validate --strict
+      - name: Verify Composer policy contract
+        run: composer check:composer-policy
       - name: Resolve current compatible dependencies
         run: composer update --no-interaction --prefer-dist --no-progress
       - name: Verify platform requirements

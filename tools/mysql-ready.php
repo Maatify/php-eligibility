@@ -17,11 +17,22 @@ declare(strict_types=1);
  * container defaults. No repository secret is ever involved.
  */
 
-$host = getenv('ELIGIBILITY_TEST_DB_HOST') ?: '127.0.0.1';
-$port = getenv('ELIGIBILITY_TEST_DB_PORT') ?: '13306';
-$name = getenv('ELIGIBILITY_TEST_DB_NAME') ?: 'maatify_eligibility_test';
-$user = getenv('ELIGIBILITY_TEST_DB_USER') ?: 'eligibility_test';
-$password = getenv('ELIGIBILITY_TEST_DB_PASSWORD') ?: 'eligibility_test';
+function requiredEnvironment(string $name): string
+{
+    $value = getenv($name);
+    if (!is_string($value) || $value === '') {
+        fwrite(STDERR, sprintf('Missing required verification environment variable: %s%s', $name, PHP_EOL));
+        exit(2);
+    }
+
+    return $value;
+}
+
+$host = requiredEnvironment('ELIGIBILITY_TEST_DB_HOST');
+$port = requiredEnvironment('ELIGIBILITY_TEST_DB_PORT');
+$name = requiredEnvironment('ELIGIBILITY_TEST_DB_NAME');
+$user = requiredEnvironment('ELIGIBILITY_TEST_DB_USER');
+$password = requiredEnvironment('ELIGIBILITY_TEST_DB_PASSWORD');
 
 $deadline = microtime(true) + 90.0;
 

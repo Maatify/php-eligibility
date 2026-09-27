@@ -38,7 +38,7 @@ for ($run = 1; $run <= 2; $run++) {
     try {
         $environment = getenv();
         $environment['COMPOSER_CACHE_DIR'] = $runRoot . '/composer-cache';
-        $environment['ELIGIBILITY_HARNESS_RUN_ID'] = 'b5-' . $run . '-' . bin2hex(random_bytes(6));
+        $environment['ELIGIBILITY_HARNESS_RUN_ID'] = 'rc2-current-source-' . $run . '-' . bin2hex(random_bytes(6));
         $consumerComposer = json_encode(
             $decodedComposer,
             JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
@@ -46,6 +46,9 @@ for ($run = 1; $run <= 2; $run++) {
         writeFile($runRoot . '/composer.json', $consumerComposer);
         if (!copy(__DIR__ . '/bin/verify.php', $runRoot . '/bin/verify.php')) {
             fail('Could not copy the consumer verification entry point.');
+        }
+        if (!copy(__DIR__ . '/bin/concurrency-worker.php', $runRoot . '/bin/concurrency-worker.php')) {
+            fail('Could not copy the consumer concurrency worker.');
         }
 
         runCommand(

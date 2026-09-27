@@ -9,7 +9,7 @@
             "options": {
                 "symlink": false,
                 "versions": {
-                    "maatify/php-eligibility": "1.0.0-rc.1"
+                    "maatify/php-eligibility": "dev-rc2-current-source"
                 }
             }
         }
@@ -17,9 +17,9 @@
     "require": {
         "ext-pdo": "*",
         "ext-pdo_mysql": "*",
-        "maatify/php-eligibility": "1.0.0-rc.1",
+        "maatify/php-eligibility": "dev-rc2-current-source",
         "php": "^8.4"
     },
-    "minimum-stability": "stable",
+    "minimum-stability": "dev",
     "prefer-stable": true
 }

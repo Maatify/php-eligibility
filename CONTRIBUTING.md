@@ -45,9 +45,10 @@ Resolve the latest-compatible dependencies before the local aggregate gate:
 ```bash
 composer update --no-interaction --prefer-dist --no-progress
 composer check:local                 # local gates + Unit + Golden; no dependency matrix
-docker compose -f docker-compose.integration.yml up -d --wait
-composer check:local -- --with-integration   # adds real-MySQL Integration + Harness
-docker compose -f docker-compose.integration.yml down
+composer check:local -- --with-integration   # adds fresh Integration + Harness + examples lifecycles
+composer test:integration                      # focused Integration lifecycle
+composer test:harness                          # focused Consumer Harness lifecycle
+composer test:examples                          # focused example smoke lifecycle
 ```
 
 The latest-compatible local sequence matching the authoritative `ci-quality`
@@ -77,9 +78,10 @@ policy, Unit, and Golden gates: strict Composer validation, optimized strict
 PSR-4 autoload, platform requirements, PHP syntax lint, PHPStan level max (no
 baseline or suppressions), PER-CS 3.1, whitespace, fail-closed Composer audit,
 workflow lint, Unit, and Golden. It does not run either dependency-resolution
-matrix. With `--with-integration` it additionally runs MySQL readiness, the
-real-MySQL Integration suite twice, and the two-run Consumer Verification
-Harness.
+matrix. With `--with-integration` it additionally runs the real-MySQL
+Integration suite twice, the two-run Consumer Verification Harness, and the
+standalone-example smoke gate. Each invocation provisions and tears down its
+own disposable Compose state.
 
 ## Test and Integration requirements
 

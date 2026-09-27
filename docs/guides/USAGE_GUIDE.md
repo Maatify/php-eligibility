@@ -583,6 +583,13 @@ database-free typed validation example.
 
 ## Runnable examples
 
+Manual database-backed examples intentionally emit `SKIP:` when their explicit
+local `ELIGIBILITY_DB_*` environment is absent or unsafe. The maintained
+`composer test:examples` smoke gate provisions the canonical disposable
+environment, runs every discovered standalone `examples/*.php` process, and
+treats an unexpected `SKIP:` as a failure. It shares the same Compose lifecycle
+as Integration and the Consumer Harness.
+
 | Example | Demonstrates |
 |---|---|
 | [`basic-evaluation.php`](../../examples/basic-evaluation.php) | PDO wiring, one Rule, and one Subject decision. |
